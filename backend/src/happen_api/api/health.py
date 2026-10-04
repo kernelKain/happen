@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from happen_api import __version__
+from happen_api.ai.quality import ModelQuality, model_quality
 from happen_api.catalog import (
     CANONICAL_PRESET,
     CATEGORIES,
@@ -37,6 +38,9 @@ class HealthResponse(BaseModel):
     service_version: str
     contract_version: str
     model_status: ModelStatus
+    artifact_status: ModelStatus
+    model_quality: ModelQuality
+    model_claims_enabled: bool
     fixture_status: FixtureStatus
     uptime_seconds: float = Field(ge=0)
 
@@ -65,21 +69,25 @@ class MetaResponse(BaseModel):
     fixture_available: bool
     live_available: bool
     model_status: ModelStatus
+    artifact_status: ModelStatus
+    model_quality: ModelQuality
+    model_claims_enabled: bool
     scoring_policy_version: str
     timezone: str
 
 
 def dependency_status(
     settings: Settings,
-) -> tuple[Literal["ok", "degraded"], ModelStatus, FixtureStatus, bool]:
-    """Report file readiness without loading the Gemma runtime."""
+) -> tuple[Literal["ok", "degraded"], ModelStatus, ModelQuality, bool, FixtureStatus, bool]:
+    """Report artifact integrity and measured quality without loading Gemma."""
 
     model_status = model_artifact_status(settings)
+    quality, claims_enabled = model_quality(settings)
     fixture_status, fixture_available = captured_fixture_status()
     status: Literal["ok", "degraded"] = (
         "ok" if model_status == "ready" and fixture_status == "ready" else "degraded"
     )
-    return status, model_status, fixture_status, fixture_available
+    return status, model_status, quality, claims_enabled, fixture_status, fixture_available
 
 
 @router.get("/healthz", response_model=HealthResponse)
@@ -87,13 +95,18 @@ def health(request: Request) -> HealthResponse:
     """Return process health and uptime without loading the Gemma runtime."""
 
     settings: Settings = request.app.state.settings
-    status, model_status, fixture_status, _fixture_available = dependency_status(settings)
+    status, model_status, quality, claims_enabled, fixture_status, _fixture_available = (
+        dependency_status(settings)
+    )
     uptime = time.monotonic() - request.app.state.started_at
     return HealthResponse(
         status=status,
         service_version=__version__,
         contract_version=CONTRACT_VERSION,
         model_status=model_status,
+        artifact_status=model_status,
+        model_quality=quality,
+        model_claims_enabled=claims_enabled,
         fixture_status=fixture_status,
         uptime_seconds=round(max(uptime, 0), 3),
     )
@@ -104,7 +117,7 @@ def meta(request: Request) -> MetaResponse:
     """Return supported planner choices, the preset, and configured service availability."""
 
     settings: Settings = request.app.state.settings
-    _, model_status, _, fixture_available = dependency_status(settings)
+    _, model_status, quality, claims_enabled, _, fixture_available = dependency_status(settings)
     return MetaResponse(
         contract_version=CONTRACT_VERSION,
         service_version=__version__,
@@ -116,6 +129,9 @@ def meta(request: Request) -> MetaResponse:
         fixture_available=fixture_available,
         live_available=settings.live_configured,
         model_status=model_status,
+        artifact_status=model_status,
+        model_quality=quality,
+        model_claims_enabled=claims_enabled,
         scoring_policy_version=SCORING_POLICY_VERSION,
         timezone=TIMEZONE,
     )

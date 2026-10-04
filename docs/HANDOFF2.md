@@ -8,7 +8,9 @@ This is the running notebook for the build. A new chat must read this file befor
 
 The current branch is `global-live-experience`. The current work is the Global Live Experience redesign. Section 30 of `docs/HANDOFF.md` is the approved contract: a global, prompt-led, live evening planner, one evening, at most two stops, SerpApi as the only external place and supporting-web source, Python validation and selection, and live retrieval only. Captured fixtures stay test data.
 
-The planning records, a deterministic prompt parser, and destination resolution are in `backend/src/happen_api/planning/`. A prompt becomes a brief with at most one follow-up. Relative dates stay pending until a destination timezone is known. Destination resolution uses the existing SerpApi client: the free Locations API first, then at most one billed Maps lookup when coordinates are still missing. That lookup shares the eight-request plan budget. Timezones come from coordinates through `timezonefinder` offline, and date arithmetic uses `zoneinfo`. The parser does not load Gemma. The existing v1 recommendation API is unchanged, and the running page is still the earlier Indiranagar planner. This step is not on a user-facing route.
+The planning records, a deterministic prompt parser, and destination resolution are in `backend/src/happen_api/planning/`. A prompt becomes a brief with at most one follow-up. Relative dates stay pending until a destination timezone is known. Destination resolution uses the existing SerpApi client: the free Locations API first, then at most one billed Maps lookup when coordinates are still missing. That lookup shares the eight-request plan budget. Timezones come from coordinates through `timezonefinder` offline, and date arithmetic uses `zoneinfo`. The parser does not load Gemma.
+
+Local Gemma was measured and missed the planning and review gates. Model claims stay off. Find the moment still scores the captured fixture, and it does not load Gemma while claims are off. The deterministic parser remains the planning reader. The brief is not on a user-facing route yet.
 
 `global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
 
@@ -17,8 +19,8 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. Destination resolution is in place. Live retrieval and the user-facing flow are not. |
-| Last finished step | Resolve destinations in their local time |
+| Phase complete | No. Destination resolution is in place. The model quality gate failed, so claims stay off. Live retrieval and the user-facing flow are not. |
+| Last finished step | Measure local model quality for planning |
 | Next step | Serve the brief, one follow-up, and a resolved destination without a fixture fallback. |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -42,7 +44,7 @@ Still open from the walking skeleton, and not the current step:
 
 ## How to run what exists today
 
-The page can be opened. The API serves health, metadata, `POST /api/v1/demo-recommendations`, and `POST /api/v1/recommendations`. Metadata reports the captured fixture as available. The model status is `ready` only when the pinned GGUF is present and its checksum matches; otherwise it is `not_loaded` or `unavailable`, and health stays `degraded`. **Find the moment** scores the captured Indiranagar fixture when live mode is off. When live mode is on, it calls SerpApi and does not switch to the fixture unless you choose **Use captured evidence**. The model loads on the first request. That first captured request can take about half a minute, so the page waits up to 90 seconds for it. A real submit currently returns three timelines and no winner. The labeled winner layout is at `http://127.0.0.1:5173/?layout=sample` while the dev server is running. That sample is not a scored visit.
+The page can be opened. The API serves health, metadata, `POST /api/v1/demo-recommendations`, and `POST /api/v1/recommendations`. Metadata reports the captured fixture as available. `model_status` is file integrity: `ready` when the pinned GGUF is present and its checksum matches, otherwise `not_loaded` or `unavailable`. `model_quality` and `model_claims_enabled` are separate. The checked-in report marks the pinned 270M artifact `failed` and leaves claims off. Overall health stays `ok` when the file and the captured fixture are both ready. **Find the moment** scores the captured Indiranagar fixture when live mode is off, without loading Gemma. When live mode is on, it calls SerpApi and does not switch to the fixture unless you choose **Use captured evidence**. A real submit currently returns three timelines and no winner. The labeled winner layout is at `http://127.0.0.1:5173/?layout=sample` while the dev server is running. That sample is not a scored visit.
 
 Frontend, from the repository root:
 
@@ -62,7 +64,7 @@ uv sync
 uv run uvicorn happen_api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000/healthz` and `http://127.0.0.1:8000/api/v1/meta`. Health returns HTTP 200. `fixture_status` is `ready` and `fixture_available` is true when the captured Indiranagar fixture verifies. `model_status` is `ready` when `ml/.cache/google_gemma-3-270m-it-Q4_K_M.gguf` matches the manifest checksum, and `not_loaded` when that file is absent. Overall `status` is `ok` only when both are ready. Neither response includes a secret. Stop the server with Ctrl+C.
+Open `http://127.0.0.1:8000/healthz` and `http://127.0.0.1:8000/api/v1/meta`. Health returns HTTP 200. `fixture_status` is `ready` and `fixture_available` is true when the captured Indiranagar fixture verifies. `model_status` is `ready` when `ml/.cache/google_gemma-3-270m-it-Q4_K_M.gguf` matches the manifest checksum, and `not_loaded` when that file is absent. `model_quality` is `failed` for that pinned checksum because `ml/reports/model-quality.json` records a missed gate, and `model_claims_enabled` is false. A different checksum is `unmeasured` and also leaves claims off. Overall `status` is `ok` only when the artifact and the fixture are ready. Neither response includes a secret. Stop the server with Ctrl+C.
 
 Checks:
 
@@ -104,8 +106,8 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Destinations resolve through SerpApi in tests, with local time after the timezone is known. The v1 API and the Indiranagar page are unchanged. Live retrieval has not started. |
-| Last finished step | Resolve destinations in their local time |
+| Status | Destinations resolve through SerpApi in tests. The local model gate failed, so Gemma claims stay off and the deterministic parser remains the reader. Live retrieval has not started. |
+| Last finished step | Measure local model quality for planning |
 | Next step | Serve the brief, one follow-up, and a resolved destination without a fixture fallback. |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
@@ -805,3 +807,4 @@ Your side:
 | Global live planning contract | Recorded | `Update the contract for global live planning.` | Nothing for that record. |
 | Planning prompt parser | Done. v1 API unchanged. No SerpApi or Gemma call. | `Parse planning prompts into structured briefs.` | Nothing. Do not push. |
 | Destination resolution | Done. Not on a user-facing route. Provider calls are mocked in tests. | `Resolve destinations in their local time.` | Nothing. Do not push. |
+| Local model quality | Done. Both measured models missed a gate. Claims stay off. | `Measure local model quality for planning.` | Nothing. Do not push. Do not commit a GGUF. |

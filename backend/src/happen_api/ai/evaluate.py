@@ -28,41 +28,68 @@ from happen_api.domain.timing import KOLKATA
 _REPORT_PATH = EXTRACTION_DIR.parent / "reports" / "baseline-270m.json"
 
 
+def score_held_out(settings: object | None = None) -> dict[str, object]:
+    """Score the held-out extraction set with the installed model."""
+
+    from happen_api.config import Settings as RuntimeSettings
+
+    resolved = settings if isinstance(settings, RuntimeSettings) else get_settings()
+    examples = held_out_examples()
+    correct = 0
+    parsed = 0
+    rows: list[dict[str, object]] = []
+    for example in examples:
+        result = extract_excerpt(_excerpt(example.example_id, example.text), settings=resolved)
+        predicted = (
+            {}
+            if result.malformed
+            else {signal.dimension: signal.polarity for signal in result.signals}
+        )
+        got = 0 if result.malformed else pair_correct(example, predicted)
+        correct += got
+        parsed += int(not result.malformed)
+        rows.append(
+            {
+                "example_id": example.example_id,
+                "kind": example.kind,
+                "malformed": result.malformed,
+                "parse_attempt": result.parse_attempt,
+                "correct_pairs": got,
+            }
+        )
+    pair_count = len(examples) * len(Dimension)
+    parse_rate = parsed / len(examples)
+    accuracy = correct / pair_count
+    return {
+        "held_out_count": len(examples),
+        "parsed_count": parsed,
+        "parse_rate": round(parse_rate, 4),
+        "correct_pairs": correct,
+        "pair_count": pair_count,
+        "dimension_polarity_accuracy": round(accuracy, 4),
+        "schema_gate": parse_rate >= 0.95,
+        "review_gate": accuracy >= 0.80,
+        "examples": rows,
+    }
+
+
 def main() -> int:
     """Run the held-out baseline and print the parse rate and accuracy."""
 
     settings = get_settings()
     train_path, held_path = write_jsonl()
-    examples = held_out_examples()
-    correct = 0
-    parsed = 0
-    rows: list[dict[str, object]] = []
     try:
-        for example in examples:
-            result = extract_excerpt(_excerpt(example.example_id, example.text), settings=settings)
-            predicted = (
-                {}
-                if result.malformed
-                else {signal.dimension: signal.polarity for signal in result.signals}
-            )
-            got = 0 if result.malformed else pair_correct(example, predicted)
-            correct += got
-            parsed += int(not result.malformed)
-            rows.append(
-                {
-                    "example_id": example.example_id,
-                    "kind": example.kind,
-                    "malformed": result.malformed,
-                    "parse_attempt": result.parse_attempt,
-                    "correct_pairs": got,
-                }
-            )
+        scored = score_held_out(settings)
     except ExtractionError as exc:
         print(exc.code)
         return 1
-    pair_count = len(examples) * len(Dimension)
-    parse_rate = parsed / len(examples)
-    accuracy = correct / pair_count
+    parsed = int(scored["parsed_count"])
+    correct = int(scored["correct_pairs"])
+    pair_count = int(scored["pair_count"])
+    parse_rate = float(scored["parse_rate"])
+    accuracy = float(scored["dimension_polarity_accuracy"])
+    rows = scored["examples"]
+    examples_count = int(scored["held_out_count"])
     report = {
         "report_version": "1",
         "created_on": datetime.now(KOLKATA).date().isoformat(),
@@ -79,7 +106,7 @@ def main() -> int:
         },
         "train_sha256": _sha256(train_path),
         "held_out_sha256": _sha256(held_path),
-        "held_out_count": len(examples),
+        "held_out_count": examples_count,
         "parsed_count": parsed,
         "parse_rate": round(parse_rate, 4),
         "correct_pairs": correct,
@@ -98,7 +125,7 @@ def main() -> int:
     _REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     _REPORT_PATH.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(
-        f"Held-out {len(examples)}. Parse rate {parse_rate:.1%}. "
+        f"Held-out {examples_count}. Parse rate {parse_rate:.1%}. "
         f"Dimension-plus-polarity accuracy {accuracy:.1%}. "
         f"Selected artifact untuned_270m."
     )

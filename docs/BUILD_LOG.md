@@ -602,3 +602,28 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The IANA timezone comes from `timezonefinder` and the coordinates. `zoneinfo` handles the civil date and wall time. A missing zone, a missing coordinate pair, an unsupported place, a DST gap, and an ambiguous local time each stay explicit.
 - `today`, `tonight`, `tomorrow`, a weekday, `next` weekday, and `weekend` stay unresolved on the brief until that timezone exists.
 
+## Measure local model quality for planning
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: The pinned Gemma 3 270M artifact and a verified Gemma 3 1B Q4_K_M candidate both missed the selection gates. The fallback is the deterministic parser. Model claims stay off. The manifest and download script still point at the 270M file.
+- Product behavior changed: yes, for Find the moment. A failed gate skips Gemma instead of loading it. Deterministic scoring still runs. The captured fixture still returns no winner.
+- Cost changed: no. No SerpApi request was made, and no hosted model API was called.
+
+### Evidence
+
+- The preserved review baseline stays in `ml/reports/baseline-270m.json`: 30 held-out excerpts, parse rate 0.0667, dimension-plus-polarity accuracy 0.0444. A fresh 270M review run matched those rates: 2 of 30 parsed, 4 of 90 pairs correct.
+- Planning evaluation uses 24 synthetic prompts in `backend/src/happen_api/ai/planning_dataset.py`. A reply may use one markdown fence. The JSON object must match the preference schema, and a winner, place, or score field fails. Relative dates stay null.
+- 270M planning: parse rate 0.9167 (22 of 24), essential-field accuracy 0.6667 (64 of 96). File size 253115168 bytes. Load 0.932 seconds. Median inference 2.327 seconds. Peak RSS 724475904 bytes.
+- The 1B candidate is `bartowski/google_gemma-3-1b-it-GGUF` revision `116f76234503685a98f572982177b11d44ec8ff1`, filename `google_gemma-3-1b-it-Q4_K_M.gguf`, sha256 `12bf0fff8815d5f73a3c9b586bd8fee8e7b248c935de70dec367679873d0f29d`, size 806058496 bytes. The local file matched that checksum. No Hugging Face token was required.
+- 1B planning: parse rate 1.0, essential-field accuracy 0.7917 (76 of 96). Review: parse rate 1.0, dimension-plus-polarity accuracy 0.6778 (61 of 90). Load 0.693 seconds. Peak RSS 1273331712 bytes, under the 1717986918 byte budget for the 1c-2g plan. It fits memory and still misses the 90% planning and 80% review gates.
+- Gates are 95% schema parsing, 90% essential planning fields, and 80% review dimension-plus-polarity. `claims_enabled` is false. `selected_fallback` is `deterministic_parser`.
+- Report: `ml/reports/model-quality.json`. It stores ids and scores, not prompts, raw completions, or provider payloads. The GGUF files stay in ignored `ml/.cache/`.
+- Health `model_status` remains checksum integrity. `model_quality` is `failed` for the pinned checksum and `unmeasured` for any other checksum. `model_claims_enabled` is false in both cases.
+
+### Decisions
+
+- Do not replace the 270M manifest. The 1B file is verified and fits the memory budget, and it is not selected because the quality gates failed.
+- Gemma may propose structured preferences only. With claims off, that proposer returns nothing. It does not choose a place or bypass validation.
+- Tests mock inference and do not need a GGUF file.
+

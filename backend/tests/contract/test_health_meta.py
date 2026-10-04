@@ -30,6 +30,9 @@ HEALTH_FIELDS = {
     "service_version",
     "contract_version",
     "model_status",
+    "artifact_status",
+    "model_quality",
+    "model_claims_enabled",
     "fixture_status",
     "uptime_seconds",
 }
@@ -44,6 +47,9 @@ META_FIELDS = {
     "fixture_available",
     "live_available",
     "model_status",
+    "artifact_status",
+    "model_quality",
+    "model_claims_enabled",
     "scoring_policy_version",
     "timezone",
 }
@@ -77,6 +83,9 @@ def test_health_is_degraded_without_loading_the_model(
     assert body["service_version"] == __version__
     assert body["contract_version"] == CONTRACT_VERSION
     assert body["model_status"] == "not_loaded"
+    assert body["artifact_status"] == "not_loaded"
+    assert body["model_quality"] == "failed"
+    assert body["model_claims_enabled"] is False
     assert body["fixture_status"] == "ready"
     assert body["uptime_seconds"] >= 0
     assert response.headers["x-content-type-options"] == "nosniff"
@@ -102,6 +111,9 @@ def test_matching_model_file_is_ready_without_loading_llama(
     body = response.json()
     assert response.status_code == 200
     assert body["model_status"] == "ready"
+    assert body["artifact_status"] == "ready"
+    assert body["model_quality"] == "unmeasured"
+    assert body["model_claims_enabled"] is False
     assert body["fixture_status"] == "ready"
     assert body["status"] == "ok"
     assert "llama_cpp" not in sys.modules
@@ -140,6 +152,8 @@ def test_metadata_exposes_the_canonical_preset(
     assert body["fixture_available"] is True
     assert body["live_available"] is False
     assert body["model_status"] == "not_loaded"
+    assert body["artifact_status"] == "not_loaded"
+    assert body["model_claims_enabled"] is False
     assert body["scoring_policy_version"] == SCORING_POLICY_VERSION
     assert body["timezone"] == "Asia/Kolkata"
     assert body["contract_version"] == CONTRACT_VERSION
