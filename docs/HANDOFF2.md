@@ -21,9 +21,9 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Align public claims with measured behavior. |
-| Next step | user manual test of one evening |
+| Phase complete | No. The twelve audit repairs are verified by automation. The model quality gate failed, so claims stay off. |
+| Last finished step | Verify the repaired global planner. |
+| Next step | independent repair audit |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
@@ -109,8 +109,8 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Python scores party size, budget, preferences, and accessibility from retrieved evidence. Unknown evidence adds nothing. Gemma claims stay off. |
-| Last finished step | Align public claims with measured behavior. |
-| Next step | user manual test of one evening |
+| Last finished step | Verify the repaired global planner. |
+| Next step | independent repair audit |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -955,6 +955,79 @@ Your side:
 
 | Evidence provenance | Done. Every displayed claim carries its kind, field, safe URL, match method, and verification state. Official evidence is no longer filed as community. | `Preserve evidence provenance and useful review signals.` | Manual test of one evening. Do not push. Do not deploy. |
 
+## Verification of the audit repairs
+
+Final automated verification across `a679660..HEAD`. Nothing was deployed.
+
+### The twelve audit failures, reproduced
+
+| # | Original failure | Result now |
+|---|---|---|
+| 1 | Lowercase Amsterdam did not parse | `amsterdam` parsed |
+| 2 | São Paulo did not parse | `são paulo` parsed |
+| 3 | Ho Chi Minh City was truncated | `ho chi minh city` intact |
+| 4 | `6:00 PM–11:00 PM` was not recognized | Monday open, Wednesday closed, Friday `6 PM–12 AM` open at 19:00 |
+| 5 | Only the first provider result could win | Loud Room first, `quiet` selects Quiet Room |
+| 6 | Constraints did not reach scoring | budget, party size, accessibility, preferences each change the score |
+| 7 | "Make it quieter" did not recompute | rescore from cache, 0 new billed requests |
+| 8 | Official evidence was filed as community | official stays official and keeps its safe URL |
+| 9 | Reviews were fetched needlessly | reviews skipped unless a constraint needs them |
+| 10 | A caller could reset the allowance | `prior_billed_requests` is a 422; repeated calls do not raise the budget |
+| 11 | A forged token reached the provider | 403 `PLAN_TOKEN_INVALID`, zero provider calls |
+| 12 | Copy claimed Gemma reads the request | corrected and guarded by tests |
+
+### Commands and results
+
+| Command | Result |
+|---|---|
+| `uv sync` | Resolved 51, checked 49 packages |
+| `ruff format --check src tests ../scripts/scan-secrets.py` | 84 files already formatted, exit 0 |
+| `ruff check src tests ../scripts/scan-secrets.py` | All checks passed |
+| `uv run pytest` | **404 passed** in 9.56s |
+| `python3 scripts/scan-secrets.py` | exit 0 |
+| `git diff --check a679660..HEAD` | exit 0, no whitespace errors |
+| `git ls-files '*.gguf'` | 0 files |
+| `npm ci` | 0 vulnerabilities |
+| `npm run check` | 36 files, no fixes needed |
+| `npm test` | **50 passed** |
+| `npm run build` | built in 320ms |
+| `npm run test:shell` | **15 passed** |
+
+### Bounded Jaipur live smoke
+
+One run, one server-issued plan token, 43 characters long.
+
+- Destination resolution: HTTP 200, `Asia/Kolkata`, 0 billed requests. The free
+  Locations API resolved the city without a paid lookup.
+- Plan: HTTP 200, outcome `planned`, **3 billed requests** of 8.
+- **5 candidates compared**, 1 selected. Selection was not the first result.
+- Hours evaluated on the selected stop: `open`. Sources seen: 3 Maps, 1 official.
+- Cached rescore with an added preference: 0 new billed requests.
+
+No raw payload, review text, phone number, or key was printed. The temporary
+smoke script was deleted after the run and is not tracked.
+
+### Known limitations
+
+These are unchanged and still true.
+
+- **The allowance store is process-local.** 512 tokens, 30-minute TTL. A restart
+  clears every allowance. A second worker would hold its own copy, so the
+  effective ceiling is eight per worker, not eight overall.
+- **`quiet` stayed `unknown` in the live smoke.** Jaipur evidence did not verify
+  it. That is the correct outcome, not a failure: unknown evidence adds nothing
+  and no stop is presented as verified without a source.
+- **Price was absent** on the selected live place, so budget stayed unknown.
+- **No model runs in the customer path.** The pinned Gemma artifact remains
+  measured, gated, and disabled.
+- **This branch is not deployed** and has never been pushed.
+- Travel time between stops stays unverified until a source states it.
+
+### Next action
+
+**Independent repair audit.** Not deployment, not manual testing.
+
+
 ## Public claims and measured behavior
 
 Every shipped sentence about the model now matches `ml/reports/model-quality.json`.
@@ -1069,3 +1142,5 @@ and keeps no counter of its own.
 | Server-side plan budgets | Done. A prompt issues an opaque token. Both billed routes require it, atomic claims stop concurrent requests from jointly exceeding eight, and the caller no longer reports its own count. | `Enforce plan budgets on the server.` | Manual test of one evening. Do not push. Do not deploy. |
 
 | Public claims aligned | Done. The landing, README, metadata, and submission guidance match the measured report. The model is described as measured and disabled. | `Align public claims with measured behavior.` | Read the README once more. Do not push. Do not deploy. |
+
+| Repairs verified | Done. All twelve audit failures reproduced as fixed. 404 backend, 50 frontend, 15 shell tests pass. One bounded Jaipur smoke spent 3 of 8 billed requests and compared 5 candidates. | `Verify the repaired global planner.` | Independent repair audit. Do not push. Do not deploy. |

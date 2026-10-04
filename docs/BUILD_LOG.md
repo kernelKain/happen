@@ -1141,3 +1141,91 @@ scope for this step. `ml/reports/model-quality.json` is untouched.
 - `backend/tests/unit/test_public_claims.py` scans the shipped README, landing
   copy, and docs for banned claims. Verified it fails when the false sentence is
   reintroduced, then reverted.
+
+## Verify the repaired global planner
+
+Final automated verification of `a679660..HEAD`. No feature was added.
+
+### The twelve audit failures, each reproduced then shown fixed
+
+1. `dinner in amsterdam tomorrow at 7pm` -> `amsterdam`.
+2. `dinner in são paulo tomorrow at 7pm` -> `são paulo`.
+3. `dinner in ho chi minh city tomorrow at 7pm` -> `ho chi minh city`, not
+   truncated at three words. `Washington, D.C.` also survives intact.
+4. `normalize_hours` on a realistic SerpApi week: Monday `6:00 PM–11:00 PM`
+   open at 19:00, Wednesday `Closed` closed, Friday `6:00 PM–12:00 AM` open. The
+   en-dash and the midnight-crossing range both parse.
+5. A two-candidate provider returns Loud Room first (4.4) and Quiet Room second
+   (4.3). Without a preference Loud Room wins; with `quiet`, Quiet Room wins.
+6. Each constraint family moves the score when evidence exists. `at_most $40`:
+   a `USD 20` place scores 4, a `USD 90` place scores 0. `$` vs a low tier scores
+   4, `$$` scores 0. Party size: seats 12 with a party of 6 is `met`, with no
+   capacity evidence it is `unknown`. Accessibility: stated access is `met`, a
+   stated contradiction is `unmet` and blocks selection, no statement is
+   `unknown` and does not block.
+7. "Make it quieter" reselects Quiet Room from the cached pool with 0 new billed
+   requests.
+8. 27 provenance tests pass. An official-domain result stays `official` and its
+   exact safe URL reaches the stop. Ten hostile URLs are dropped while the text is
+   kept.
+9. Reviews are requested only when a requested constraint is still unverified.
+   Three cases cover skipping.
+10. `prior_billed_requests` is a 422 `INVALID_INPUT`. A body declaring zero does
+    not change the stored spend. Three further direct calls leave a seeded
+    allowance at spent 6, remaining 2.
+11. Forged tokens return 403 `PLAN_TOKEN_INVALID` with zero provider calls;
+    malformed ones return 422.
+12. The false sentence is gone and guarded by both a frontend assertion and a
+    repository scan.
+
+### Commands
+
+| Command | Result |
+|---|---|
+| `uv sync` | Resolved 51, checked 49 |
+| `ruff format --check src tests ../scripts/scan-secrets.py` | 84 files already formatted |
+| `ruff check src tests ../scripts/scan-secrets.py` | All checks passed |
+| `uv run pytest` | 404 passed, 9.56s |
+| `python3 scripts/scan-secrets.py` | exit 0 |
+| `git diff --check a679660..HEAD` | exit 0 |
+| `git ls-files '*.gguf'` | 0 |
+| `npm ci` | 0 vulnerabilities |
+| `npm run check` | 36 files clean |
+| `npm test` | 50 passed |
+| `npm run build` | built in 320ms |
+| `npm run test:shell` | 15 passed |
+
+### Bounded Jaipur live smoke
+
+The key was present in the ignored `.env` but `HAPPEN_LIVE_ENABLED` was unset, so
+live mode had to be switched on for the run only. One server-issued token, 43
+characters, used for every call.
+
+- Resolve: HTTP 200, `Asia/Kolkata`, **0 billed requests**. The free Locations
+  API answered; no paid fallback was needed.
+- Plan: HTTP 200, `planned`, **3 billed requests of 8**.
+- **5 candidates compared**, 1 selected, so ranking was exercised rather than
+  taking the first row.
+- Selected stop hours evaluated as `open` from real provider text. Evidence
+  sources: 3 Maps, 1 official.
+- Cached rescore with an extra preference: 0 new billed requests.
+
+Only counts, statuses, and non-identifying attributes were printed. The temporary
+script was deleted and is not tracked.
+
+Two live outcomes are worth recording as correct rather than as bugs: `quiet`
+came back `unknown` because Jaipur evidence did not verify it, and `price` was
+absent so budget stayed `unknown`. Unknown evidence adding nothing is the
+designed behaviour.
+
+### Known limitations, unchanged
+
+- The allowance store is process-local: 512 entries, 30-minute TTL, cleared on
+  restart. A second worker means eight per worker, not eight overall.
+- The branch is not deployed and has never been pushed.
+- Travel time between stops is unverified until a source states it.
+- No model runs in the customer path; the pinned artifact stays disabled.
+
+### Next action
+
+Independent repair audit.
