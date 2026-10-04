@@ -6,17 +6,19 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-Find the moment is connected to the synthetic fixture endpoint on `fixture-hook`. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. Scoring, the synthetic fixture, extraction, and the demo recommendation API are already committed. The public Render URL is still missing, and that remains your step.
+Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. The bounded SerpApi client is implemented and tested with fake HTTP. The page does not call it, and no live search was spent. The public Render URL is still missing.
+
+`docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
 
 | | |
 |---|---|
-| Current phase | Fixture vertical slice |
-| Phase complete | No. The local steps are done. This phase stays open until you check the page. |
-| Last finished step | Prove the fixture Hook end to end |
-| Next step | Your local check, then the bounded SerpApi client |
-| Branch | `fixture-hook` |
-| Pull request | https://github.com/kernelKain/happen/pull/4 merged the walking skeleton into `main` at `6b0f3c5`. This branch has no pull request yet. |
-| Remote | `origin/main` is still at `6b0f3c5`. This branch adds scoring, the synthetic fixture, extraction, and the demo recommendation API. |
+| Current phase | Live sponsor Hook |
+| Phase complete | No |
+| Last finished step | Implement bounded SerpApi client |
+| Next step | Normalize and select candidates |
+| Branch | `live-sponsor` |
+| Pull request | https://github.com/kernelKain/happen/pull/5 merged the fixture Hook into `main` at `b5cf7da`. This branch has no pull request yet. |
+| Remote | `origin/main` is at `b5cf7da`. This branch adds the bounded SerpApi client. |
 | Live URL | Not deployed |
 
 Still open from the walking skeleton, and not a blocker for local scoring:
@@ -98,13 +100,13 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the synthetic fixture. A real submit shows three timelines and no winner. The public URL is still not deployed. |
-| Last finished step | Prove the fixture Hook end to end |
-| Next step | Your local check, then the bounded SerpApi client |
-| Branch | `fixture-hook` |
+| Status | Find the moment scores the synthetic fixture. The SerpApi client is tested with fake HTTP and is not wired to the page. The public URL is still not deployed. |
+| Last finished step | Implement bounded SerpApi client |
+| Next step | Normalize and select candidates |
+| Branch | `live-sponsor` |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | Render services are still not created. Local fixture work can continue. |
+| Biggest blocker | Render services are still not created. Local SerpApi client work can continue without them. |
 
 ## How branches and commits work
 
@@ -413,7 +415,7 @@ Your side after this step:
 1. The API is on `http://127.0.0.1:8000` and the page is on `http://127.0.0.1:5173`. If either has stopped, start them with the commands above.
 2. Load `http://127.0.0.1:5173/` fresh, submit the Indiranagar dinner preset, and confirm three timelines and “No moment selected.” This path does not show a recommended winner.
 3. The winner layout is still the labeled sample at `http://127.0.0.1:5173/?layout=sample`.
-4. Say what you saw. Do not continue to live SerpApi until this check is done.
+4. Say what you saw if you try it. The next backend step uses fake HTTP, so this check does not block it.
 
 ---
 
@@ -425,11 +427,13 @@ Goal: one real SerpApi run, a sanitized fixture, and a checked Gemma path. Plann
 
 ### Implement bounded SerpApi client
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor adds search, place, and review calls with redaction, deadlines, one retry, and credit counting. Tests use fake HTTP, not your live key.
+The client sends search, place, and review calls to `https://serpapi.com/search.json`. One client is one recommendation: 7 attempts and 14 seconds, with 8 seconds as the cap for a single attempt. Connection failures, timeouts, and HTTP 5xx retry once. Other 4xx responses, including HTTP 429, do not. An authentication failure or a monthly quota error disables later calls on that client. Returned documents, errors, and logs omit the API key. Redirects are not followed.
 
-Your side after Cursor finishes: nothing unless the notes say the local key is still missing.
+`uv run pytest` passed, 97 tests. Ruff format and lint passed for the new files. The secret scan reported nothing. No live search was spent.
+
+Your side after this step: nothing. The page is unchanged. Normalization is next.
 
 ### Normalize and select candidates
 
@@ -735,10 +739,11 @@ Your side:
 | Gemma extraction and validation | Done | `Score synthetic fixture evidence through validated extraction.` | Nothing. No accepted quote to review. |
 | Fixture recommendation API | Done | `Score synthetic fixture evidence through validated extraction.` | Nothing. |
 | Planner, matrix, and evidence UI | Done | `Show the synthetic fixture result from Find the moment.` | Nothing unless the sample looks wrong. |
-| Prove the fixture Hook end to end | Done | `Show the synthetic fixture result from Find the moment.` | Load the local page and confirm three timelines and no winner. |
+| Prove the fixture Hook end to end | Done | `Show the synthetic fixture result from Find the moment.` | Optional: load the local page and confirm three timelines and no winner. |
 | Scoring, fixtures, extraction, and fixture API | Local fixture steps are done | — | Nothing unless a note asks. |
 | Matrix UI and fixture Hook proof | Done | `Show the synthetic fixture result from Find the moment.` | Same local check as the fixture Hook proof. |
-| SerpApi client, normalization, and live orchestration | Not started | — | Nothing unless the key is missing. |
+| Bounded SerpApi client | Done | `Add a bounded SerpApi client with retries and key redaction.` | Nothing. |
+| Normalization and live orchestration | Not started | — | Nothing unless the key is missing. |
 | Capture and verify canonical fixture | Not started | — | Approve the live capture, then skim the fixture. |
 | Evaluate and optionally tune Gemma | Not started | — | Colab T4, then read the scores. |
 | Deploy and smoke the sponsor slice | Not started | — | Deploy and open the public URL. |

@@ -350,3 +350,24 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The winner characterization is a mocked response. The installed model is not replaced with precomputed spans.
 - The client timeout is 30 seconds. The measured cold request finished in 13.9 seconds.
 
+## Bounded SerpApi client
+
+- Date: 2026-10-04
+- Queue step: P3.1
+- Result: Search, place, and review calls are implemented behind fake HTTP. No live SerpApi request was sent.
+- Product behavior changed: no. The page still uses the synthetic fixture.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src/happen_api/providers` and `backend/tests/unit/test_serpapi_client.py`.
+- `uv run pytest` passed, 97 tests.
+- `python3 scripts/scan-secrets.py --extra backend/src/happen_api/providers --extra backend/tests/unit/test_serpapi_client.py` reported nothing.
+
+### Decisions
+
+- One client instance is one recommendation, with a 7-attempt credit budget and a 14-second shared deadline.
+- HTTP 429 is not retried. Monthly quota language disables later calls on that client. A 429 without that language stays transient and does not disable live mode.
+- Provider phone numbers and review identities stay in the redacted payload until normalization. Credential fields and echoed key values are removed now.
+- Progress stays in this log and `docs/HANDOFF2.md`. `docs/HANDOFF.md` stays the locked plan.
+
