@@ -10,10 +10,10 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | P0 in progress |
-| Last finished step | P1.1 — Scaffold the locked monorepo |
-| Next step | P1.2 — Build health, metadata, and safe config |
-| Branch | `phase/p1-walking-skeleton` |
+| Status | Walking skeleton started |
+| Last finished step | Scaffold the locked monorepo |
+| Next step | Build health, metadata, and safe config |
+| Branch | `walking-skeleton` |
 | Live URL | Not deployed |
 | Spend | $0 |
 | Biggest blocker | None for the next build step. Do not leave a paid Render service running after judging. |
@@ -22,23 +22,23 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 You asked for this on October 4, 2026. It replaces the earlier single-branch, no-commit rule for the coding agent.
 
-- One branch per phase, created when that phase starts.
-- One commit per step. The message is one plain sentence. It does not include a phase name or a step id.
+- One branch per phase, created when that phase starts. Branch names do not use phase or step numbers.
+- One commit per step. The message is one plain sentence. Commit messages and code comments do not use phase or step numbers.
 - `docs/HANDOFF.md` and `docs/HANDOFF2.md` stay in git so the process is public.
 - Secrets, `.env`, model binaries, and raw provider payloads stay ignored.
 - Cursor does not push, merge, deploy, or publish unless you explicitly ask.
 
 | Phase | Branch | When it is created |
 |---|---|---|
-| P0 Prove access | `phase/p0-prove-access` | Created for P0.1 |
-| P1 Walking skeleton | `phase/p1-walking-skeleton` | At P1.1 |
-| P2 Fixture Hook | `phase/p2-fixture-hook` | At P2.1 |
-| P3 Live sponsor Hook | `phase/p3-live-sponsor` | At P3.1 |
-| P4 Demo experience | `phase/p4-demo-experience` | At P4.1 |
-| P5 Harden and freeze | `phase/p5-harden-freeze` | At P5.1 |
-| P6 Production release | `phase/p6-production` | At P6.1 |
-| P7 Submission evidence | `phase/p7-submission` | At P7.1 |
-| P8 Submit and buffer | `phase/p8-submit` | At P8.1 |
+| Prove access | `prove-access` | Created when access checks started |
+| Walking skeleton | `walking-skeleton` | Created for the scaffold |
+| Fixture Hook | `fixture-hook` | Created when fixture work starts |
+| Live sponsor Hook | `live-sponsor` | Created when live sponsor work starts |
+| Demo experience | `demo-experience` | Created when the demo polish starts |
+| Harden and freeze | `harden-freeze` | Created when hardening starts |
+| Production release | `production` | Created when production work starts |
+| Submission evidence | `submission` | Created when submission writing starts |
+| Submit and buffer | `submit` | Created when the final submit work starts |
 
 ## What you do versus what Cursor does
 
@@ -46,13 +46,13 @@ Cursor edits the repo, runs local checks, and updates this file. You handle acco
 
 ---
 
-## P0 — Prove access and feasibility
+## Prove access and feasibility
 
-Branch: `phase/p0-prove-access`
+Branch: `prove-access`
 
 Goal: measure SerpApi coverage, Gemma inference, and Render cost before building the app. Planned budget: 90 minutes. Done when every architecture-critical assumption has a measured result.
 
-### P0.1 — Verify accounts and workflow controls
+### Verify accounts and workflow controls
 
 Status: **Done** on October 4, 2026.
 
@@ -61,7 +61,7 @@ Cursor checked the public repo, toolchain, GitHub Actions, Entire, CodeRabbit, a
 What is true now:
 
 - Repo `kernelKain/happen` is public on `main` at `a45880a`.
-- Python on PATH is 3.14.4. The locked backend is Python 3.13, which `uv` can install as 3.13.15 during P1.1.
+- Python on PATH is 3.14.4. The locked backend is Python 3.13, which `uv` can install as 3.13.15 when the backend environment is created.
 - Node 22.14.0, npm 10.9.2, uv 0.12.5, Entire CLI 0.11.3, Docker 29.8.2.
 - GitHub Actions is enabled. Workflows have read permission.
 - Entire is installed and not enabled. No `.entire/` directory was created.
@@ -69,7 +69,7 @@ What is true now:
 - DevRelay is connected to DEV user `kernelkain`. No session was published.
 - `SERPAPI_API_KEY` and `HF_TOKEN` were unset. Render CLI is not installed, so the credit balance was not read.
 
-Commit: `P0.1: record account and workflow access checks.`
+Commit: `Record account and workflow access checks.`
 
 Your side, still open from this step:
 
@@ -77,7 +77,7 @@ Your side, still open from this step:
 2. Optional, not blocking: install the CodeRabbit GitHub App on `kernelKain/happen` if it is not already installed.
 3. Done: `SERPAPI_API_KEY` is set in the ignored `.env`. It was not printed or committed.
 
-### P0.2 — Prove SerpApi evidence shape
+### Prove SerpApi evidence shape
 
 Status: **Done** on October 4, 2026.
 
@@ -121,7 +121,7 @@ Your side after this step:
 1. Nothing else is required for SerpApi. The remaining 245 searches still match the plan.
 2. Do not paste the key anywhere, and do not commit `.env`.
 
-### P0.3 — Prove Gemma and Render feasibility
+### Prove Gemma and Render feasibility
 
 Status: **Done** on October 4, 2026.
 
@@ -161,13 +161,13 @@ Your side after this step:
 
 ---
 
-## P1 — Public walking skeleton
+## Public walking skeleton
 
-Branch: `phase/p1-walking-skeleton`, created at P1.1 from the P0 branch tip.
+Branch: `walking-skeleton`, created from the access-proof branch.
 
 Goal: a public HTTPS frontend and a health/metadata API. Planned budget: hours 1.5–4.
 
-### P1.1 — Scaffold the locked monorepo
+### Scaffold the locked monorepo
 
 Status: **Done** on October 4, 2026.
 
@@ -185,7 +185,7 @@ Commit: `Scaffold the backend, frontend, and model manifest.`
 
 Your side after this step: nothing. Do not create a Render service yet.
 
-### P1.2 — Build health, metadata, and safe config
+### Build health, metadata, and safe config
 
 Status: **Not started.**
 
@@ -193,7 +193,7 @@ Cursor adds the FastAPI app, `/healthz`, `/api/v1/meta`, CORS, safe errors, and 
 
 Your side after Cursor finishes: run nothing unless a check fails and the notes ask for a missing local tool.
 
-### P1.3 — Build the frontend shell
+### Build the frontend shell
 
 Status: **Not started.**
 
@@ -204,7 +204,7 @@ Your side after Cursor finishes:
 1. Optional: open the local page and say if the first screen is unclear.
 2. Required only if the browser check cannot be run here. In that case the notes will name the exact command and what to look at.
 
-### P1.4 — Establish CI and first public deployment
+### Establish CI and first public deployment
 
 Status: **Not started.**
 
@@ -212,7 +212,7 @@ Cursor adds GitHub Actions and `render.yaml` for the static site and the web ser
 
 Your side after Cursor finishes:
 
-1. Push `phase/p1-walking-skeleton` when you want the draft PR and CI to run.
+1. Push `walking-skeleton` when you want the draft PR and CI to run.
 2. In Render, create the static site and the Python web service from this repo.
 3. Set `SERPAPI_API_KEY` in Render's secret environment. Add `HF_TOKEN` only if the model download needs it.
 4. Paste the public frontend URL and the health URL back here. Do not paste secret values.
@@ -220,13 +220,13 @@ Your side after Cursor finishes:
 
 ---
 
-## P2 — Fixture vertical slice
+## Fixture vertical slice
 
-Branch: `phase/p2-fixture-hook`, created at P2.1.
+Branch: `fixture-hook`, created when fixture work starts.
 
 Goal: the Hook works locally on a labeled synthetic fixture, through the real extraction and scoring path. Planned budget: hours 4–9.
 
-### P2.1 — Implement domain contracts and scoring
+### Implement domain contracts and scoring
 
 Status: **Not started.**
 
@@ -234,7 +234,7 @@ Cursor implements hours, arrival windows, scoring policy v1, and tie-breaking, w
 
 Your side after Cursor finishes: nothing, unless a test shows the locked threshold cannot be met. Cursor will stop and ask before relaxing a rule.
 
-### P2.2 — Implement fixture schema and adapter
+### Implement fixture schema and adapter
 
 Status: **Not started.**
 
@@ -242,7 +242,7 @@ Cursor adds a labeled synthetic development fixture, checksums, and specific err
 
 Your side after Cursor finishes: nothing.
 
-### P2.3 — Implement Gemma extraction and validation
+### Implement Gemma extraction and validation
 
 Status: **Not started.**
 
@@ -253,7 +253,7 @@ Your side after Cursor finishes:
 1. If the local model file is not on disk yet, the notes will name the download command. Run it only after `HF_TOKEN` is set, or tell Cursor the token is already in `.env`.
 2. Read the one real extraction result and say if the quoted spans look fair. Cursor will not treat a failed extraction as a successful recommendation.
 
-### P2.4 — Assemble fixture recommendation API
+### Assemble fixture recommendation API
 
 Status: **Not started.**
 
@@ -261,7 +261,7 @@ Cursor exposes the fixture recommendation endpoint. A successful body has three 
 
 Your side after Cursor finishes: nothing.
 
-### P2.5 — Build planner, matrix, and evidence UI
+### Build planner, matrix, and evidence UI
 
 Status: **Not started.**
 
@@ -272,7 +272,7 @@ Your side after Cursor finishes:
 1. Open the local success screen at a 1280px-wide window.
 2. Say whether you can tell the primary moment from the fallback without extra explanation.
 
-### P2.6 — Prove the fixture Hook end to end
+### Prove the fixture Hook end to end
 
 Status: **Not started.**
 
@@ -285,13 +285,13 @@ Your side after Cursor finishes:
 
 ---
 
-## P3 — Live sponsor Hook
+## Live sponsor Hook
 
-Branch: `phase/p3-live-sponsor`, created at P3.1.
+Branch: `live-sponsor`, created when live sponsor work starts.
 
 Goal: one real SerpApi run, a sanitized fixture, and a checked Gemma path. Planned budget: hours 9–14.
 
-### P3.1 — Implement bounded SerpApi client
+### Implement bounded SerpApi client
 
 Status: **Not started.**
 
@@ -299,7 +299,7 @@ Cursor adds search, place, and review calls with redaction, deadlines, one retry
 
 Your side after Cursor finishes: nothing unless the notes say the local key is still missing.
 
-### P3.2 — Normalize and select candidates
+### Normalize and select candidates
 
 Status: **Not started.**
 
@@ -307,7 +307,7 @@ Cursor maps provider fields into the internal place records and selects three ca
 
 Your side after Cursor finishes: nothing.
 
-### P3.3 — Assemble live orchestration and protections
+### Assemble live orchestration and protections
 
 Status: **Not started.**
 
@@ -315,7 +315,7 @@ Cursor adds the live endpoint, deadlines, and the rule that a failure never sile
 
 Your side after Cursor finishes: nothing.
 
-### P3.4 — Capture and verify canonical fixture
+### Capture and verify canonical fixture
 
 Status: **Not started.**
 
@@ -330,7 +330,7 @@ Your side after Cursor finishes:
 1. Skim the sanitized fixture for names, keys, or reviewer identities.
 2. Say if anything private must be removed before it is committed.
 
-### P3.5 — Evaluate and optionally tune Gemma
+### Evaluate and optionally tune Gemma
 
 Status: **Not started.**
 
@@ -341,7 +341,7 @@ Your side after Cursor finishes:
 1. For the training attempt, open a free Colab T4 notebook from `ml/` and let it run, or say that Colab is unavailable.
 2. Read the evaluation numbers. Do not publish a score that is not in the evaluation report.
 
-### P3.6 — Deploy and smoke the sponsor vertical slice
+### Deploy and smoke the sponsor vertical slice
 
 Status: **Not started.**
 
@@ -355,13 +355,13 @@ Your side after Cursor finishes:
 
 ---
 
-## P4 — Complete demo experience
+## Complete demo experience
 
-Branch: `phase/p4-demo-experience`, created at P4.1.
+Branch: `demo-experience`, created when the demo polish starts.
 
 Goal: every visible state, the evidence view, and the 1280px and 390px layouts. Planned budget: hours 14–17.
 
-### P4.1 — Complete all visible result states
+### Complete all visible result states
 
 Status: **Not started.**
 
@@ -369,7 +369,7 @@ Cursor adds specific copy and a next action for loading, partial, insufficient e
 
 Your side after Cursor finishes: click one error state if a local page is running, and say if the next action is unclear.
 
-### P4.2 — Finish evidence and methodology experience
+### Finish evidence and methodology experience
 
 Status: **Not started.**
 
@@ -377,7 +377,7 @@ Cursor finishes the evidence drawer or an inline panel: exact quotes, source lin
 
 Your side after Cursor finishes: open evidence from the keyboard only, if the notes say the browser check could not be completed here.
 
-### P4.3 — Finish reveal, responsive, and reduced motion
+### Finish reveal, responsive, and reduced motion
 
 Status: **Not started.**
 
@@ -388,7 +388,7 @@ Your side after Cursor finishes:
 1. Look at the 1280px screenshot or the local window.
 2. Say if the recommended moment is obvious. Decorative motion can be removed. The three timelines stay.
 
-### P4.4 — Conduct friend walkthrough
+### Conduct friend walkthrough
 
 Status: **Not started.**
 
@@ -403,13 +403,13 @@ Your side:
 
 ---
 
-## P5 — Harden and freeze
+## Harden and freeze
 
-Branch: `phase/p5-harden-freeze`, created at P5.1.
+Branch: `harden-freeze`, created when hardening starts.
 
 Goal: required tests are green and the MVP can be merged. Planned budget: hours 17–19. After freeze, new features stop.
 
-### P5.1 — Harden security and failure paths
+### Harden security and failure paths
 
 Status: **Not started.**
 
@@ -417,7 +417,7 @@ Cursor adds the size, CORS, injection, rate, and checksum checks, then scans for
 
 Your side after Cursor finishes: if a secret is found, rotate it yourself. Cursor will not print the value.
 
-### P5.2 — Meet performance and reliability gates
+### Meet performance and reliability gates
 
 Status: **Not started.**
 
@@ -425,7 +425,7 @@ Cursor measures three warm fixture runs and three warm live runs against the 2-s
 
 Your side after Cursor finishes: if a live timing run needs the deployed service, say when Render is awake so the three runs are not wasted on a cold start.
 
-### P5.3 — Run complete pre-freeze verification
+### Run complete pre-freeze verification
 
 Status: **Not started.**
 
@@ -433,7 +433,7 @@ Cursor runs the backend tests, frontend tests, model eval, browser checks, and t
 
 Your side after Cursor finishes: read the pass/fail list. Reply `ok` only if you accept the recorded limitations.
 
-### P5.4 — Resolve review and freeze the MVP
+### Resolve review and freeze the MVP
 
 Status: **Not started.**
 
@@ -447,13 +447,13 @@ Your side after Cursor finishes:
 
 ---
 
-## P6 — Production release
+## Production release
 
-Branch: `phase/p6-production`, created at P6.1 from the merged `main` revision.
+Branch: `production`, created from the merged `main` revision.
 
 Goal: the public fixture journey works, and one live path is verified or honestly limited. Planned budget: hours 19–20.5.
 
-### P6.1 — Deploy the frozen production revision
+### Deploy the frozen production revision
 
 Status: **Not started.**
 
@@ -465,7 +465,7 @@ Your side after Cursor finishes:
 2. Confirm `/healthz` returns HTTP 200 on the public URL.
 3. Paste the frontend URL and the backend URL.
 
-### P6.2 — Run final production smoke tests
+### Run final production smoke tests
 
 Status: **Not started.**
 
@@ -477,7 +477,7 @@ Your side after Cursor finishes:
 2. Approve one live run.
 3. Tell Cursor if the page showed the wrong mode, a missing source, or a console error.
 
-### P6.3 — Prove rollback and judge runbook
+### Prove rollback and judge runbook
 
 Status: **Not started.**
 
@@ -486,18 +486,18 @@ Cursor writes the judge-day runbook from the behavior that actually shipped: 60-
 Your side after Cursor finishes:
 
 1. Name the last healthy Render revision you can roll back to.
-2. Confirm you have a backup recording, or say that it still needs to be captured in P7.2.
+2. Confirm you have a backup recording, or say that it still needs to be captured with the demo recording.
 3. Do not delete services or databases. Nothing destructive is required.
 
 ---
 
-## P7 — Submission evidence
+## Submission evidence
 
-Branch: `phase/p7-submission`, created at P7.1.
+Branch: `submission`, created when submission writing starts.
 
 Goal: README, media, and a DEV draft that match the measured product. Planned budget: hours 20.5–23.
 
-### P7.1 — Finish README, diagrams, and attribution
+### Finish README, diagrams, and attribution
 
 Status: **Not started.**
 
@@ -505,7 +505,7 @@ Cursor updates the README, architecture diagram, setup, results, limitations, an
 
 Your side after Cursor finishes: read the README once and mark any sentence that sounds stronger than the evidence.
 
-### P7.2 — Capture hero media and demo
+### Capture hero media and demo
 
 Status: **Not started.**
 
@@ -517,7 +517,7 @@ Your side after Cursor finishes:
 2. If the live path is unstable, approve a labeled fixture recording instead.
 3. Say if the recording shows anything private.
 
-### P7.3 — Curate Entire and DevRelay sessions
+### Curate Entire and DevRelay sessions
 
 Status: **Not started.**
 
@@ -529,7 +529,7 @@ Your side after Cursor finishes:
 2. Reject any session that contains a secret, a local path you dislike, or private feedback.
 3. Reply with the ones that may be saved.
 
-### P7.4 — Draft the DEV submission article
+### Draft the DEV submission article
 
 Status: **Not started.**
 
@@ -538,9 +538,9 @@ Cursor drafts the official DEV template with `#hf26challenge`, partner use, open
 Your side after Cursor finishes:
 
 1. Edit anything that does not sound like you.
-2. Do not publish yet. Publishing is P8.2.
+2. Do not publish yet. Publishing happens in the final submit step.
 
-### P7.5 — Assemble final submission packet
+### Assemble final submission packet
 
 Status: **Not started.**
 
@@ -554,13 +554,13 @@ Your side after Cursor finishes:
 
 ---
 
-## P8 — Submit and buffer
+## Submit and buffer
 
-Branch: `phase/p8-submit`, created at P8.1.
+Branch: `submit`, created when the final submit work starts.
 
 Goal: you submit a verified entry before the deadline. Planned budget: the last hour, with a buffer.
 
-### P8.1 — Audit and release the exact submission revision
+### Audit and release the exact submission revision
 
 Status: **Not started.**
 
@@ -572,7 +572,7 @@ Your side after Cursor finishes:
 2. Say whether you want a git tag. Cursor will not tag unless you ask.
 3. Stop if any secret or broken required link remains.
 
-### P8.2 — Publish, submit, and verify
+### Publish, submit, and verify
 
 Status: **Not started.**
 
@@ -591,22 +591,22 @@ Your side:
 
 | Step | Status | Commit | Your remaining action |
 |---|---|---|---|
-| P0.1 | Done | `P0.1: record account and workflow access checks.` | Optional: Entire and CodeRabbit. |
-| P0.2 | Done | `Record the Indiranagar restaurant evidence probe.` | Nothing else for SerpApi. |
-| P0.3 | Done | `Record the free Gemma runtime proof and Render credit limit.` | Before deploy, cap Render spend at the credits and suspend the paid service after judging. No token needed now. |
-| P1.1 | Done | `Scaffold the backend, frontend, and model manifest.` | Nothing. |
-| P1.2–P1.3 | Not started | — | Review only if a check needs you. |
-| P1.4 | Not started | — | Push, Render services, secrets, public URLs. |
-| P2.1–P2.4 | Not started | — | Nothing unless a note asks. |
-| P2.5–P2.6 | Not started | — | Look at the local Hook once. |
-| P3.1–P3.3 | Not started | — | Nothing unless the key is missing. |
-| P3.4 | Not started | — | Approve the live capture, then skim the fixture. |
-| P3.5 | Not started | — | Colab T4, then read the scores. |
-| P3.6 | Not started | — | Deploy and open the public URL. |
-| P4.1–P4.3 | Not started | — | Look at the states and the 1280px screen. |
-| P4.4 | Not started | — | Friend walkthrough. You send the paraphrase. |
-| P5.1–P5.3 | Not started | — | Read the verification list. Rotate a secret if one is found. |
-| P5.4 | Not started | — | Review and merge. That is feature freeze. |
-| P6.1–P6.3 | Not started | — | Deploy, smoke the public page, name the rollback revision. |
-| P7.1–P7.5 | Not started | — | Read claims, approve media and sessions, keep the article as a draft. |
-| P8.1–P8.2 | Not started | — | Merge, publish, submit, and paste the confirmation. |
+| Verify accounts and workflow controls | Done | `Record account and workflow access checks.` | Optional: Entire and CodeRabbit. |
+| Prove SerpApi evidence shape | Done | `Record the Indiranagar restaurant evidence probe.` | Nothing else for SerpApi. |
+| Prove Gemma and Render feasibility | Done | `Record the free Gemma runtime proof and Render credit limit.` | Before deploy, cap Render spend at the credits and suspend the paid service after judging. No token needed now. |
+| Scaffold the locked monorepo | Done | `Scaffold the backend, frontend, and model manifest.` | Nothing. |
+| Health API and frontend shell | Not started | — | Review only if a check needs you. |
+| CI and first public deployment | Not started | — | Push, Render services, secrets, public URLs. |
+| Scoring, fixtures, extraction, and fixture API | Not started | — | Nothing unless a note asks. |
+| Matrix UI and fixture Hook proof | Not started | — | Look at the local Hook once. |
+| SerpApi client, normalization, and live orchestration | Not started | — | Nothing unless the key is missing. |
+| Capture and verify canonical fixture | Not started | — | Approve the live capture, then skim the fixture. |
+| Evaluate and optionally tune Gemma | Not started | — | Colab T4, then read the scores. |
+| Deploy and smoke the sponsor slice | Not started | — | Deploy and open the public URL. |
+| Result states, evidence, and responsive reveal | Not started | — | Look at the states and the 1280px screen. |
+| Friend walkthrough | Not started | — | Friend walkthrough. You send the paraphrase. |
+| Security, performance, and pre-freeze verification | Not started | — | Read the verification list. Rotate a secret if one is found. |
+| Review and freeze the MVP | Not started | — | Review and merge. That is feature freeze. |
+| Production deploy, smoke, and runbook | Not started | — | Deploy, smoke the public page, name the rollback revision. |
+| README, media, sessions, article, and packet | Not started | — | Read claims, approve media and sessions, keep the article as a draft. |
+| Audit, publish, and submit | Not started | — | Merge, publish, submit, and paste the confirmation. |

@@ -2,10 +2,9 @@
 
 Execution evidence for Happen. No secret values belong in this file.
 
-## P0.1 — Verify accounts and workflow controls
+## Verify accounts and workflow controls
 
 - Date: 2026-10-04
-- Queue step: P0.1
 - Harness: agent
 - Autonomy: A1
 - Spend: $0
@@ -30,7 +29,7 @@ Execution evidence for Happen. No secret values belong in this file.
 | Hugging Face CLI | absent |
 | Render CLI | absent |
 
-Python 3.13 is the locked backend version. The system interpreter is 3.14.4. Installing 3.13.15 with `uv` is deferred to P1.1, when the backend environment is created. That is a toolchain observation, not a version-policy change.
+Python 3.13 is the locked backend version. The system interpreter is 3.14.4. Installing 3.13.15 with `uv` is deferred until the backend environment is created. That is a toolchain observation, not a version-policy change.
 
 ### Access matrix
 
@@ -42,12 +41,12 @@ Python 3.13 is the locked backend version. The system interpreter is 3.14.4. Ins
 | Branch `build/happen-mvp` | `git branch --list` returned no match. | User action required before implementation |
 | GitHub Actions | Actions enabled, all actions allowed, default workflow permission `read`, reviewers cannot be approved by workflows. | Verified |
 | Pull requests | None. | Expected |
-| `SERPAPI_API_KEY` | Unset in the process environment. No repository `.env`. | Blocked for P0.2 |
+| `SERPAPI_API_KEY` | Unset in the process environment. No repository `.env`. | Blocked for the SerpApi probe |
 | SerpApi balance | Not queried. | Unverified |
 | `HF_TOKEN` | Unset. No local Hugging Face token file. | Blocked for gated model download |
-| Gemma terms and artifact | Not checked. | Unverified until P0.3 |
+| Gemma terms and artifact | Not checked. | Unverified until the Gemma and Render proof |
 | Render balance and plan price | No Render CLI and no Render API key in the environment. Dashboard was not opened. | Unverified user-dashboard check |
-| Colab T4 | Not checked in this step. | Unverified until P0.3 |
+| Colab T4 | Not checked in this step. | Unverified until the Gemma and Render proof |
 | Entire | `entire status` reports not set up. `.entire/` was not created. | User action: `entire enable` |
 | CodeRabbit | No `.coderabbit.yaml`, which matches the locked default. The current GitHub token cannot list App installations (HTTP 403). | Time-boxed unverified |
 | DevRelay | MLH account is connected with `dev:read:all` and `dev:write:all`. DEV profile `kernelkain` (id 3953019) resolves. No session was saved. | Connection verified |
@@ -74,11 +73,11 @@ The active execution harness is Cursor. When Entire is enabled, select the agent
 1. `SERPAPI_API_KEY` is set locally. Resolved on October 4, 2026.
 2. No `HF_TOKEN` is required for the public GGUF. A free read token is needed only if a later download of official `google/gemma-3-270m-it` weights is rejected as restricted.
 3. Render balance is $50.00. Backend list prices are $25/month for `1c-2g` and $85/month for `2c-4g`, drawn from those credits while a service is running. The free 512 MB web service is too small for the measured model.
-4. Phase branch `phase/p0-prove-access` exists. The next phase branch is created at P1.1.
+4. Branch `prove-access` existed locally for the access proofs. The walking-skeleton branch is created for the scaffold.
 5. Run `entire enable` when ready. This does not block the scaffold.
 6. CodeRabbit installation is still unverified. This does not block the scaffold.
 
-## P0.2 — Prove SerpApi evidence shape
+## Prove SerpApi evidence shape
 
 - Date: 2026-10-04
 - Result: the Indiranagar restaurant query is viable
@@ -100,7 +99,7 @@ The active execution harness is Cursor. When Entire is enabled, select the agent
 
 Keep `restaurants in Indiranagar, Bengaluru` as the canonical discovery query. Do not add a cuisine filter. Treat missing popular times as unknown evidence.
 
-## P0.3 — Prove Gemma and Render feasibility
+## Prove Gemma and Render feasibility
 
 - Date: 2026-10-04
 - Result: local untuned Gemma runs with no token and no model-API fee
@@ -123,7 +122,7 @@ Keep `restaurants in Indiranagar, Bengaluru` as the canonical discovery query. D
 
 Operate on the local quantized 270M model. Do not call a hosted model API. Do not generate a Hugging Face token unless an official-weight download is rejected as restricted. Keep the backend off the free 512 MB plan. Prefer `1c-2g` at deploy time because the measured memory fits, and move to `2c-4g` only if a live timing run misses the 30-second limit.
 
-## P1.1 — Scaffold the locked monorepo
+## Scaffold the locked monorepo
 
 - Date: 2026-10-04
 - Result: backend import and frontend production build succeed
