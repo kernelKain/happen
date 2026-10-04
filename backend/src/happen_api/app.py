@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +25,18 @@ from happen_api.readiness import captured_fixture_status
 from happen_api.recommendations.memory import RecommendationMemory
 
 
+@asynccontextmanager
+async def _lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Open the shared SerpApi HTTP client and close it when the app stops."""
+
+    client = httpx.Client(trust_env=False, follow_redirects=False, timeout=httpx.Timeout(8.0))
+    application.state.http_client = client
+    try:
+        yield
+    finally:
+        client.close()
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the API with validated settings, request limits, CORS, and error handlers."""
 
@@ -33,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=_lifespan,
     )
     application.state.settings = resolved
     application.state.started_at = time.monotonic()

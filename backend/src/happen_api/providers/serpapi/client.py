@@ -30,7 +30,7 @@ _SECRET_FIELD = re.compile(r"(key|token|secret|authorization|cookie)", re.IGNORE
 _API_KEY_QUERY = re.compile(r"(?i)(api_key=)[^&#\s]+")
 _CREDENTIAL_URL_FIELDS = {"json_endpoint", "raw_html_file", "prettify_html_file"}
 _RETRYABLE_TRANSPORT = (httpx.TimeoutException, httpx.NetworkError)
-_Kind = Literal["search", "place", "reviews"]
+_Kind = Literal["search", "place", "reviews", "web"]
 
 
 class SerpApiFailure(Exception):
@@ -102,6 +102,7 @@ class SerpApiClient:
         attempt_timeout_seconds: float = _ATTEMPT_TIMEOUT_SECONDS,
         now: Callable[[], float] | None = None,
         transport: httpx.BaseTransport | None = None,
+        http_client: httpx.Client | None = None,
     ) -> None:
         if credit_limit < 1:
             raise ValueError("credit_limit must be at least 1")
@@ -120,7 +121,8 @@ class SerpApiClient:
         self._credits_charged = 0
         self.live_enabled = True
         self.disabled_code: str | None = None
-        self._http = httpx.Client(
+        self._owns_http = http_client is None
+        self._http = http_client or httpx.Client(
             transport=transport,
             trust_env=False,
             follow_redirects=False,
@@ -133,10 +135,17 @@ class SerpApiClient:
             f"credits_charged={self.credits_charged})"
         )
 
-    def close(self) -> None:
-        """Close the HTTP client."""
+    @property
+    def owns_http(self) -> bool:
+        """Whether this instance created the HTTP client and must close it."""
 
-        self._http.close()
+        return self._owns_http
+
+    def close(self) -> None:
+        """Close an HTTP client this instance created. A shared client stays open."""
+
+        if self._owns_http and not self._http.is_closed:
+            self._http.close()
 
     def __enter__(self) -> Self:
         return self
@@ -150,8 +159,14 @@ class SerpApiClient:
 
         return self._credits_charged
 
-    def search_places(self, query: str) -> ProviderSnapshot:
-        """Search Google Maps for places. The query is sent as the `q` parameter."""
+    def search_places(
+        self,
+        query: str,
+        *,
+        latitude: float | None = None,
+        longitude: float | None = None,
+    ) -> ProviderSnapshot:
+        """Search Google Maps. Country and language are left to the provider."""
 
         if not query.strip():
             raise SerpApiFailure(
@@ -159,17 +174,15 @@ class SerpApiClient:
                 "A place search needs a query.",
                 retryable=False,
             )
-        return self._execute(
-            "search",
-            {
-                "engine": "google_maps",
-                "type": "search",
-                "q": query.strip(),
-                "hl": "en",
-                "gl": "in",
-                "output": "json",
-            },
-        )
+        params = {
+            "engine": "google_maps",
+            "type": "search",
+            "q": query.strip(),
+            "output": "json",
+        }
+        if latitude is not None and longitude is not None:
+            params["ll"] = f"@{latitude:.5f},{longitude:.5f},14z"
+        return self._execute("search", params)
 
     def place_details(
         self,
@@ -184,8 +197,6 @@ class SerpApiClient:
             {
                 "engine": "google_maps",
                 "type": "place",
-                "hl": "en",
-                "gl": "in",
                 "output": "json",
                 **_place_identifier(data_id, place_id),
             },
@@ -203,8 +214,6 @@ class SerpApiClient:
             "reviews",
             {
                 "engine": "google_maps_reviews",
-                "hl": "en",
-                "gl": "in",
                 "output": "json",
                 **_place_identifier(data_id, place_id),
             },
@@ -286,11 +295,29 @@ class SerpApiClient:
                 "engine": "google_maps",
                 "type": "search",
                 "q": cleaned,
-                "hl": "en",
                 "output": "json",
             }
         )
         return _map_points(body)
+
+    def web_search(self, query: str) -> ProviderSnapshot:
+        """Run one Google web search through SerpApi. The result links are not fetched."""
+
+        cleaned = " ".join(query.split())
+        if not cleaned:
+            raise SerpApiFailure(
+                "INVALID_REQUEST",
+                "A web search needs a query.",
+                retryable=False,
+            )
+        return self._execute(
+            "web",
+            {
+                "engine": "google",
+                "q": cleaned,
+                "output": "json",
+            },
+        )
 
     def _execute(self, kind: _Kind, params: dict[str, str]) -> ProviderSnapshot:
         body, attempts = self._billed_success_with_attempts(params)
@@ -658,6 +685,11 @@ def _is_empty(kind: _Kind, payload: dict[str, Any]) -> bool | None:
         if not isinstance(results, list):
             return None
         return len(results) == 0
+    if kind == "web":
+        organic = payload.get("organic_results")
+        if not isinstance(organic, list):
+            return None
+        return len(organic) == 0
     if kind == "place":
         place = payload.get("place_results")
         if place is None:

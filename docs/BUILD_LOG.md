@@ -627,3 +627,28 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Gemma may propose structured preferences only. With claims off, that proposer returns nothing. It does not choose a place or bypass validation.
 - Tests mock inference and do not need a GGUF file.
 
+## Generalize live place discovery
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: Maps discovery no longer assumes a city, a country, a language, or a restaurant query. A plan searches from the resolved destination and at most two intents. The historical recommendation route still uses its Indiranagar preset.
+- Product behavior changed: no user-facing behavior. Discovery is not wired to a page. Live HTTP calls no longer send a fixed country or language.
+- Cost changed: no. Tests mock every provider call. No live SerpApi request was made.
+
+### Evidence
+
+- `discover_places` builds queries such as `dinner in Kyoto, Japan` and `coffee in Chicago, Illinois`. The request does not send `hl` or `gl`.
+- A search result keeps the place id, data id, name, address, coordinates, rating, review count, price text, category, hours, popular times, website, maps link, thumbnail, events, and highlights when the provider sent them. A Japanese category and price stay as returned. A phone number is not kept.
+- Inline hours and a highlight skip later place and review calls. Details and reviews run only for the finalists, and only when those facts are missing.
+- At most two Google web searches run, and only when official hours are still missing. Result links are not fetched. A community host can be secondary evidence. Official hours stay in place when a community snippet disagrees, and the disagreement is kept on the place.
+- Destination resolution and discovery share eight billed requests. A plan that has already spent six does not send a ninth. An empty search, a timeout, and an exhausted allowance each have their own status.
+- The cache key is a hash of the canonical destination, the local date, the time window, and the intents.
+- The API process opens one HTTP client and closes it when the application stops.
+- `uv run pytest` passed, 207 tests.
+
+### Decisions
+
+- The historical `/api/v1/recommendations` route still searches restaurants in Indiranagar because that request only accepts that preset. Global plans use `discover_places`.
+- Missing facts stay unknown. They are not filled by translating the provider text.
+- A web result is kept only when the place id, the official domain, or the place name plus locality or address matches. Other pages are ignored.
+

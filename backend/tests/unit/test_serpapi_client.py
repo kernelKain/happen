@@ -69,8 +69,8 @@ def test_search_redacts_the_key_and_counts_one_credit() -> None:
     assert sent["api_key"] == _KEY
     assert sent["engine"] == "google_maps"
     assert sent["type"] == "search"
-    assert sent["hl"] == "en"
-    assert sent["gl"] == "in"
+    assert "hl" not in sent
+    assert "gl" not in sent
     assert sent["output"] == "json"
     assert "no_cache" not in sent
     assert _KEY not in repr(client)
@@ -456,6 +456,7 @@ def test_maps_coordinate_lookup_is_billed_and_keeps_only_coordinates() -> None:
     sent = _params(route.calls[0].request)
     assert sent["engine"] == "google_maps"
     assert sent["type"] == "search"
+    assert "hl" not in sent
     assert "gl" not in sent
     assert points[0].latitude == pytest.approx(26.9124336)
     assert "raw-payload-marker" not in points[0].model_dump_json()

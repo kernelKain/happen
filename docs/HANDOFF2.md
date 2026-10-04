@@ -10,7 +10,9 @@ The current branch is `global-live-experience`. The current work is the Global L
 
 The planning records, a deterministic prompt parser, and destination resolution are in `backend/src/happen_api/planning/`. A prompt becomes a brief with at most one follow-up. Relative dates stay pending until a destination timezone is known. Destination resolution uses the existing SerpApi client: the free Locations API first, then at most one billed Maps lookup when coordinates are still missing. That lookup shares the eight-request plan budget. Timezones come from coordinates through `timezonefinder` offline, and date arithmetic uses `zoneinfo`. The parser does not load Gemma.
 
-Local Gemma was measured and missed the planning and review gates. Model claims stay off. Find the moment still scores the captured fixture, and it does not load Gemma while claims are off. The deterministic parser remains the planning reader. The brief is not on a user-facing route yet.
+Local Gemma was measured and missed the planning and review gates. Model claims stay off. Find the moment still scores the captured fixture, and it does not load Gemma while claims are off. The deterministic parser remains the planning reader.
+
+Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents, reuses inline place evidence, and keeps details, reviews, and at most two web searches inside the same eight billed requests as destination resolution. It is not on a user-facing route yet. The existing recommendation route still searches the historical Indiranagar preset.
 
 `global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
 
@@ -19,8 +21,8 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. Destination resolution is in place. The model quality gate failed, so claims stay off. Live retrieval and the user-facing flow are not. |
-| Last finished step | Measure local model quality for planning |
+| Phase complete | No. Destination resolution and global discovery are in place. They are not on a user-facing route. The model quality gate failed, so claims stay off. |
+| Last finished step | Generalize live place discovery |
 | Next step | Serve the brief, one follow-up, and a resolved destination without a fixture fallback. |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -106,8 +108,8 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Destinations resolve through SerpApi in tests. The local model gate failed, so Gemma claims stay off and the deterministic parser remains the reader. Live retrieval has not started. |
-| Last finished step | Measure local model quality for planning |
+| Status | Global discovery searches by destination and intent inside the shared eight-request budget. It is not on a user-facing route. The model gate failed, so Gemma claims stay off. |
+| Last finished step | Generalize live place discovery |
 | Next step | Serve the brief, one follow-up, and a resolved destination without a fixture fallback. |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
@@ -808,3 +810,4 @@ Your side:
 | Planning prompt parser | Done. v1 API unchanged. No SerpApi or Gemma call. | `Parse planning prompts into structured briefs.` | Nothing. Do not push. |
 | Destination resolution | Done. Not on a user-facing route. Provider calls are mocked in tests. | `Resolve destinations in their local time.` | Nothing. Do not push. |
 | Local model quality | Done. Both measured models missed a gate. Claims stay off. | `Measure local model quality for planning.` | Nothing. Do not push. Do not commit a GGUF. |
+| Global place discovery | Done in tests. Not on a user-facing route. Provider calls are mocked. | `Generalize live place discovery.` | Nothing. Do not push. |

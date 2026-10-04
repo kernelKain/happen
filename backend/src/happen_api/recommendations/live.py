@@ -7,6 +7,8 @@ import time
 from collections.abc import Callable
 from datetime import date, datetime
 
+import httpx
+
 from happen_api.ai.prompt import EXTRACTION_SCHEMA_VERSION
 from happen_api.catalog import CONTRACT_VERSION, SCORING_POLICY_VERSION
 from happen_api.config import Settings
@@ -83,6 +85,7 @@ def recommend_live(
     guard: LiveGuard,
     monotonic: Callable[[], float],
     provider_factory: Callable[[int, float], SerpApiClient] | None = None,
+    http_client: httpx.Client | None = None,
 ) -> RecommendationResponse:
     """Retrieve live evidence, score it, and keep provider failures explicit."""
 
@@ -113,7 +116,7 @@ def recommend_live(
     provider_budget = min(_PROVIDER_DEADLINE_SECONDS, _time_left(started, monotonic))
     if provider_budget <= 0:
         raise _public_failure("PROCESSING_TIMEOUT")
-    provider = _provider(settings, guard, provider_budget, provider_factory)
+    provider = _provider(settings, guard, provider_budget, provider_factory, http_client)
     charged_before = provider.credits_charged
     try:
         evidence = _retrieve(provider, visit_date=visit_date, captured_at=now)
@@ -126,6 +129,8 @@ def recommend_live(
         guard.note_success()
     finally:
         guard.spend(provider.credits_charged - charged_before)
+        if getattr(provider, "owns_http", False):
+            provider.close()
 
     guard.save_snapshot(cache_key, evidence)
     return _score(
@@ -161,7 +166,7 @@ def fetch_live_evidence(
     provider_budget = min(_PROVIDER_DEADLINE_SECONDS, _time_left(started, clock))
     if provider_budget <= 0:
         raise _public_failure("PROCESSING_TIMEOUT")
-    provider = _provider(settings, guard, provider_budget, None)
+    provider = _provider(settings, guard, provider_budget, None, None)
     charged_before = provider.credits_charged
     try:
         evidence = _retrieve(
@@ -326,6 +331,7 @@ def _provider(
     guard: LiveGuard,
     timeout_seconds: float,
     factory: Callable[[int, float], SerpApiClient] | None,
+    http_client: httpx.Client | None,
 ) -> SerpApiClient:
     credit_limit = min(7, guard.remaining())
     if credit_limit < 1:
@@ -336,6 +342,7 @@ def _provider(
         settings.serpapi_api_key.get_secret_value(),
         credit_limit=credit_limit,
         total_timeout_seconds=timeout_seconds,
+        http_client=http_client,
     )
 
 
