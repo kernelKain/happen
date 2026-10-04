@@ -1,0 +1,70 @@
+# Health and metadata only. The model file is not downloaded in this build.
+# Move happen-api from 1c-2g to 2c-4g if the first timed live run misses 30 seconds.
+# Point both services at main after walking-skeleton merges.
+
+services:
+  - type: web
+    name: happen-web
+    runtime: static
+    branch: walking-skeleton
+    region: singapore
+    autoDeployTrigger: checksPass
+    buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
+    staticPublishPath: frontend/dist
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: "camera=(), microphone=(), geolocation=(), payment=()"
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          name: happen-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: happen-api
+    runtime: python
+    plan: 1c-2g
+    branch: walking-skeleton
+    region: singapore
+    autoDeployTrigger: checksPass
+    healthCheckPath: /healthz
+    buildCommand: bash scripts/render-backend-build.sh
+    startCommand: backend/.venv/bin/uvicorn happen_api.main:app --host 0.0.0.0 --port $PORT --workers 1
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.13.15"
+      - key: UV_VERSION
+        value: "0.12.5"
+      - key: UV_PYTHON
+        value: "3.13.15"
+      - key: CMAKE_ARGS
+        value: -DGGML_NATIVE=OFF
+      - key: CORS_ALLOWED_ORIGINS
+        fromService:
+          name: happen-web
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: HF_MODEL_REPO
+        value: bartowski/google_gemma-3-270m-it-GGUF
+      - key: HF_MODEL_REVISION
+        value: d127a4e2c6ed47fdf409a956867b604c040432f9
+      - key: MODEL_FILENAME
+        value: google_gemma-3-270m-it-Q4_K_M.gguf
+      - key: MODEL_SHA256
+        value: c866c9f113f2e9aa2225c5997ede437392b8fa844ba5db9e4c77e315ffe20800
+      - key: HAPPEN_LIVE_ENABLED
+        value: "false"
+      - key: LOG_LEVEL
+        value: info
+      - key: SERPAPI_API_KEY
+        sync: false

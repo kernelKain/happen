@@ -12,20 +12,18 @@ The walking-skeleton phase is **not complete**. Do not start `fixture-hook` or a
 |---|---|
 | Current phase | Walking skeleton |
 | Phase complete | No |
-| Last finished step | Scaffold the locked monorepo |
-| Next step | Build health, metadata, and safe config |
+| Last finished step | Add CI and the deployment blueprint |
+| Next step | You push `walking-skeleton`, let CI finish, and create the Render services |
 | Branch | `walking-skeleton` |
-| Pull request | https://github.com/kernelKain/happen/pull/2 |
-| Remote | In sync with `origin/walking-skeleton` as of the latest notes commit |
+| Pull request | https://github.com/kernelKain/happen/pull/2 is merged. Health, the frontend shell, CI, and `render.yaml` are local and uncommitted. |
+| Remote | `origin/main` contains the merged scaffold. `walking-skeleton` matches that tree plus the uncommitted health API, planner shell, CI, and Render blueprint. |
 | Live URL | Not deployed |
 
 Remaining before this phase can be called complete:
 
-1. Build health, metadata, and safe config.
-2. Build the frontend shell.
-3. Add CI and the first public deployment.
-4. You open the local app, then the public URL, and confirm what you see.
-5. CodeRabbit reviews the pull request. Pull those remote changes before the next phase.
+1. You push `walking-skeleton`, wait for GitHub Actions, and create the Render services from `render.yaml`.
+2. You open the public URL and paste the frontend URL and the health URL back here.
+3. CodeRabbit reviews the pull request. Pull those remote changes before the next phase.
 
 ## Working rules for every later chat
 
@@ -39,7 +37,7 @@ Remaining before this phase can be called complete:
 
 ## How to run what exists today
 
-The page can be opened. The API server does not exist yet, so there is no health URL to call.
+The page can be opened. The API serves health and metadata only.
 
 Frontend, from the repository root:
 
@@ -49,17 +47,32 @@ npm install
 npm run dev
 ```
 
-Open the local address Vite prints, usually `http://127.0.0.1:5173`. The page should show “Happen” and “Know where. Know when.” Stop it with Ctrl+C.
+Open the local address Vite prints, usually `http://127.0.0.1:5173`. With the API running, the page shows the Indiranagar planner and leaves **Find the moment** off because the model is not loaded. Stop it with Ctrl+C.
 
 Backend, from the repository root:
 
 ```bash
 cd backend
 uv sync
-uv run python -c "import happen_api; print(happen_api.__version__)"
+uv run uvicorn happen_api.main:app --host 127.0.0.1 --port 8000
 ```
 
-That should print `0.1.0`. There is no `uvicorn` app to browse until the health step is built.
+Open `http://127.0.0.1:8000/healthz` and `http://127.0.0.1:8000/api/v1/meta`. Health returns HTTP 200 with `status` `degraded` because the model is not loaded and no fixture is installed. Metadata lists the Indiranagar preset. Neither response includes a secret. Stop the server with Ctrl+C.
+
+Checks:
+
+```bash
+cd backend
+uv run ruff format --check src tests ../scripts/scan-secrets.py
+uv run ruff check src tests ../scripts/scan-secrets.py
+uv run pytest
+cd ..
+python3 scripts/scan-secrets.py
+cd frontend
+npm run check
+npm test
+npm run build
+```
 
 ## Entire
 
@@ -87,12 +100,12 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Walking skeleton in progress. Phase is not complete. |
-| Last finished step | Scaffold the locked monorepo |
-| Next step | Build health, metadata, and safe config |
+| Last finished step | Add CI and the deployment blueprint |
+| Next step | You push `walking-skeleton`, let CI finish, and create the Render services |
 | Branch | `walking-skeleton` |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | None for the next build step. Do not leave a paid Render service running after judging. |
+| Biggest blocker | Waiting on your push and the Render services. Do not start the next phase. |
 
 ## How branches and commits work
 
@@ -264,36 +277,64 @@ Your side after this step: nothing. Do not create a Render service yet.
 
 ### Build health, metadata, and safe config
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. Not committed. Autonomy for this chat is A1, so the change is only in the working tree on `walking-skeleton`.
 
-Cursor adds the FastAPI app, `/healthz`, `/api/v1/meta`, CORS, safe errors, and tests. The model is not loaded yet.
+The API process starts from the existing `.env`, which only needs `SERPAPI_API_KEY`. Other settings use the development defaults from `.env.example`. Model identity and checksum come from `ml/model-manifest.json`. The model file is not opened.
 
-Your side after Cursor finishes: run nothing unless a check fails and the notes ask for a missing local tool.
+What exists now:
+
+- `GET /healthz` returns HTTP 200 in under one second with `status=degraded`, `model_status=not_loaded`, and `fixture_status=unavailable`.
+- `GET /api/v1/meta` returns contract `1.0.0`, the Indiranagar dinner preset, scoring policy `v1`, and `live_available=false` until live mode is explicitly enabled.
+- Production CORS rejects wildcards and local origins. Development allows only `localhost` and `127.0.0.1`.
+- Errors use the public envelope. A body over 16 KB returns `REQUEST_TOO_LARGE`. Unexpected failures return `INTERNAL_ERROR` without a stack trace, path, or secret.
+- Invalid configuration raises `ConfigError` and the message does not include secret values.
+
+Commit when you ask: one short sentence for this step. Do not push unless you ask.
+
+Your side after this step: nothing. The frontend shell is next.
 
 ### Build the frontend shell
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. Not committed.
 
-Cursor builds the dark planner frame and the initial, loading, and service-error states. It checks the production build at 1280 and 390 widths.
+The dark planner loads `/api/v1/meta`, shows the Indiranagar preset, and does not invent a recommendation. **Find the moment** stays off while the model is not ready. A failed metadata request keeps the page and offers Retry. A contract major other than `1` disables submission and asks for a refresh.
 
-Your side after Cursor finishes:
+Checks that passed:
 
-1. Optional: open the local page and say if the first screen is unclear.
-2. Required only if the browser check cannot be run here. In that case the notes will name the exact command and what to look at.
+- `npm test` — 3 unit tests.
+- `npm run build` — TypeScript and the Vite production build.
+- `npx playwright test` — 5 shell tests, including 1280×720 and 390×844 with no horizontal overflow, plus axe on the initial and service-error states.
+- A live browser run against the local API showed Indiranagar, restored the preset from the keyboard, and reported no console errors.
+
+Your side after this step: optional. Open `http://127.0.0.1:5173` with the API running and say if the first screen is unclear.
 
 ### Establish CI and first public deployment
 
-Status: **Not started.**
+Status: **Ready for you** on October 4, 2026. Not committed. Not deployed.
 
-Cursor adds GitHub Actions and `render.yaml` for the static site and the web service. Cursor does not deploy unless you explicitly allow it.
+GitHub Actions and `render.yaml` are in the working tree. The same checks CI runs passed locally. GitHub has not run the workflow, and no Render service exists yet.
 
-Your side after Cursor finishes:
+The workflow installs the locked backend and frontend, checks formatting, runs the backend tests and frontend unit tests, builds the frontend, and scans tracked files and `frontend/dist` for credential material. It prints a path and a rule name, never a secret value. Browser tests stay local. The Hook characterization test is not in the tree yet; the backend test job will run it when it arrives.
 
-1. Push `walking-skeleton` when you want the draft PR and CI to run.
-2. In Render, create the static site and the Python web service from this repo.
-3. Set `SERPAPI_API_KEY` in Render's secret environment. Add `HF_TOKEN` only if the model download needs it.
-4. Paste the public frontend URL and the health URL back here. Do not paste secret values.
-5. Leave the services asleep or on the cheapest verified plan. Out-of-pocket spend stays $0.
+`render.yaml` defines a free static site, `happen-web`, and one Python web service, `happen-api`, on `1c-2g` in Singapore. Both track `walking-skeleton` and deploy only after CI checks pass. The build does not download the model. `HAPPEN_LIVE_ENABLED` is false. Production CORS and `VITE_API_BASE_URL` come from the other service's public HTTPS URL. `SERPAPI_API_KEY` is prompted in the dashboard and is not written in the blueprint.
+
+Checks that passed locally:
+
+- `uv run ruff format --check` and `uv run ruff check` for `backend/src`, `backend/tests`, and `scripts/scan-secrets.py`.
+- `uv run pytest` — 21 tests.
+- `npm run check`, `npm test` — 3 tests, `npm run build`, and `npx playwright test` — 5 shell tests.
+- `python3 scripts/scan-secrets.py` and the same command with `--extra frontend/dist`.
+- `render.yaml` parses, and the installed app imports.
+
+Your side after this step:
+
+1. Ask for a commit if you want one, then push `walking-skeleton` and open or update the draft pull request. Wait until the `ci` workflow is green. The first backend run compiles `llama-cpp-python` and can take several minutes.
+2. In Render, create a Blueprint from this repo's `render.yaml`. Do not create a second copy by hand.
+3. When Render prompts, set `SERPAPI_API_KEY`. Leave `HF_TOKEN` unset. This public model does not need it.
+4. After both services are live, open the frontend URL and `https://<api-host>/healthz`. Paste those two URLs back here. Do not paste secret values.
+5. Suspend `happen-api` after that smoke check if you are not ready to leave it running. `1c-2g` is $25/month from the existing $50 credits and does not sleep. A later green push can deploy it again and resume billing. The static site is free.
+
+If the API deploy fails because the frontend origin is not ready, set `CORS_ALLOWED_ORIGINS` in the dashboard to the exact `https://` frontend origin and redeploy once. If the native build cannot compile `llama-cpp-python`, stop and say so. Do not keep retrying paid builds. The next coding step waits for those URLs.
 
 ---
 
@@ -672,7 +713,8 @@ Your side:
 | Prove SerpApi evidence shape | Done | `Record the Indiranagar restaurant evidence probe.` | Nothing else for SerpApi. |
 | Prove Gemma and Render feasibility | Done | `Record the free Gemma runtime proof and Render credit limit.` | Before deploy, cap Render spend at the credits and suspend the paid service after judging. No token needed now. |
 | Scaffold the locked monorepo | Done | `Scaffold the backend, frontend, and model manifest.` | Nothing. |
-| Health API and frontend shell | Not started | — | Review only if a check needs you. |
+| Health, metadata, and safe config | Done locally, not committed | — | Nothing. |
+| Frontend shell | Done locally, not committed | — | Optional: say if the first screen is unclear. |
 | CI and first public deployment | Not started | — | Push, Render services, secrets, public URLs. |
 | Scoring, fixtures, extraction, and fixture API | Not started | — | Nothing unless a note asks. |
 | Matrix UI and fixture Hook proof | Not started | — | Look at the local Hook once. |
