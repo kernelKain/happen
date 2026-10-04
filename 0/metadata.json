@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M448RSGNSSQ9N1BXE4ER7AN1",
+  "session_id": "8139fa1d-a298-4685-87a0-02a5b1e7be94",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T20:13:02.052031782Z",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/app/landing/Landing.test.tsx",
+    "frontend/src/app/landing/Landing.tsx",
+    "frontend/src/app/landing/Mark.tsx",
+    "frontend/src/app/landing/examples.ts",
+    "frontend/src/app/landing/landing.css",
+    "frontend/src/main.tsx",
+    "frontend/tests/hook.spec.ts",
+    "frontend/tests/landing.spec.ts",
+    "frontend/tests/result.spec.ts",
+    "frontend/tests/shell.spec.ts",
+    "frontend/vite.config.ts"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high-fast",
+  "turn_id": "eedf3ed517ff",
+  "checkpoint_transcript_start": 300,
+  "transcript_lines_at_start": 300,
+  "compact_transcript_start": 25,
+  "session_metrics": {
+    "turn_count": 6,
+    "context_tokens": 245599,
+    "context_window_size": 256000
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T20:13:01.897520665Z",
+    "agent_lines": 1086,
+    "agent_removed": 29,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1086,
+    "total_lines_changed": 1115,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M448RSGNSSQ9N1BXE4ER7AN1",
+  "strategy": "manual-commit",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/app/landing/Landing.test.tsx",
+    "frontend/src/app/landing/Landing.tsx",
+    "frontend/src/app/landing/Mark.tsx",
+    "frontend/src/app/landing/examples.ts",
+    "frontend/src/app/landing/landing.css",
+    "frontend/src/main.tsx",
+    "frontend/tests/hook.spec.ts",
+    "frontend/tests/landing.spec.ts",
+    "frontend/tests/result.spec.ts",
+    "frontend/tests/shell.spec.ts",
+    "frontend/vite.config.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ]
+}
