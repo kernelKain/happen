@@ -14,6 +14,8 @@ function plan(overrides: Partial<EveningPlan> = {}): EveningPlan {
     local_date: "2026-10-05",
     local_start: "19:00:00",
     party_size: 2,
+    billed_requests: 3,
+    remaining_requests: 5,
     stops: [
       {
         position: 1,

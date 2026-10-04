@@ -22,7 +22,7 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Preserve evidence provenance and useful review signals |
+| Last finished step | Enforce plan budgets on the server. |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -109,7 +109,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Python scores party size, budget, preferences, and accessibility from retrieved evidence. Unknown evidence adds nothing. Gemma claims stay off. |
-| Last finished step | Preserve evidence provenance and useful review signals |
+| Last finished step | Enforce plan budgets on the server. |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
@@ -954,3 +954,59 @@ Your side:
 | Recomputed refinements | Done. Apply sends the whole proposed brief to the server, the cached pool is rescored without a new billed request, and a failure keeps the previous plan. | `Recompute refinements from cached evidence.` | Manual test of one evening. Do not push. Do not deploy. |
 
 | Evidence provenance | Done. Every displayed claim carries its kind, field, safe URL, match method, and verification state. Official evidence is no longer filed as community. | `Preserve evidence provenance and useful review signals.` | Manual test of one evening. Do not push. Do not deploy. |
+
+## Plan allowance
+
+The eight-request budget is counted on the server, not reported by the caller.
+
+Reading a prompt issues an opaque `plan_token`. The token is 32 random bytes,
+URL-safe, and means nothing to the client. Both billed routes require it:
+
+- `POST /api/v2/destinations/resolve`
+- `POST /api/v2/plans`
+
+`PlanRequest.prior_billed_requests` is gone. It was a trusted field: a client
+could send zero and reset its own budget.
+
+### Accounting rules
+
+- The store holds one allowance per token: `spent` and `reserved`.
+- Each billed call claims one unit **before** it reaches the provider, under a
+  lock. A claim that does not fit raises the provider's own
+  `CREDIT_BUDGET_EXCEEDED`, so discovery and destination resolution stop
+  gracefully instead of failing.
+- On success, the claim becomes spent.
+- On failure, the exception carries `billed_requests`, the number of requests
+  the client actually sent. A retry that reached the network stays charged; a
+  call cancelled before sending refunds its claim and consumes nothing.
+- The free Locations API is not in the metered set. It never consumes budget.
+
+### Why reserve before sending
+
+Two simultaneous requests sharing one token would each pass a naive
+read-then-write check and jointly exceed eight. Because a claim is taken under
+the same lock that reads the total, the second caller sees the first claim and
+stops. `test_two_simultaneous_plans_cannot_exceed_eight` runs two threads
+against one token and asserts the total never exceeds the limit.
+
+### Refinement rule
+
+A refinement keeps the same token and the same allowance, so a cached
+recomputation spends nothing. **A refinement that is treated as a new submitted
+plan must be issued a fresh token deliberately** by re-reading the prompt; the
+server never hands out a second allowance implicitly.
+
+### Limitations, stated honestly
+
+The store is process-local and bounded: 512 tokens, 30-minute TTL. A restart
+clears every allowance, and a second worker would hold a separate copy. That is
+a known limitation, not a hidden one. Adding a database is out of scope for
+this project.
+
+### Response shape
+
+`DestinationResolution` and `EveningPlan` both carry `billed_requests` (the
+plan-local real count) and `remaining_requests`. The landing page reads these
+and keeps no counter of its own.
+
+| Server-side plan budgets | Done. A prompt issues an opaque token. Both billed routes require it, atomic claims stop concurrent requests from jointly exceeding eight, and the caller no longer reports its own count. | `Enforce plan budgets on the server.` | Manual test of one evening. Do not push. Do not deploy. |

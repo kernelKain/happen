@@ -34,7 +34,12 @@ _Kind = Literal["search", "place", "reviews", "web"]
 
 
 class SerpApiFailure(Exception):
-    """A provider call stopped. The message is safe to log and return."""
+    """A provider call stopped. The message is safe to log and return.
+
+    `billed_requests` is how many billed requests this call actually sent. A
+    retry that reached the network counts; a call cancelled before sending does
+    not. Plan accounting uses it so a retry is charged and a cancellation is not.
+    """
 
     def __init__(
         self,
@@ -43,10 +48,12 @@ class SerpApiFailure(Exception):
         *,
         retryable: bool,
         immediate_retry: bool = False,
+        billed_requests: int = 0,
     ) -> None:
         self.code = code
         self.retryable = retryable
         self.immediate_retry = immediate_retry
+        self.billed_requests = billed_requests
         super().__init__(message)
 
 
@@ -336,6 +343,14 @@ class SerpApiClient:
         return body
 
     def _billed_success_with_attempts(self, params: dict[str, str]) -> tuple[dict[str, Any], int]:
+        before = self._credits_charged
+        try:
+            return self._billed_attempts(params)
+        except SerpApiFailure as failure:
+            failure.billed_requests = self._credits_charged - before
+            raise
+
+    def _billed_attempts(self, params: dict[str, str]) -> tuple[dict[str, Any], int]:
         self._ensure_live()
         started = self._mark_started()
         last_failure: SerpApiFailure | None = None

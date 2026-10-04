@@ -75,7 +75,9 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   const [followUp, setFollowUp] = useState<FollowUp | null>(null);
   const [destination, setDestination] = useState<ResolvedDestination | null>(null);
   const [choices, setChoices] = useState<ResolvedDestination[]>([]);
-  const [billed, setBilled] = useState(0);
+  // The server issues this when it reads a prompt. It is opaque to the page,
+  // and the only thing that identifies this plan's search allowance.
+  const [planToken, setPlanToken] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy | null>(null);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -167,6 +169,10 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
 
   function rememberBrief(next: PlanningBrief) {
     setBrief(next);
+    // Every brief the server sends carries the plan identity it issued.
+    if (next.plan_token) {
+      setPlanToken(next.plan_token);
+    }
     setPartyDraft(next.party_size === null ? "" : String(next.party_size));
     setBudgetAmount(next.budget?.amount ?? "");
     setBudgetCurrency(next.budget?.currency ?? "");
@@ -220,19 +226,28 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       return;
     }
     const phrase = current.pending_date?.phrase;
+    const token = current.plan_token;
+    if (!token) {
+      setFailure({
+        message: "This plan session is no longer valid.",
+        next: "Start a new search.",
+        retry: null,
+      });
+      return;
+    }
     const resolution = await resolveDestination(
       {
         query,
         pending_date: phrase === "today" || phrase === "tomorrow" ? phrase : undefined,
         local_date: current.local_date,
         local_start: current.local_start,
+        plan_token: token,
       },
       { signal: abortRef.current?.signal, fetchImpl },
     );
     if (id !== generation.current) {
       return;
     }
-    setBilled((spent) => spent + resolution.billed_requests);
     if (resolution.status === "ambiguous") {
       setDestination(null);
       setSelectedChoice(null);
@@ -288,7 +303,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       setDestination(null);
       setChoices([]);
       setSelectedChoice(null);
-      setBilled(0);
+      setPlanToken(next.plan_token);
       setPlan(null);
       setProposal(null);
       setSearchSnapshot(null);
@@ -442,18 +457,20 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
 
   async function findPlan(options?: {
     keepCurrent?: boolean;
-    prior?: number;
+    token?: string;
     source?: PlanningBrief;
   }) {
     const source = options?.source ?? brief;
     if (!source || !destination?.timezone_name || !source.local_date || !source.local_start) {
       return;
     }
-    const prior = options?.prior ?? billed;
-    if (prior >= 8) {
+    // The server is the only authority on the allowance. The page keeps the
+    // count it was last told, and the server refuses anything over budget.
+    const token = options?.token ?? planToken;
+    if (!token) {
       setFailure({
-        message: "The search allowance for this plan has been reached.",
-        next: "Try again later.",
+        message: "This plan session is no longer valid.",
+        next: "Start a new search.",
         retry: null,
       });
       return;
@@ -468,7 +485,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       setPlan(null);
     }
     try {
-      const eveningPlan = await requestPlan(planQuery(source, destination, prior), {
+      const eveningPlan = await requestPlan(planQuery(source, destination, token), {
         signal: abortRef.current?.signal,
         fetchImpl,
       });
@@ -561,10 +578,18 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     // has actually succeeded or has returned an explicit evidence outcome.
     try {
       let place = destination;
-      let prior = 0;
+      const token = planToken;
       if (!samePlace || !place?.timezone_name) {
         const query = proposed.destination_text?.trim();
         if (!query || !proposed.local_date || !proposed.local_start) {
+          return;
+        }
+        if (!token) {
+          setFailure({
+            message: "This plan session is no longer valid.",
+            next: "Start a new search.",
+            retry: null,
+          });
           return;
         }
         setBusy("checking");
@@ -575,14 +600,13 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
             pending_date: phrase === "today" || phrase === "tomorrow" ? phrase : undefined,
             local_date: proposed.local_date,
             local_start: proposed.local_start,
+            plan_token: token,
           },
           { signal: abortRef.current?.signal, fetchImpl },
         );
         if (id !== generation.current) {
           return;
         }
-        prior = resolution.billed_requests;
-        setBilled(prior);
         if (resolution.status === "ambiguous") {
           setDestination(null);
           setSelectedChoice(null);
@@ -604,10 +628,10 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       if (!place?.timezone_name || !proposed.local_date || !proposed.local_start) {
         return;
       }
-      if (prior >= 8) {
+      if (!token) {
         setFailure({
-          message: "The search allowance for this plan has been reached.",
-          next: "Try again later.",
+          message: "This plan session is no longer valid.",
+          next: "Start a new search.",
           retry: null,
         });
         return;
@@ -615,7 +639,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       setBusy("finding");
       // The whole proposed brief goes to the server. Python revalidates it and
       // decides whether the cached evidence is enough or a new retrieval is due.
-      const eveningPlan = await requestPlan(planQuery(proposed, place, prior), {
+      const eveningPlan = await requestPlan(planQuery(proposed, place, token), {
         signal: abortRef.current?.signal,
         fetchImpl,
       });
@@ -1159,7 +1183,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   );
 }
 
-function planQuery(source: PlanningBrief, destination: ResolvedDestination, prior: number) {
+function planQuery(source: PlanningBrief, destination: ResolvedDestination, token: string) {
   return {
     destination,
     intents: source.intents,
@@ -1169,7 +1193,7 @@ function planQuery(source: PlanningBrief, destination: ResolvedDestination, prio
     budget: source.budget,
     preferences: source.preferences,
     accessibility_needs: source.accessibility_needs,
-    prior_billed_requests: prior,
+    plan_token: token,
   };
 }
 

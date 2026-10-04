@@ -28,6 +28,7 @@ export const planIntentSchema = z.object({
 export const planBriefSchema = z.object({
   raw_prompt: z.string().min(1),
   destination_text: z.string().nullable(),
+  plan_token: z.string().min(16).nullable().default(null),
   local_date: day.nullable(),
   pending_date: z
     .object({
@@ -129,6 +130,7 @@ export const destinationResolutionSchema = z.object({
   destination: resolvedDestinationSchema.nullable(),
   choices: z.array(resolvedDestinationSchema).max(3),
   billed_requests: z.number().int().nonnegative(),
+  remaining_requests: z.number().int().nonnegative().default(0),
   local_time: z
     .object({
       date_status: z.enum(["resolved", "ambiguous", "missing"]),
@@ -230,6 +232,8 @@ export const eveningPlanSchema = z.object({
   transition: planTransitionSchema.nullable(),
   warnings: z.array(z.string()),
   retrieved_at: instant,
+  billed_requests: z.number().int().nonnegative().default(0),
+  remaining_requests: z.number().int().nonnegative().default(0),
 });
 
 export const briefDiffSchema = z.object({

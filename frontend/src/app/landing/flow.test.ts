@@ -23,6 +23,7 @@ import {
 const brief: PlanningBrief = {
   raw_prompt: "Dinner in Kyoto tomorrow at 7",
   destination_text: "Kyoto",
+  plan_token: "test-plan-token-0001",
   local_date: null,
   pending_date: { phrase: "tomorrow" },
   local_start: "19:00:00",

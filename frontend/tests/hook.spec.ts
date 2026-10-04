@@ -52,6 +52,7 @@ test("an exhausted search stays a failure without a fixture", async ({ page }) =
         outcome: "ready_for_retrieval",
         brief: {
           raw_prompt: prompt,
+          plan_token: "test-plan-token-0001",
           destination_text: "Kyoto",
           local_date: "2026-10-05",
           pending_date: null,

@@ -32,6 +32,20 @@ const destination = {
   provenance: null,
 };
 
+const eveningPlanResponse = {
+  version: "2" as const,
+  outcome: "no_results" as const,
+  local_date: "2026-10-05",
+  local_start: "19:00:00",
+  party_size: null,
+  stops: [],
+  transition: null,
+  warnings: [],
+  retrieved_at: "2026-10-04T12:00:00Z",
+  billed_requests: 2,
+  remaining_requests: 6,
+};
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -65,10 +79,70 @@ describe("plan client", () => {
       );
     });
     const interpreted = await interpretBrief("Dinner in Kyoto on 2026-10-05 at 7pm", { fetchImpl });
-    const resolved = await resolveDestination({ query: "Kyoto" }, { fetchImpl });
+    const resolved = await resolveDestination(
+      { query: "Kyoto", plan_token: "test-plan-token-0001" },
+      { fetchImpl },
+    );
     expect(interpreted.brief.destination_text).toBe("Kyoto");
     expect(resolved.status).toBe("ambiguous");
     expect(resolved.choices).toHaveLength(2);
+  });
+
+  it("sends the plan token and never a caller-supplied request count", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      if (String(_input).endsWith("/api/v2/destinations/resolve")) {
+        return json({
+          status: "resolved",
+          destination,
+          choices: [],
+          billed_requests: 2,
+          remaining_requests: 6,
+          local_time: null,
+        });
+      }
+      return json(eveningPlanResponse);
+    });
+    await resolveDestination({ query: "Kyoto", plan_token: "test-plan-token-0001" }, { fetchImpl });
+    await requestPlan(
+      {
+        destination,
+        intents: [{ kind: "dinner", label: "dinner", position: 1 }],
+        local_date: "2026-10-05",
+        local_start: "19:00:00",
+        party_size: 2,
+        budget: null,
+        preferences: [],
+        accessibility_needs: [],
+        plan_token: "test-plan-token-0001",
+      },
+      { fetchImpl },
+    );
+    for (const body of bodies) {
+      expect(body.plan_token).toBe("test-plan-token-0001");
+      expect("prior_billed_requests" in body).toBe(false);
+    }
+  });
+
+  it("reports the server's own counts rather than a local tally", async () => {
+    const fetchImpl = vi.fn(async () => json({ ...eveningPlanResponse, billed_requests: 5 }));
+    const plan = await requestPlan(
+      {
+        destination,
+        intents: [{ kind: "dinner", label: "dinner", position: 1 }],
+        local_date: "2026-10-05",
+        local_start: "19:00:00",
+        party_size: 2,
+        budget: null,
+        preferences: [],
+        accessibility_needs: [],
+        plan_token: "test-plan-token-0001",
+      },
+      { fetchImpl },
+    );
+    expect(plan.billed_requests).toBe(5);
+    expect(plan.remaining_requests).toBe(eveningPlanResponse.remaining_requests);
   });
 
   it("keeps quota and timeout failures user-safe", async () => {
@@ -98,7 +172,7 @@ describe("plan client", () => {
         budget: { amount: "40", currency: "USD", tier: null, bound: "at_most" },
         preferences: ["quiet"],
         accessibility_needs: ["wheelchair access"],
-        prior_billed_requests: 0,
+        plan_token: "test-plan-token-0001",
       },
       { fetchImpl },
     ).catch((caught: unknown) => caught);
@@ -170,7 +244,7 @@ describe("plan client", () => {
         budget: { amount: "40", currency: "USD", tier: "low", bound: "at_most" },
         preferences: ["quiet"],
         accessibility_needs: ["wheelchair access"],
-        prior_billed_requests: 0,
+        plan_token: "test-plan-token-0001",
       },
       { fetchImpl },
     );
@@ -207,7 +281,10 @@ describe("plan client", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(
-      resolveDestination({ query: "Kyoto" }, { signal: controller.signal, fetchImpl: vi.fn() }),
+      resolveDestination(
+        { query: "Kyoto", plan_token: "test-plan-token-0001" },
+        { signal: controller.signal, fetchImpl: vi.fn() },
+      ),
     ).rejects.toMatchObject({ name: "AbortError" });
   });
 });

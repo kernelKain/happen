@@ -10,7 +10,10 @@ from fastapi.testclient import TestClient
 from happen_api.app import create_app
 from happen_api.config import Settings
 from happen_api.planning.clock import FixedClock
+from happen_api.planning.limits import Allowance
 from happen_api.providers.serpapi.client import SerpApiFailure, SupportedLocation
+
+_TOKEN = "test-plan-token-for-contract-cases"
 
 CLOCK = FixedClock(datetime(2026, 10, 4, 22, 0, tzinfo=UTC))
 TOKYO = SupportedLocation(
@@ -139,10 +142,27 @@ def _app(settings: Settings, provider: ScriptedProvider | None = None) -> TestCl
     application.state.clock = CLOCK
     if provider is not None:
         application.state.provider_factory = lambda _limit, _timeout: provider
+    # The fixed token is seeded so a body can name it without a live prompt.
+    application.state.plan_allowances._items[_TOKEN] = Allowance()
     return TestClient(application)
 
 
-def _plan_body(destination: dict[str, object], drinks: bool = False) -> dict[str, object]:
+def _spent_app(settings: Settings, provider: ScriptedProvider, spent: int = 8) -> TestClient:
+    """An app whose fixed token has already spent its whole allowance."""
+
+    application = create_app(settings)
+    application.state.clock = CLOCK
+    application.state.provider_factory = lambda _limit, _timeout: provider
+    application.state.plan_allowances._items[_TOKEN] = Allowance(spent=spent)
+    return TestClient(application)
+
+
+def _plan_body(
+    destination: dict[str, object],
+    drinks: bool = False,
+    *,
+    token: str = _TOKEN,
+) -> dict[str, object]:
     intents = [{"kind": "dinner", "label": "dinner", "position": 1}]
     if drinks:
         intents.append({"kind": "drinks", "label": "drinks", "position": 2})
@@ -151,7 +171,18 @@ def _plan_body(destination: dict[str, object], drinks: bool = False) -> dict[str
         "intents": intents,
         "local_date": "2026-10-05",
         "local_start": "19:00",
+        "plan_token": token,
     }
+
+
+def _new_plan(client: TestClient) -> str:
+    """Interpret a fresh prompt and return the plan token the server issued."""
+
+    brief = client.post(
+        "/api/v2/briefs/interpret",
+        json={"prompt": "Dinner in Kyoto on 2026-10-05 at 7pm"},
+    ).json()
+    return brief["brief"]["plan_token"]
 
 
 def _safe(payload: str) -> None:
@@ -212,7 +243,10 @@ def test_resolve_keeps_an_ambiguous_query_as_choices(settings: Settings) -> None
     ]
     provider = ScriptedProvider(8, 14.0, locations=places)
     with _app(settings, provider) as client:
-        response = client.post("/api/v2/destinations/resolve", json={"query": "Springfield"})
+        response = client.post(
+            "/api/v2/destinations/resolve",
+            json={"query": "Springfield", "plan_token": _TOKEN},
+        )
     assert response.status_code == 409
     body = response.json()
     assert body["status"] == "ambiguous"
@@ -229,7 +263,7 @@ def test_resolve_tokyo_today_uses_the_destination_zone(settings: Settings) -> No
     with _app(settings, provider) as client:
         response = client.post(
             "/api/v2/destinations/resolve",
-            json={"query": "Tokyo", "pending_date": "today"},
+            json={"query": "Tokyo", "pending_date": "today", "plan_token": _TOKEN},
         )
     assert response.status_code == 200
     body = response.json()
@@ -244,7 +278,10 @@ def test_plan_selects_two_stops_and_an_unverified_transition(settings: Settings)
 
     provider = ScriptedProvider(8, 14.0, hours={"monday": "5:00 PM–10:00 PM"})
     with _app(settings, provider) as client:
-        resolved = client.post("/api/v2/destinations/resolve", json={"query": "Tokyo"}).json()
+        resolved = client.post(
+            "/api/v2/destinations/resolve",
+            json={"query": "Tokyo", "plan_token": _TOKEN},
+        ).json()
         response = client.post(
             "/api/v2/plans",
             json=_plan_body(resolved["destination"], drinks=True),
@@ -273,9 +310,10 @@ def test_plan_reports_no_results_closed_hours_and_unknown_hours(settings: Settin
     closed = ScriptedProvider(8, 14.0, hours={"sunday": "5:00 PM–10:00 PM"})
     unknown = ScriptedProvider(8, 14.0, hours=None)
     with _app(settings, empty) as client:
-        destination = client.post("/api/v2/destinations/resolve", json={"query": "Tokyo"}).json()[
-            "destination"
-        ]
+        destination = client.post(
+            "/api/v2/destinations/resolve",
+            json={"query": "Tokyo", "plan_token": _TOKEN},
+        ).json()["destination"]
         none = client.post("/api/v2/plans", json=_plan_body(destination))
     with _app(settings, closed) as client:
         shut = client.post("/api/v2/plans", json=_plan_body(destination))
@@ -298,11 +336,11 @@ def test_timeout_and_quota_are_safe_errors(settings: Settings) -> None:
         14.0,
         failure=SerpApiFailure("TRANSIENT_DEPENDENCY", "timed out", retryable=True),
     )
-    spent = ScriptedProvider(8, 14.0, credits=8)
+    spent = ScriptedProvider(8, 14.0)
     with _app(settings, stalled) as client:
         destination = {"label": "Kyoto", "source_text": "Kyoto", "timezone_name": "Asia/Tokyo"}
         timeout = client.post("/api/v2/plans", json=_plan_body(destination))
-    with _app(settings, spent) as client:
+    with _spent_app(settings, spent) as client:
         quota = client.post("/api/v2/plans", json=_plan_body(destination))
     assert timeout.status_code == 504
     assert timeout.json()["error"]["code"] == "TIMEOUT"
@@ -320,8 +358,8 @@ def test_a_spent_plan_budget_does_not_search(settings: Settings) -> None:
     application = create_app(settings)
     application.state.clock = CLOCK
     application.state.provider_factory = lambda _limit, _timeout: provider
+    application.state.plan_allowances._items[_TOKEN] = Allowance(spent=8)
     body = _plan_body({"label": "Kyoto", "source_text": "Kyoto", "timezone_name": "Asia/Tokyo"})
-    body["prior_billed_requests"] = 8
     with TestClient(application) as client:
         response = client.post("/api/v2/plans", json=body)
     assert response.status_code == 503
@@ -362,14 +400,17 @@ def test_one_plan_stops_before_a_ninth_billed_request(settings: Settings) -> Non
     application = create_app(settings)
     application.state.clock = CLOCK
     application.state.provider_factory = lambda _limit, _timeout: provider
+    application.state.plan_allowances._items[_TOKEN] = Allowance(spent=7)
     body = _plan_body({"label": "Kyoto", "source_text": "Kyoto", "timezone_name": "Asia/Tokyo"})
-    body["prior_billed_requests"] = 7
     with TestClient(application) as client:
         response = client.post("/api/v2/plans", json=body)
     assert response.status_code == 200
     assert provider.credits_charged == 1
     assert len(provider.calls) == 1
     assert all(not call.startswith("details:") for call in provider.calls)
+    body = response.json()
+    assert body["billed_requests"] == 8
+    assert body["remaining_requests"] == 0
     _safe(response.text)
 
 

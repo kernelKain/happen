@@ -5,6 +5,7 @@ const original = "Dinner in Kyoto tomorrow at 7, then a short walk.";
 
 const brief = {
   raw_prompt: original,
+  plan_token: "test-plan-token-0001",
   destination_text: "Kyoto",
   local_date: "2026-10-05",
   pending_date: null,

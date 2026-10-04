@@ -22,7 +22,7 @@ from happen_api.config import Settings, get_settings
 from happen_api.errors import error_response, message_for, public_field_errors
 from happen_api.logging import configure_logging, get_logger
 from happen_api.middleware import BodyLimitMiddleware, RequestContextMiddleware, current_request_id
-from happen_api.planning.limits import PlanCache, PlanningThrottle
+from happen_api.planning.limits import AllowanceStore, PlanCache, PlanningThrottle
 from happen_api.providers.serpapi.guard import LiveGuard
 from happen_api.readiness import captured_fixture_status
 from happen_api.recommendations.memory import RecommendationMemory
@@ -62,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.recommendation_memory = RecommendationMemory()
     application.state.planning_throttle = PlanningThrottle()
     application.state.plan_cache = PlanCache()
+    application.state.plan_allowances = AllowanceStore()
     application.state.live_guard = LiveGuard(budget=resolved.serpapi_search_budget)
     application.state.excerpt_generate = None
     application.state.provider_factory = None

@@ -1030,3 +1030,71 @@ Commands and results, from a clean `global-live-experience` tree at `4865815` be
 - The dedupe guard in `_record_claim` was inverted, using `all` over an empty list and discarding the first claim of every kind. That is why the first community claim never appeared. It now uses `any` and a length bound.
 - All links now go through `safe_link`, which also covers the stop's own `maps_link` and `website`.
 - The next action is a manual local test of one evening. Deployment and submission stay user-owned and were not requested in this step.
+
+## Enforce plan budgets on the server.
+
+### What was wrong
+
+`PlanRequest.prior_billed_requests` was a trusted client field. The caller told
+the server how much of the eight-request budget it had already used, and the
+server believed it. Sending `0` reset the budget; sending `8` blocked the plan.
+Nothing tied the number to a request that had actually been sent.
+
+### What changed
+
+- `planning/limits.py` gained `Allowance`, `AllowanceStore`, and
+  `MeteredProvider`.
+- Reading a prompt issues an opaque `plan_token`: 32 random bytes via
+  `secrets.token_urlsafe`. It is stored as a `TTLCache` key, bounded at 512
+  entries with a 30-minute TTL.
+- `MeteredProvider` wraps the SerpApi client. Its `BILLED` frozenset names the
+  five methods that reach the network and cost a request. Everything else,
+  including the free `supported_locations` and `close`, passes through
+  untouched.
+- `SerpApiFailure` gained `billed_requests`, set in
+  `_billed_success_with_attempts` as the delta of the client's own counter. This
+  is what distinguishes a retry that reached the network from a call cancelled
+  before sending.
+- `prior_billed_requests` is removed from `PlanRequest`, from the frontend
+  `PlanQuery`, and from every test that used it.
+
+### Concurrency
+
+`reserve()` checks and increments `reserved` under one lock. Two requests
+sharing a token cannot jointly pass, because the second sees the first's claim.
+`test_two_simultaneous_plans_cannot_exceed_eight` runs two threads, sixteen
+attempts each, and asserts the total is exactly eight and the remainder zero.
+
+### A design decision worth noting
+
+When a claim does not fit, `MeteredProvider` raises `SerpApiFailure` with code
+`CREDIT_BUDGET_EXCEEDED` rather than a new exception type. That code is already
+handled gracefully in both `resolve_destination` and `discover_places`, so
+running out of budget degrades into a partial result with a warning instead of
+a hard error. Introducing a separate exception would have required touching both
+call sites for no behavioural gain.
+
+### Tests
+
+12 new cases in `tests/unit/test_plan_allowance.py` covering token randomness,
+forged token, expired token, concurrency, the refused ninth call, retry
+consumption, cancellation refund, the free Locations call, store eviction,
+cached recomputation, shared allowance across both routes, and absence of
+prompts or keys in stored records and responses.
+
+Frontend: 2 new cases in `planClient.test.ts` asserting the token is sent, that
+`prior_billed_requests` is absent from the body, and that counts come from the
+server.
+
+Two existing tests were changed rather than only extended:
+`test_a_spent_plan_budget_does_not_search` and
+`test_one_plan_stops_before_a_ninth_billed_request` seeded `Allowance(spent=N)`
+in the store instead of setting a body field, and
+`test_timeout_and_quota_are_safe_errors` previously relied on the fake provider
+claiming eight credits of its own accord.
+
+### Known limitations
+
+Process-local and in-memory. A restart clears all allowances; a second worker
+would hold its own copy and the effective ceiling would be eight per worker.
+This is documented in `docs/HANDOFF2.md` rather than papered over.

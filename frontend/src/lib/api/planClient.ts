@@ -48,6 +48,7 @@ export type ResolveQuery = {
   pending_date?: "today" | "tomorrow";
   local_date?: string | null;
   local_start?: string | null;
+  plan_token: string;
 };
 
 export type PlanQuery = {
@@ -59,7 +60,7 @@ export type PlanQuery = {
   budget: PlanningBrief["budget"];
   preferences: string[];
   accessibility_needs: string[];
-  prior_billed_requests: number;
+  plan_token: string;
 };
 
 function unreachable(status = 0): PlanRequestError {
@@ -151,7 +152,10 @@ export async function resolveDestination(
   query: ResolveQuery,
   options: CallOptions = {},
 ): Promise<DestinationResolution> {
-  const body: Record<string, unknown> = { query: query.query };
+  const body: Record<string, unknown> = {
+    query: query.query,
+    plan_token: query.plan_token,
+  };
   if (query.pending_date) {
     body.pending_date = query.pending_date;
   }
@@ -188,7 +192,7 @@ export async function requestPlan(
       budget: query.budget,
       preferences: query.preferences,
       accessibility_needs: query.accessibility_needs,
-      prior_billed_requests: query.prior_billed_requests,
+      plan_token: query.plan_token,
     },
     options,
   );

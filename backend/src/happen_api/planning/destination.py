@@ -52,6 +52,7 @@ class DestinationResolution(BaseModel):
     choices: list[ResolvedDestination] = Field(default_factory=list, max_length=_CHOICE_LIMIT)
     billed_requests: int = Field(ge=0)
     local_time: LocalTimeResult | None = None
+    remaining_requests: int = Field(default=0, ge=0)
 
 
 def resolve_destination(

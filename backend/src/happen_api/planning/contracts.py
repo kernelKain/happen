@@ -407,6 +407,7 @@ class PlanningBrief(BaseModel):
     missing_essentials: list[MissingField] = Field(default_factory=list, max_length=4)
     ambiguities: list[Ambiguity] = Field(default_factory=list, max_length=8)
     confidence: BriefConfidence
+    plan_token: str | None = Field(default=None, min_length=16, max_length=128)
 
     @field_validator("raw_prompt", "destination_text")
     @classmethod

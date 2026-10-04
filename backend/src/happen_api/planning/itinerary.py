@@ -183,6 +183,8 @@ class EveningPlan(BaseModel):
     party_size: int | None = Field(default=None, ge=1, le=20)
     warnings: list[str] = Field(default_factory=list, max_length=8)
     retrieved_at: datetime
+    billed_requests: int = Field(default=0, ge=0)
+    remaining_requests: int = Field(default=0, ge=0)
 
 
 class FieldChange(BaseModel):

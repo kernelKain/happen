@@ -9,6 +9,7 @@ import { Landing } from "./Landing";
 const original = "Dinner in Kyoto on 2026-10-05 at 7.";
 
 const brief = {
+  plan_token: "test-plan-token-0001",
   raw_prompt: original,
   destination_text: "Kyoto",
   local_date: "2026-10-05",

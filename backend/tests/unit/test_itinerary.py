@@ -488,11 +488,13 @@ def test_plan_request_keeps_party_budget_access_and_preferences() -> None:
             },
             "preferences": ["quiet"],
             "accessibility_needs": ["wheelchair access"],
+            "plan_token": "test-plan-token-for-itinerary",
         }
     )
     assert body.party_size == 4
     assert body.budget is not None
     assert body.budget.amount == Decimal(40)
+    assert body.plan_token == "test-plan-token-for-itinerary"
     assert body.budget.currency == "USD"
     assert body.preferences == ["quiet"]
     assert body.accessibility_needs == ["wheelchair access"]

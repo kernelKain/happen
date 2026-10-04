@@ -17,8 +17,10 @@ from fastapi.testclient import TestClient
 from happen_api.app import create_app
 from happen_api.config import Settings
 from happen_api.planning.clock import FixedClock
+from happen_api.planning.limits import Allowance
 
 CLOCK = FixedClock(datetime(2026, 10, 4, 15, 0, tzinfo=UTC))
+_TOKEN = "test-plan-token-for-refinement"
 TOKYO = {"label": "Tokyo", "source_text": "Tokyo", "timezone_name": "Asia/Tokyo"}
 KYOTO = {"label": "Kyoto", "source_text": "Kyoto", "timezone_name": "Asia/Tokyo"}
 
@@ -120,6 +122,7 @@ def _app(settings: Settings, provider: TwoPlaceProvider) -> TestClient:
     application = create_app(settings)
     application.state.clock = CLOCK
     application.state.provider_factory = lambda _limit, _timeout: provider
+    application.state.plan_allowances._items[_TOKEN] = Allowance()
     return TestClient(application)
 
 
@@ -129,6 +132,7 @@ def _body(**updates: object) -> dict[str, object]:
         "intents": [{"kind": "dinner", "label": "dinner", "position": 1}],
         "local_date": "2026-10-05",
         "local_start": "19:00",
+        "plan_token": _TOKEN,
     }
     body.update(updates)
     return body
@@ -152,10 +156,7 @@ def test_a_preference_only_change_rescores_without_a_new_billed_request(
     with _app(settings, provider) as client:
         first = client.post("/api/v2/plans", json=_body())
         spent_after_first = provider.credits_charged
-        second = client.post(
-            "/api/v2/plans",
-            json=_body(preferences=["quiet"], prior_billed_requests=spent_after_first),
-        )
+        second = client.post("/api/v2/plans", json=_body(preferences=["quiet"]))
     assert first.status_code == 200
     assert second.status_code == 200
     assert provider.credits_charged == spent_after_first
@@ -169,10 +170,7 @@ def test_a_verified_preference_replaces_the_previous_stop(settings: Settings) ->
         first = client.post("/api/v2/plans", json=_body())
         second = client.post(
             "/api/v2/plans",
-            json=_body(
-                preferences=["quiet"],
-                prior_billed_requests=provider.credits_charged,
-            ),
+            json=_body(preferences=["quiet"]),
         )
     assert first.json()["stops"][0]["name"] == "Loud Room"
     assert second.json()["stops"][0]["name"] == "Quiet Room"

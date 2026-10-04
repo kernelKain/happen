@@ -23,7 +23,6 @@ from happen_api.planning.contracts import (
     ResolvedDestination,
 )
 from happen_api.planning.destination import (
-    PLAN_BILLED_REQUEST_LIMIT,
     DestinationResolution,
     ResolutionStatus,
     resolve_destination,
@@ -39,7 +38,14 @@ from happen_api.planning.itinerary import (
     assemble_itinerary,
     propose_revision,
 )
-from happen_api.planning.limits import PlanCache, PlanningThrottle
+from happen_api.planning.limits import (
+    PLAN_BILLED_REQUEST_LIMIT,
+    AllowanceError,
+    AllowanceStore,
+    MeteredProvider,
+    PlanCache,
+    PlanningThrottle,
+)
 from happen_api.providers.serpapi.client import SerpApiClient, SerpApiFailure
 
 router = APIRouter(prefix="/api/v2", tags=["plans"])
@@ -54,6 +60,7 @@ class ResolveRequest(BaseModel):
     pending_date: str | None = Field(default=None, pattern="^(today|tomorrow)$")
     local_date: date | None = None
     local_start: time | None = None
+    plan_token: str = Field(min_length=16, max_length=128)
 
     @field_validator("query")
     @classmethod
@@ -78,7 +85,7 @@ class PlanRequest(BaseModel):
     budget: Budget | None = None
     preferences: list[str] = Field(default_factory=list, max_length=8)
     accessibility_needs: list[str] = Field(default_factory=list, max_length=8)
-    prior_billed_requests: int = Field(default=0, ge=0, le=PLAN_BILLED_REQUEST_LIMIT)
+    plan_token: str = Field(min_length=16, max_length=128)
 
     @field_validator("preferences", "accessibility_needs")
     @classmethod
@@ -118,30 +125,19 @@ class _Unavailable:
         self.response = response
 
 
-class _Spent:
-    """Reports credits already used by destination resolution plus new calls."""
-
-    def __init__(self, inner: object, prior: int) -> None:
-        self._inner = inner
-        self._prior = prior
-
-    @property
-    def credits_charged(self) -> int:
-        return self._prior + int(getattr(self._inner, "credits_charged", 0))
-
-    def __getattr__(self, name: str) -> object:
-        return getattr(self._inner, name)
-
-
 @router.post("/briefs/interpret")
 def interpret_brief(body: PlanningPromptRequest, request: Request) -> object:
-    """Read one prompt. This route does not retrieve places."""
+    """Read one prompt. This route does not retrieve places.
+
+    It issues the opaque token that the next two calls must present. Reading a
+    prompt is free; the token is not a credential and grants nothing by itself.
+    """
 
     rejected = _begin(request, billed=False)
     if rejected is not None:
         return rejected
     try:
-        return interpret(body.prompt, _clock(request))
+        response = interpret(body.prompt, _clock(request))
     except PlanningInputError as exc:
         return _failure(
             request,
@@ -151,19 +147,30 @@ def interpret_brief(body: PlanningPromptRequest, request: Request) -> object:
             exc.error.next_action,
             retryable=exc.error.retryable,
         )
+    response.brief.plan_token = _allowances(request).issue()
+    return response
 
 
 @router.post("/destinations/resolve")
 def resolve_place(body: ResolveRequest, request: Request) -> object:
-    """Resolve one destination. Several matches stay as choices."""
+    """Resolve one destination. Several matches stay as choices.
+
+    The billed lookups come out of the plan's own allowance, so destination
+    resolution and discovery share one budget rather than each getting eight.
+    """
 
     rejected = _begin(request, billed=True)
     if rejected is not None:
         return rejected
-    client, owned = _client(request, PLAN_BILLED_REQUEST_LIMIT)
-    if isinstance(client, _Unavailable):
+    denied = _unknown_token(request, body.plan_token)
+    if denied is not None:
         _end(request, billed=True)
-        return client.response
+        return denied
+    metered, owned = _metered(request, body.plan_token)
+    if isinstance(metered, _Unavailable):
+        _end(request, billed=True)
+        return metered.response
+    client = metered
     try:
         pending = PendingDate(phrase=body.pending_date) if body.pending_date else None
         resolution = resolve_destination(
@@ -174,13 +181,16 @@ def resolve_place(body: ResolveRequest, request: Request) -> object:
             local_date=body.local_date,
             local_start=body.local_start,
         )
+    except AllowanceError:
+        _end(request, billed=True)
+        return _exhausted(request)
     except SerpApiFailure as exc:
         return _provider_failure(request, exc)
     finally:
         _close(client, owned)
         _end(request, billed=True)
     if resolution.status is ResolutionStatus.ambiguous:
-        return _json(resolution, 409)
+        return _json(_stamp(resolution, _allowances(request), body.plan_token), 409)
     if resolution.status is ResolutionStatus.budget_exhausted:
         return _failure(
             request,
@@ -190,7 +200,7 @@ def resolve_place(body: ResolveRequest, request: Request) -> object:
             "Try again later.",
             retryable=False,
         )
-    return resolution
+    return _stamp(resolution, _allowances(request), body.plan_token)
 
 
 @router.post("/plans")
@@ -200,17 +210,10 @@ def create_plan(body: PlanRequest, request: Request) -> object:
     rejected = _begin(request, billed=True)
     if rejected is not None:
         return rejected
-    remaining = PLAN_BILLED_REQUEST_LIMIT - body.prior_billed_requests
-    if remaining < 1:
+    denied = _unknown_token(request, body.plan_token)
+    if denied is not None:
         _end(request, billed=True)
-        return _failure(
-            request,
-            503,
-            "QUOTA_EXHAUSTED",
-            "The search allowance for this plan has been reached.",
-            "Try again later.",
-            retryable=False,
-        )
+        return denied
     constraints = _constraints(body)
     cache_key = discovery_cache_key(
         body.destination,
@@ -219,10 +222,12 @@ def create_plan(body: PlanRequest, request: Request) -> object:
         end_time=body.local_end,
         intents=body.intents,
     )
+    store = _allowances(request)
     cached = _plan_cache(request).get(cache_key)
     if cached is not None:
         _end(request, billed=True)
-        return assemble_itinerary(
+        # A recomputation sends nothing, so it costs nothing.
+        plan = assemble_itinerary(
             cached.places,
             body.intents,
             local_date=body.local_date,
@@ -230,22 +235,26 @@ def create_plan(body: PlanRequest, request: Request) -> object:
             retrieved_at=_clock(request).now(),
             constraints=constraints,
         )
-    client, owned = _client(request, remaining)
-    if isinstance(client, _Unavailable):
+        return _stamp(plan, store, body.plan_token)
+    metered, owned = _metered(request, body.plan_token)
+    if isinstance(metered, _Unavailable):
         _end(request, billed=True)
-        return client.response
-    viewed = _Spent(client, body.prior_billed_requests)
+        return metered.response
+    client = metered
     try:
         found = discover_places(
             body.destination,
             body.intents,
-            viewed,  # type: ignore[arg-type]
+            client,  # type: ignore[arg-type]
             local_date=body.local_date,
             start_time=body.local_start,
             end_time=body.local_end,
             retrieved_at=_clock(request).now(),
             constraints=constraints,
         )
+    except AllowanceError:
+        _end(request, billed=True)
+        return _exhausted(request)
     except SerpApiFailure as exc:
         return _provider_failure(request, exc)
     finally:
@@ -283,7 +292,7 @@ def create_plan(body: PlanRequest, request: Request) -> object:
         plan.warnings.append("Some place evidence did not respond in time.")
     if found.stopped is DiscoveryStatus.quota:
         plan.warnings.append("The search allowance stopped further lookups.")
-    return plan
+    return _stamp(plan, store, body.plan_token)
 
 
 @router.post("/plans/refine")
@@ -337,6 +346,55 @@ def _plan_cache(request: Request) -> PlanCache:
     return request.app.state.plan_cache
 
 
+def _allowances(request: Request) -> AllowanceStore:
+    return request.app.state.plan_allowances
+
+
+def _unknown_token(request: Request, token: str) -> object | None:
+    """Refuse an unknown, expired, or malformed token before any provider call."""
+
+    store = _allowances(request)
+    try:
+        store.remaining(token)
+    except AllowanceError:
+        return _failure(
+            request,
+            403,
+            "PLAN_TOKEN_INVALID",
+            "This plan session is no longer valid.",
+            "Start a new search.",
+            retryable=False,
+        )
+    return None
+
+
+def _exhausted(request: Request) -> object:
+    return _failure(
+        request,
+        503,
+        "QUOTA_EXHAUSTED",
+        "The search allowance for this plan has been reached.",
+        "Try again later.",
+        retryable=False,
+    )
+
+
+def _stamp(plan: object, store: AllowanceStore, token: str) -> object:
+    """Stamp a response with this plan's real spend and what is left.
+
+    The count comes from the store, never from the request body, so a caller
+    cannot lower its own reported spend.
+    """
+
+    try:
+        plan.billed_requests = store.spent(token)
+        plan.remaining_requests = store.remaining(token)
+    except AllowanceError:
+        plan.billed_requests = 0
+        plan.remaining_requests = 0
+    return plan
+
+
 def _caller(request: Request) -> str:
     host = request.client.host if request.client is not None else "unknown"
     return hashlib.sha256(host.encode("utf-8")).hexdigest()
@@ -356,33 +414,42 @@ def _clock(request: Request) -> Clock:
     return clock
 
 
-def _client(request: Request, credit_limit: int) -> tuple[object, bool]:
+def _metered(request: Request, token: str) -> tuple[object, bool]:
+    """Build a provider client whose billed calls draw on this plan's allowance."""
+
     factory = getattr(request.app.state, "provider_factory", None)
     if factory is not None:
-        return factory(credit_limit, 14.0), False
-    settings = request.app.state.settings
-    if not settings.live_configured:
-        return (
-            _Unavailable(
-                _failure(
-                    request,
-                    503,
-                    "QUOTA_EXHAUSTED",
-                    "Live place evidence is not configured.",
-                    "Try again later.",
-                    retryable=False,
-                )
-            ),
-            False,
+        built = factory(PLAN_BILLED_REQUEST_LIMIT, 14.0)
+        # A test factory may hand back a bare client or a (client, owned) pair.
+        if isinstance(built, tuple):
+            inner, owned = built
+        else:
+            inner, owned = built, False
+    else:
+        settings = request.app.state.settings
+        if not settings.live_configured:
+            return (
+                _Unavailable(
+                    _failure(
+                        request,
+                        503,
+                        "QUOTA_EXHAUSTED",
+                        "Live place evidence is not configured.",
+                        "Try again later.",
+                        retryable=False,
+                    )
+                ),
+                False,
+            )
+        http_client = getattr(request.app.state, "http_client", None)
+        inner = SerpApiClient(
+            settings.serpapi_api_key.get_secret_value(),
+            credit_limit=PLAN_BILLED_REQUEST_LIMIT,
+            http_client=http_client,
+            cancelled=lambda: _disconnected(request),
         )
-    http_client = getattr(request.app.state, "http_client", None)
-    client = SerpApiClient(
-        settings.serpapi_api_key.get_secret_value(),
-        credit_limit=credit_limit,
-        http_client=http_client,
-        cancelled=lambda: _disconnected(request),
-    )
-    return client, http_client is None
+        owned = http_client is None
+    return MeteredProvider(inner, _allowances(request), token), owned
 
 
 def _close(client: object, owned: bool) -> None:
