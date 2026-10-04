@@ -149,6 +149,31 @@ export const planEvidenceSchema = z.object({
   retrieved_at: instant,
 });
 
+export const constraintAssessmentSchema = z
+  .object({
+    constraint: z.string().min(1),
+    status: z.enum(["met", "unmet", "unknown", "not_applicable"]),
+    evidence: z.array(planEvidenceSchema).max(4),
+  })
+  .superRefine((item, ctx) => {
+    const cited = item.status === "met" || item.status === "unmet";
+    if (cited && item.evidence.length === 0) {
+      ctx.addIssue({ code: "custom", message: "A met or unmet constraint cites evidence." });
+    }
+    if (!cited && item.evidence.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "An unknown constraint does not cite support.",
+      });
+    }
+  });
+
+export const scoringComponentSchema = z.object({
+  name: z.string().min(1),
+  result: z.enum(["supports", "neutral", "unknown", "blocks"]),
+  detail: z.string().min(1),
+});
+
 export const planStopSchema = z.object({
   position: z.number().int().min(1).max(2),
   intent: intentKind,
@@ -168,6 +193,8 @@ export const planStopSchema = z.object({
   rating: z.number().nullable().optional(),
   explanation: z.string().min(1),
   evidence: z.array(planEvidenceSchema).max(8),
+  constraints: z.array(constraintAssessmentSchema).max(18).default([]),
+  components: z.array(scoringComponentSchema).max(18).default([]),
   unknown_fields: z.array(z.string()),
   warnings: z.array(z.string()),
 });
@@ -184,6 +211,7 @@ export const eveningPlanSchema = z.object({
   outcome: z.enum(["planned", "no_results", "insufficient_evidence"]),
   local_date: day,
   local_start: clock,
+  party_size: z.number().int().min(1).max(20).nullable().default(null),
   stops: z.array(planStopSchema).max(2),
   transition: planTransitionSchema.nullable(),
   warnings: z.array(z.string()),

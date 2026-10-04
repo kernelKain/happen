@@ -134,7 +134,7 @@ export function preferenceIssue(value: string): string | null {
     .map((item) => item.trim())
     .filter(Boolean);
   if (parts.length > 8 || parts.some((item) => item.length > 40)) {
-    return "Keep each preference short, and use at most eight.";
+    return "Keep each item short, and use at most eight.";
   }
   return null;
 }
@@ -156,12 +156,32 @@ export function visibleWarning(text: string): boolean {
 
 export function outcomeLead(
   outcome: "planned" | "no_results" | "insufficient_evidence",
+  stopCount = 0,
 ): string | null {
   if (outcome === "no_results") {
     return "No live places matched this evening.";
   }
   if (outcome === "insufficient_evidence") {
+    if (stopCount > 0) {
+      return "A listed stop is missing verified evidence for a requested constraint.";
+    }
     return "The live evidence was not enough to choose a stop.";
+  }
+  return null;
+}
+
+export function constraintCopy(item: {
+  constraint: string;
+  status: "met" | "unmet" | "unknown" | "not_applicable";
+}): string | null {
+  if (item.status === "met") {
+    return `${item.constraint}: verified from the retrieved evidence.`;
+  }
+  if (item.status === "unmet") {
+    return `${item.constraint}: the retrieved evidence does not support this.`;
+  }
+  if (item.status === "unknown") {
+    return `${item.constraint}: unknown. The retrieval did not show this.`;
   }
   return null;
 }
@@ -169,6 +189,30 @@ export function outcomeLead(
 /** Another place search is needed only when the destination, date, time, or intents change. */
 export function needsAnotherSearch(current: PlanningBrief, proposed: PlanningBrief): boolean {
   return searchKey(current) !== searchKey(proposed);
+}
+
+/** Python scores again when party size, budget, preferences, or access needs change. */
+export function needsRescore(current: PlanningBrief, proposed: PlanningBrief): boolean {
+  return (
+    needsAnotherSearch(current, proposed) || constraintKey(current) !== constraintKey(proposed)
+  );
+}
+
+function constraintKey(brief: PlanningBrief): string {
+  const budget = brief.budget
+    ? [
+        brief.budget.amount ?? "",
+        brief.budget.currency ?? "",
+        brief.budget.tier ?? "",
+        brief.budget.bound ?? "",
+      ].join(":")
+    : "";
+  return [
+    brief.party_size ?? "",
+    budget,
+    brief.preferences.join(","),
+    brief.accessibility_needs.join(","),
+  ].join("|");
 }
 
 function searchKey(brief: PlanningBrief): string {
@@ -255,7 +299,10 @@ export function retrievalCopy(value: string): string {
 export function evidenceShape(
   plan: {
     outcome: "planned" | "no_results" | "insufficient_evidence";
-    stops: { hours_status: "open" | "unknown" }[];
+    stops: {
+      hours_status: "open" | "unknown";
+      constraints?: { status: string }[];
+    }[];
     warnings: string[];
   },
   intentCount: number,
@@ -269,6 +316,9 @@ export function evidenceShape(
   const thin =
     plan.stops.length < intentCount ||
     plan.stops.some((stop) => stop.hours_status === "unknown") ||
+    plan.stops.some((stop) =>
+      stop.constraints?.some((item) => item.status === "unknown" || item.status === "unmet"),
+    ) ||
     plan.warnings.some((note) => /did not respond|allowance stopped|No open place/i.test(note));
   return thin ? "partial" : "planned";
 }

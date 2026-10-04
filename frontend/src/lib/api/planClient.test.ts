@@ -94,7 +94,10 @@ describe("plan client", () => {
         intents: brief.intents,
         local_date: "2026-10-05",
         local_start: "19:00:00",
-        preferences: [],
+        party_size: 4,
+        budget: { amount: "40", currency: "USD", tier: null, bound: "at_most" },
+        preferences: ["quiet"],
+        accessibility_needs: ["wheelchair access"],
         prior_billed_requests: 0,
       },
       { fetchImpl },
@@ -106,6 +109,83 @@ describe("plan client", () => {
     expect(error.retryable).toBe(false);
     expect(error.message).not.toMatch(/fixture|prompt|traceback/i);
     expect(error.nextAction).toBe("Try again later.");
+  });
+
+  it("sends party size, budget, preferences, and accessibility needs", async () => {
+    let sent: Record<string, unknown> = {};
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return json({
+        version: "2",
+        outcome: "planned",
+        local_date: "2026-10-05",
+        local_start: "19:00:00",
+        party_size: 4,
+        stops: [
+          {
+            position: 1,
+            intent: "dinner",
+            label: "dinner",
+            name: "Kura",
+            place_id: "kura",
+            data_id: null,
+            address: "Kyoto",
+            latitude: 35,
+            longitude: 135.7,
+            maps_link: null,
+            website: null,
+            confidence: "low",
+            hours_status: "unknown",
+            explanation: "Opening hours were not listed, so this stop is less certain.",
+            evidence: [],
+            constraints: [
+              { constraint: "quiet", status: "unknown", evidence: [] },
+              { constraint: "wheelchair access", status: "unknown", evidence: [] },
+              { constraint: "budget", status: "unknown", evidence: [] },
+              { constraint: "party size", status: "unknown", evidence: [] },
+            ],
+            components: [
+              {
+                name: "hours",
+                result: "unknown",
+                detail: "Hours: opening hours were not listed.",
+              },
+            ],
+            unknown_fields: ["price", "popular_times"],
+            warnings: [],
+          },
+        ],
+        transition: null,
+        warnings: [],
+        retrieved_at: "2026-10-04T12:00:00Z",
+      });
+    });
+    const plan = await requestPlan(
+      {
+        destination,
+        intents: brief.intents,
+        local_date: "2026-10-05",
+        local_start: "19:00:00",
+        party_size: 4,
+        budget: { amount: "40", currency: "USD", tier: "low", bound: "at_most" },
+        preferences: ["quiet"],
+        accessibility_needs: ["wheelchair access"],
+        prior_billed_requests: 0,
+      },
+      { fetchImpl },
+    );
+    expect(sent.party_size).toBe(4);
+    expect(sent.preferences).toEqual(["quiet"]);
+    expect(sent.accessibility_needs).toEqual(["wheelchair access"]);
+    expect(sent.budget).toMatchObject({ amount: "40", currency: "USD", tier: "low" });
+    expect(plan.party_size).toBe(4);
+    expect(plan.stops[0].constraints.map((item) => item.status)).toEqual([
+      "unknown",
+      "unknown",
+      "unknown",
+      "unknown",
+    ]);
+    expect(JSON.stringify(plan)).not.toMatch(/"score"|"weight"/);
   });
 
   it("reports an unreachable backend without reading a prompt back", async () => {

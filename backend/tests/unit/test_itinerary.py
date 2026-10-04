@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
+from decimal import Decimal
 from pathlib import Path
 from urllib.parse import unquote
 from zoneinfo import ZoneInfo
@@ -10,17 +11,21 @@ from zoneinfo import ZoneInfo
 import pytest
 from pydantic import ValidationError
 
+from happen_api.api.plans import PlanRequest
 from happen_api.planning.clock import FixedClock
-from happen_api.planning.contracts import IntentKind, PlaceIntent
+from happen_api.planning.constraints import EveningConstraints
+from happen_api.planning.contracts import Budget, BudgetBound, BudgetTier, IntentKind, PlaceIntent
 from happen_api.planning.discovery import DiscoveredPlace, EvidenceConflict
 from happen_api.planning.interpret import interpret
 from happen_api.planning.itinerary import (
+    ConstraintAssessment,
     EvidenceSource,
     PlanTransition,
     assemble_itinerary,
     hours_status,
     local_arrival,
     propose_revision,
+    verified_fit,
 )
 
 RETRIEVED = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
@@ -48,13 +53,18 @@ def _place(**updates: object) -> DiscoveredPlace:
     return DiscoveredPlace.model_validate(values)
 
 
-def _plan(places: list[DiscoveredPlace], intents: list[PlaceIntent] | None = None):
+def _plan(
+    places: list[DiscoveredPlace],
+    intents: list[PlaceIntent] | None = None,
+    constraints: EveningConstraints | None = None,
+):
     return assemble_itinerary(
         places,
         intents or [_intent()],
         local_date=MONDAY,
         local_start=ARRIVAL,
         retrieved_at=RETRIEVED,
+        constraints=constraints,
     )
 
 
@@ -294,3 +304,194 @@ def test_assembly_does_not_ask_a_model_to_choose() -> None:
     closed = _place(name="Model Choice", hours=["sunday: 17:00-22:00"], highlights=["winner"])
     open_place = _place(name="Listed Room", place_id="listed")
     assert _plan([closed, open_place]).stops[0].name == "Listed Room"
+
+
+def test_verified_quiet_outranks_a_loud_or_unknown_place() -> None:
+    """A source-backed quiet place beats a louder place and a place with no statement."""
+
+    quiet = _place(name="Quiet Room", place_id="quiet", highlights=["A quiet room"])
+    loud = _place(name="Loud Room", place_id="loud", highlights=["A loud room"])
+    unknown = _place(name="Plain Room", place_id="plain", highlights=["Counter seating"])
+    plan = _plan([loud, unknown, quiet], constraints=EveningConstraints(preferences=["quiet"]))
+    assert plan.stops[0].name == "Quiet Room"
+    finding = plan.stops[0].constraints[0]
+    assert finding.constraint == "quiet"
+    assert finding.status == "met"
+    assert finding.evidence[0].text == "A quiet room"
+
+
+def test_unknown_quiet_does_not_add_a_positive_fit() -> None:
+    """Missing quiet evidence adds the same fit as not asking for quiet."""
+
+    plain = _place(highlights=["Counter seating"])
+    loud = _place(name="Loud Room", place_id="loud", highlights=["A loud room"])
+    asked = EveningConstraints(preferences=["quiet"])
+    assert verified_fit(plain, "open", asked) == verified_fit(plain, "open")
+    assert verified_fit(loud, "open", asked) == verified_fit(plain, "open")
+
+
+def test_unmet_accessibility_cannot_be_presented_as_a_fit() -> None:
+    """A contradiction is not selected, and unknown access is not called verified."""
+
+    stairs = _place(name="Stairs", place_id="stairs", highlights=["Stairs only"])
+    plain = _place(name="Plain Room", place_id="plain", highlights=["Counter seating"])
+    access = EveningConstraints(accessibility_needs=["wheelchair access"])
+    mixed = _plan([stairs, plain], constraints=access)
+    assert mixed.stops[0].name == "Plain Room"
+    assert mixed.outcome == "insufficient_evidence"
+    unknown = mixed.stops[0].constraints[0]
+    assert unknown.constraint == "wheelchair access"
+    assert unknown.status == "unknown"
+    assert unknown.evidence == []
+    blocked = _plan([stairs], constraints=access)
+    assert blocked.stops == []
+    assert blocked.outcome == "insufficient_evidence"
+    assert any("wheelchair access" in note for note in blocked.warnings)
+    ramp = _place(name="Ramp", place_id="ramp", highlights=["Wheelchair accessible entrance"])
+    verified = _plan([stairs, ramp], constraints=access)
+    assert verified.stops[0].name == "Ramp"
+    assert verified.outcome == "planned"
+    assert verified.stops[0].constraints[0].status == "met"
+    assert verified.stops[0].constraints[0].evidence
+
+
+def test_dietary_contradiction_is_not_a_verified_fit() -> None:
+    """Vegetarian follows the same evidence rule as accessibility."""
+
+    meat = _place(name="Meat", place_id="meat", highlights=["Meat only"])
+    plain = _place(name="Plain Room", place_id="plain", highlights=["Counter seating"])
+    asked = EveningConstraints(preferences=["vegetarian"])
+    plan = _plan([meat, plain], constraints=asked)
+    assert plan.stops[0].name == "Plain Room"
+    assert plan.outcome == "insufficient_evidence"
+    assert plan.stops[0].constraints[0].status == "unknown"
+
+
+def test_constraints_can_change_the_choice_without_new_provider_evidence() -> None:
+    """The same listings select a different place when the requested constraint changes."""
+
+    quiet = _place(name="Quiet Room", place_id="quiet", highlights=["A quiet room"], price="$$")
+    veg = _place(name="Veg Room", place_id="veg", highlights=["Vegetarian menu"], price="$$$")
+    same = [quiet, veg]
+    assert _plan(same, constraints=EveningConstraints(preferences=["quiet"])).stops[0].name == (
+        "Quiet Room"
+    )
+    assert _plan(same, constraints=EveningConstraints(preferences=["vegetarian"])).stops[
+        0
+    ].name == ("Veg Room")
+
+
+def test_budget_compares_only_compatible_evidence() -> None:
+    """A symbol is a tier, and an amount needs the same currency."""
+
+    symbols = _place(name="Symbols", place_id="symbols", price="$$")
+    amount_only = EveningConstraints(
+        budget=Budget(amount=Decimal(40), currency="USD", bound=BudgetBound.at_most)
+    )
+    symbol_plan = _plan([symbols], constraints=amount_only)
+    assert symbol_plan.stops[0].constraints[0].status == "unknown"
+    assert verified_fit(symbols, "open", amount_only) == verified_fit(symbols, "open")
+    cheap = _place(name="Cheap", place_id="cheap", price="$")
+    low = EveningConstraints(budget=Budget(tier=BudgetTier.low))
+    assert _plan([symbols, cheap], constraints=low).stops[0].name == "Cheap"
+    assert _plan([symbols], constraints=low).stops[0].constraints[0].status == "unmet"
+    yen = _place(name="Yen", place_id="yen", price="JPY 4000")
+    dollars = _place(name="Dollars", place_id="dollars", price="USD 40")
+    yen_budget = EveningConstraints(
+        budget=Budget(amount=Decimal(5000), currency="JPY", bound=BudgetBound.at_most)
+    )
+    assert _plan([dollars, yen], constraints=yen_budget).stops[0].name == "Yen"
+    assert _plan([yen], constraints=yen_budget).stops[0].constraints[0].status == "met"
+    assert _plan([dollars], constraints=yen_budget).stops[0].constraints[0].status == "unknown"
+
+
+def test_party_size_is_shown_and_unknown_without_capacity_evidence() -> None:
+    """Party size stays on the plan. A missing capacity is not treated as a fit."""
+
+    plain = _place(highlights=["Counter seating"])
+    asked = EveningConstraints(party_size=6)
+    plan = _plan([plain], constraints=asked)
+    assert plan.party_size == 6
+    assert plan.stops[0].constraints[0].constraint == "party size"
+    assert plan.stops[0].constraints[0].status == "unknown"
+    small = _place(name="Small", place_id="small", highlights=["The room seats 4"])
+    large = _place(name="Large", place_id="large", highlights=["The room seats 8"])
+    assert _plan([small], constraints=asked).stops[0].constraints[0].status == "unmet"
+    assert _plan([small, large], constraints=asked).stops[0].name == "Large"
+
+
+def test_unsupported_constraint_stays_unknown() -> None:
+    """A preference without a deterministic signal is not counted as support."""
+
+    place = _place(highlights=["A quiet room"])
+    asked = EveningConstraints(preferences=["dog friendly"])
+    plan = _plan([place], constraints=asked)
+    finding = plan.stops[0].constraints[0]
+    assert finding.constraint == "dog friendly"
+    assert finding.status == "unknown"
+    assert finding.evidence == []
+    assert verified_fit(place, "open", asked) == verified_fit(place, "open")
+    unused = ConstraintAssessment(constraint="budget", status="not_applicable")
+    assert unused.evidence == []
+
+
+def test_open_hours_outrank_a_verified_preference() -> None:
+    """An open place beats a verified preference whose hours are unknown."""
+
+    open_place = _place(name="Open Room", place_id="open", highlights=["Counter seating"])
+    quiet = _place(
+        name="Quiet Room",
+        place_id="quiet",
+        hours=[],
+        highlights=["A quiet room"],
+        unknown_fields=["hours", "price", "popular_times"],
+    )
+    plan = _plan([quiet, open_place], constraints=EveningConstraints(preferences=["quiet"]))
+    assert plan.stops[0].name == "Open Room"
+
+
+def test_scoring_components_do_not_expose_a_number() -> None:
+    """The customer payload names each check and does not include an internal total."""
+
+    plan = _plan(
+        [_place(highlights=["A quiet room"])],
+        constraints=EveningConstraints(preferences=["quiet"]),
+    )
+    payload = plan.model_dump(mode="json")
+    assert "score" not in payload
+    component = payload["stops"][0]["components"][0]
+    assert set(component) == {"name", "result", "detail"}
+    assert "score" not in plan.model_dump_json()
+    assert "weight" not in plan.model_dump_json()
+
+
+def test_plan_request_keeps_party_budget_access_and_preferences() -> None:
+    """The v2 plan body accepts the same constraint set the page sends."""
+
+    body = PlanRequest.model_validate(
+        {
+            "destination": {
+                "label": "Kyoto",
+                "source_text": "Kyoto",
+                "timezone_name": "Asia/Tokyo",
+            },
+            "intents": [{"kind": "dinner", "label": "dinner", "position": 1}],
+            "local_date": "2026-10-05",
+            "local_start": "19:00:00",
+            "party_size": 4,
+            "budget": {
+                "amount": "40",
+                "currency": "USD",
+                "tier": "low",
+                "bound": "at_most",
+            },
+            "preferences": ["quiet"],
+            "accessibility_needs": ["wheelchair access"],
+        }
+    )
+    assert body.party_size == 4
+    assert body.budget is not None
+    assert body.budget.amount == Decimal(40)
+    assert body.budget.currency == "USD"
+    assert body.preferences == ["quiet"]
+    assert body.accessibility_needs == ["wheelchair access"]

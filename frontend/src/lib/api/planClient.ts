@@ -55,7 +55,10 @@ export type PlanQuery = {
   intents: PlanningBrief["intents"];
   local_date: string;
   local_start: string;
+  party_size: number | null;
+  budget: PlanningBrief["budget"];
   preferences: string[];
+  accessibility_needs: string[];
   prior_billed_requests: number;
 };
 
@@ -181,7 +184,10 @@ export async function requestPlan(
       intents: query.intents,
       local_date: query.local_date,
       local_start: query.local_start,
+      party_size: query.party_size,
+      budget: query.budget,
       preferences: query.preferences,
+      accessibility_needs: query.accessibility_needs,
       prior_billed_requests: query.prior_billed_requests,
     },
     options,

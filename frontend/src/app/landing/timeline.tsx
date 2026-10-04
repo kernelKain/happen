@@ -4,6 +4,7 @@ import {
   arrivalCopy,
   busynessStatus,
   confidenceCopy,
+  constraintCopy,
   evidenceShape,
   hoursCopy,
   outcomeLead,
@@ -25,6 +26,9 @@ const FIELD_LABEL: Record<string, string> = {
   time: "Time",
   intent: "Intent order",
   preferences: "Preferences",
+  "party size": "Party size",
+  budget: "Budget",
+  accessibility: "Accessibility",
 };
 
 type TimelineProps = {
@@ -37,7 +41,7 @@ type TimelineProps = {
 export function EveningTimeline({ plan, timezone, intentCount }: TimelineProps) {
   const stops = plan.stops.slice(0, 2);
   const shape = evidenceShape(plan, intentCount);
-  const lead = outcomeLead(plan.outcome);
+  const lead = outcomeLead(plan.outcome, stops.length);
   const notes = plan.warnings.filter((note) => visibleWarning(note) && note !== lead);
   return (
     <section className="plan" aria-labelledby="plan-heading">
@@ -45,6 +49,7 @@ export function EveningTimeline({ plan, timezone, intentCount }: TimelineProps) 
       <p>
         {timezone ? `Times use ${timezone}.` : "Times use the destination's local clock."}{" "}
         {`The evening starts at ${plan.local_start.slice(0, 5)} on ${plan.local_date}.`}
+        {plan.party_size ? ` Party size ${plan.party_size}.` : ""}
       </p>
       {shape === "partial" ? <p>The evidence for this evening is incomplete.</p> : null}
       {lead ? <p>{lead}</p> : null}
@@ -96,6 +101,10 @@ function StopCard({
       <p>{ratingStatus(stop)}</p>
       <p>{confidenceCopy(stop.confidence)}</p>
       <p>{retrievalCopy(plan.retrieved_at)}</p>
+      {stop.constraints.map((item) => {
+        const line = constraintCopy(item);
+        return line ? <p key={item.constraint}>{line}</p> : null;
+      })}
       {unknown.length > 0 ? <p>{`Unknown: ${unknown.join(", ")}.`}</p> : null}
       {stop.website || stop.maps_link ? (
         <p className="stop-actions">
@@ -116,6 +125,16 @@ function StopCard({
       </button>
       {open ? (
         <div id={panelId} className="evidence">
+          {stop.components.length > 0 ? (
+            <section>
+              <h4>Checks</h4>
+              <ul>
+                {stop.components.map((item) => (
+                  <li key={item.name}>{item.detail}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           <EvidenceGroup
             title={SOURCE_LABEL.official}
             items={groups.official}

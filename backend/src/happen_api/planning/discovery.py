@@ -13,11 +13,15 @@ import math
 import re
 from datetime import date, datetime, time
 from enum import StrEnum
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from happen_api.planning.contracts import IntentKind, PlaceIntent, ResolvedDestination
+
+if TYPE_CHECKING:
+    from happen_api.planning.constraints import EveningConstraints
 from happen_api.planning.destination import PLAN_BILLED_REQUEST_LIMIT
 from happen_api.providers.serpapi.client import SerpApiClient, SerpApiFailure
 
@@ -129,19 +133,19 @@ def discovery_cache_key(
     start_time: time,
     end_time: time | None,
     intents: list[PlaceIntent],
-    preferences: list[str] | None = None,
 ) -> str:
-    """Identify one retrieval by destination, local evening, intents, and constraints."""
+    """Identify one retrieval by destination, local evening, and intents.
+
+    Constraints are applied when the stored pool is scored, so a constraint
+    change can reuse the same provider evidence.
+    """
 
     canonical = (destination.serpapi_location or destination.label).casefold()
     window = start_time.isoformat()
     if end_time is not None:
         window = f"{window}/{end_time.isoformat()}"
     ordered = ",".join(item.kind.value for item in sorted(intents, key=lambda item: item.position))
-    prefs = ",".join(
-        sorted({item.casefold().strip() for item in preferences or [] if item.strip()})
-    )
-    material = f"{canonical}|{local_date.isoformat()}|{window}|{ordered}|{prefs}"
+    material = f"{canonical}|{local_date.isoformat()}|{window}|{ordered}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
@@ -164,22 +168,29 @@ def discover_places(
     retrieved_at: datetime,
     billed_limit: int = PLAN_BILLED_REQUEST_LIMIT,
     preferences: list[str] | None = None,
+    constraints: EveningConstraints | None = None,
 ) -> DiscoveryResult:
     """Search up to two intents and keep a ranked pool inside the shared budget."""
+
+    from happen_api.planning.constraints import EveningConstraints, review_phrases
 
     if retrieved_at.tzinfo is None or retrieved_at.utcoffset() is None:
         raise ValueError("retrieved_at must be timezone-aware")
     ordered = sorted(intents, key=lambda item: item.position)[:_MAX_INTENTS]
     if not ordered:
         raise ValueError("discovery needs at least one intent")
-    chosen = [item for item in preferences or [] if item.strip()]
+    bundle = (
+        constraints
+        if isinstance(constraints, EveningConstraints)
+        else EveningConstraints(preferences=[item for item in preferences or [] if item.strip()])
+    )
+    phrases = review_phrases(bundle)
     cache_key = discovery_cache_key(
         destination,
         local_date=local_date,
         start_time=start_time,
         end_time=end_time,
         intents=ordered,
-        preferences=chosen,
     )
     started = client.credits_charged
     queries: list[str] = []
@@ -209,7 +220,7 @@ def discover_places(
                     destination,
                     local_date=local_date,
                     arrival=start_time,
-                    preferences=chosen,
+                    constraints=bundle,
                 )
             )
     if failure is None:
@@ -222,14 +233,15 @@ def discover_places(
             billed_limit=billed_limit,
             local_date=local_date,
             arrival=start_time,
-            preferences=chosen,
+            constraints=bundle,
+            preferences=phrases,
         )
     _sort_pool(
         found,
         ordered,
         local_date=local_date,
         arrival=start_time,
-        preferences=chosen,
+        constraints=bundle,
     )
     status = _status(found, failure)
     stopped = failure if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota} else None
@@ -251,7 +263,7 @@ def _candidate_pool(
     *,
     local_date: date,
     arrival: time,
-    preferences: list[str],
+    constraints: EveningConstraints,
 ) -> list[DiscoveredPlace]:
     """Keep up to five in-destination places. Search order is not the rank."""
 
@@ -274,7 +286,7 @@ def _candidate_pool(
             place,
             local_date=local_date,
             arrival=arrival,
-            preferences=preferences,
+            constraints=constraints,
         )
     )
     return accepted[:_POOL_LIMIT]
@@ -290,6 +302,7 @@ def _enrich(
     billed_limit: int,
     local_date: date,
     arrival: time,
+    constraints: EveningConstraints,
     preferences: list[str],
 ) -> DiscoveryStatus | None:
     """Enrich in rank order. A closed finalist yields to the next place."""
@@ -326,7 +339,7 @@ def _enrich(
                     billed_limit=billed_limit,
                     local_date=local_date,
                     arrival=arrival,
-                    preferences=preferences,
+                    constraints=constraints,
                     removed=removed,
                 ),
             )
@@ -343,6 +356,7 @@ def _enrich(
                     billed_limit=billed_limit,
                     local_date=local_date,
                     arrival=arrival,
+                    constraints=constraints,
                     preferences=preferences,
                 ),
             )
@@ -375,7 +389,7 @@ def _compare_runner_up(
     billed_limit: int,
     local_date: date,
     arrival: time,
-    preferences: list[str],
+    constraints: EveningConstraints,
     removed: set[int],
 ) -> DiscoveryStatus | None:
     runner = _next_viable(group, index, local_date, arrival)
@@ -383,7 +397,7 @@ def _compare_runner_up(
         return None
     if not _needs_feasibility(runner, destination):
         return None
-    if _open_ceiling(runner, preferences) < _current_fit(leader, local_date, arrival, preferences):
+    if _open_ceiling(runner, constraints) < _current_fit(leader, local_date, arrival, constraints):
         return None
     failure = _spend_details(runner, client, billed_limit)
     if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
@@ -402,28 +416,29 @@ def _reviews_if_needed(
     billed_limit: int,
     local_date: date,
     arrival: time,
+    constraints: EveningConstraints,
     preferences: list[str],
 ) -> DiscoveryStatus | None:
     from happen_api.planning.itinerary import (
         constraint_supported,
-        constraint_terms,
+        hours_status,
         unmet_constraint_gain,
         verified_fit,
     )
 
-    constraints = constraint_terms(preferences)
-    if not constraints:
+    if not preferences:
         return None
     targets = [leader]
     runner = _next_viable(group, index, local_date, arrival)
     if runner is not None:
-        leader_fit = verified_fit(leader, _visit_state(leader, local_date, arrival), preferences)
-        runner_fit = verified_fit(runner, _visit_state(runner, local_date, arrival), preferences)
-        if runner_fit + unmet_constraint_gain(runner, preferences) >= leader_fit:
+        leader_fit = verified_fit(leader, hours_status(leader, local_date, arrival), constraints)
+        runner_fit = verified_fit(runner, hours_status(runner, local_date, arrival), constraints)
+        gain = unmet_constraint_gain(runner, constraints)
+        if runner_fit + gain >= leader_fit:
             targets.append(runner)
     failure: DiscoveryStatus | None = None
     for target in targets:
-        if all(constraint_supported(target, item) for item in constraints):
+        if all(constraint_supported(target, item) for item in preferences):
             continue
         failure = _spend_reviews(target, client, billed_limit) or failure
         if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
@@ -507,7 +522,7 @@ def _sort_pool(
     *,
     local_date: date,
     arrival: time,
-    preferences: list[str],
+    constraints: EveningConstraints,
 ) -> None:
     ordered: list[DiscoveredPlace] = []
     for intent in intents:
@@ -517,7 +532,7 @@ def _sort_pool(
                 place,
                 local_date=local_date,
                 arrival=arrival,
-                preferences=preferences,
+                constraints=constraints,
             )
         )
         ordered.extend(group[:_POOL_LIMIT])
@@ -529,7 +544,7 @@ def _order_key(
     *,
     local_date: date,
     arrival: time,
-    preferences: list[str],
+    constraints: EveningConstraints,
 ) -> tuple[int, int, str, str]:
     from happen_api.planning.itinerary import selection_key
 
@@ -537,7 +552,7 @@ def _order_key(
         place,
         local_date=local_date,
         arrival=arrival,
-        preferences=preferences,
+        constraints=constraints,
     )
 
 
@@ -551,17 +566,17 @@ def _current_fit(
     place: DiscoveredPlace,
     local_date: date,
     arrival: time,
-    preferences: list[str],
+    constraints: EveningConstraints,
 ) -> int:
+    from happen_api.planning.itinerary import hours_status, verified_fit
+
+    return verified_fit(place, hours_status(place, local_date, arrival), constraints)
+
+
+def _open_ceiling(place: DiscoveredPlace, constraints: EveningConstraints) -> int:
     from happen_api.planning.itinerary import verified_fit
 
-    return verified_fit(place, _visit_state(place, local_date, arrival), preferences)
-
-
-def _open_ceiling(place: DiscoveredPlace, preferences: list[str]) -> int:
-    from happen_api.planning.itinerary import verified_fit
-
-    return verified_fit(place, "open", preferences)
+    return verified_fit(place, "open", constraints)
 
 
 def _fill_details(place: DiscoveredPlace, client: SerpApiClient) -> DiscoveryStatus | None:

@@ -12,7 +12,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from happen_api.errors import error_response
 from happen_api.middleware import current_request_id
 from happen_api.planning.clock import Clock, SystemClock
+from happen_api.planning.constraints import EveningConstraints
 from happen_api.planning.contracts import (
+    Budget,
     PendingDate,
     PlaceIntent,
     PlanningBrief,
@@ -72,8 +74,21 @@ class PlanRequest(BaseModel):
     local_date: date
     local_start: time
     local_end: time | None = None
+    party_size: int | None = Field(default=None, ge=1, le=20)
+    budget: Budget | None = None
     preferences: list[str] = Field(default_factory=list, max_length=8)
+    accessibility_needs: list[str] = Field(default_factory=list, max_length=8)
     prior_billed_requests: int = Field(default=0, ge=0, le=PLAN_BILLED_REQUEST_LIMIT)
+
+    @field_validator("preferences", "accessibility_needs")
+    @classmethod
+    def _phrases(cls, value: list[str]) -> list[str]:
+        for item in value:
+            if not item or len(item) > 40:
+                raise ValueError("constraint text is too long")
+            if any(ord(char) < 32 and char not in "\n\t\r" for char in item):
+                raise ValueError("constraint text contains a control character")
+        return value
 
     @model_validator(mode="after")
     def _one_zone_and_ordered_intents(self) -> PlanRequest:
@@ -196,13 +211,13 @@ def create_plan(body: PlanRequest, request: Request) -> object:
             "Try again later.",
             retryable=False,
         )
+    constraints = _constraints(body)
     cache_key = discovery_cache_key(
         body.destination,
         local_date=body.local_date,
         start_time=body.local_start,
         end_time=body.local_end,
         intents=body.intents,
-        preferences=body.preferences,
     )
     cached = _plan_cache(request).get(cache_key)
     if cached is not None:
@@ -213,7 +228,7 @@ def create_plan(body: PlanRequest, request: Request) -> object:
             local_date=body.local_date,
             local_start=body.local_start,
             retrieved_at=_clock(request).now(),
-            preferences=body.preferences,
+            constraints=constraints,
         )
     client, owned = _client(request, remaining)
     if isinstance(client, _Unavailable):
@@ -229,7 +244,7 @@ def create_plan(body: PlanRequest, request: Request) -> object:
             start_time=body.local_start,
             end_time=body.local_end,
             retrieved_at=_clock(request).now(),
-            preferences=body.preferences,
+            constraints=constraints,
         )
     except SerpApiFailure as exc:
         return _provider_failure(request, exc)
@@ -262,7 +277,7 @@ def create_plan(body: PlanRequest, request: Request) -> object:
         local_date=body.local_date,
         local_start=body.local_start,
         retrieved_at=found.retrieved_at,
-        preferences=body.preferences,
+        constraints=constraints,
     )
     if found.stopped is DiscoveryStatus.timeout:
         plan.warnings.append("Some place evidence did not respond in time.")
@@ -410,6 +425,15 @@ def _provider_failure(request: Request, exc: SerpApiFailure) -> object:
         "The place search could not be completed.",
         "Try again.",
         retryable=True,
+    )
+
+
+def _constraints(body: PlanRequest) -> EveningConstraints:
+    return EveningConstraints(
+        party_size=body.party_size,
+        budget=body.budget,
+        preferences=list(body.preferences),
+        accessibility_needs=list(body.accessibility_needs),
     )
 
 

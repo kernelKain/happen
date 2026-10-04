@@ -13,6 +13,7 @@ function plan(overrides: Partial<EveningPlan> = {}): EveningPlan {
     outcome: "planned",
     local_date: "2026-10-05",
     local_start: "19:00:00",
+    party_size: 2,
     stops: [
       {
         position: 1,
@@ -32,6 +33,28 @@ function plan(overrides: Partial<EveningPlan> = {}): EveningPlan {
         busyness: "listed",
         rating: 4.6,
         explanation: "Maps hours cover 19:00 on 2026-10-05.",
+        constraints: [
+          {
+            constraint: "quiet",
+            status: "met" as const,
+            evidence: [
+              {
+                source: "community" as const,
+                text: "Neighbors mention a quiet room.",
+                url: null,
+                retrieved_at: retrieved,
+              },
+            ],
+          },
+          { constraint: "wheelchair access", status: "unknown" as const, evidence: [] },
+        ],
+        components: [
+          {
+            name: "hours",
+            result: "supports" as const,
+            detail: "Hours: opening hours cover this arrival.",
+          },
+        ],
         evidence: [
           {
             source: "official",
@@ -73,6 +96,8 @@ function plan(overrides: Partial<EveningPlan> = {}): EveningPlan {
         busyness: "unknown",
         rating: null,
         explanation: "Opening hours were not listed, so this stop is less certain.",
+        constraints: [],
+        components: [],
         evidence: [],
         unknown_fields: ["price", "popular_times"],
         warnings: [],
@@ -100,6 +125,9 @@ describe("evening timeline", () => {
     expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "2. River Path" })).toBeTruthy();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText(/Party size 2/)).toBeTruthy();
+    expect(screen.getByText("quiet: verified from the retrieved evidence.")).toBeTruthy();
+    expect(screen.getByText(/wheelchair access: unknown/)).toBeTruthy();
     expect(screen.getByText(/Planned arrival 19:00 \(Asia\/Tokyo\)/)).toBeTruthy();
     expect(screen.getByText(/Price listed: \$\$/)).toBeTruthy();
     expect(screen.getByText(/not a live crowd count/)).toBeTruthy();
@@ -115,6 +143,8 @@ describe("evening timeline", () => {
     expect(screen.getByText(/Travel time is not verified/)).toBeTruthy();
     expect(screen.queryByText("Neighbors mention a quiet room.")).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Show evidence" })[0]);
+    expect(screen.getByRole("heading", { name: "Checks" })).toBeTruthy();
+    expect(screen.getByText("Hours: opening hours cover this arrival.")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Official site" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Maps" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Community" })).toBeTruthy();

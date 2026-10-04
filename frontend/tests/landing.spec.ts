@@ -298,6 +298,7 @@ test("shows a quota failure without a stand-in plan", async ({ page }) => {
 
 test("keeps a partial plan visible while a change is reviewed", async ({ page }) => {
   let plans = 0;
+  let resolves = 0;
   await page.route("**/api/v2/**", async (route) => {
     const url = route.request().url();
     if (url.includes("/briefs/interpret")) {
@@ -312,6 +313,7 @@ test("keeps a partial plan visible while a change is reviewed", async ({ page })
       return;
     }
     if (url.includes("/destinations/resolve")) {
+      resolves += 1;
       await fulfill(route, resolved);
       return;
     }
@@ -333,6 +335,10 @@ test("keeps a partial plan visible while a change is reviewed", async ({ page })
     }
     if (url.includes("/plans")) {
       plans += 1;
+      if (plans === 2) {
+        const body = route.request().postDataJSON() as { preferences?: string[] };
+        expect(body.preferences).toEqual(["quiet"]);
+      }
       await fulfill(route, {
         ...eveningPlan,
         warnings: ["No open place matched walk."],
@@ -345,6 +351,18 @@ test("keeps a partial plan visible while a change is reviewed", async ({ page })
             busyness: "unknown",
             rating: null,
             unknown_fields: ["price", "popular_times"],
+            ...(plans === 2
+              ? {
+                  constraints: [{ constraint: "quiet", status: "unknown", evidence: [] }],
+                  components: [
+                    {
+                      name: "hours",
+                      result: "unknown",
+                      detail: "Hours: opening hours were not listed.",
+                    },
+                  ],
+                }
+              : {}),
           },
         ],
       });
@@ -360,6 +378,7 @@ test("keeps a partial plan visible while a change is reviewed", async ({ page })
   await expect(page.getByText("The evidence for this evening is incomplete.")).toBeVisible();
   await expect(page.getByText("Price was not listed.")).toBeVisible();
   await expect(page.getByText("Busyness was not listed.")).toBeVisible();
+  await expect(page.getByText(/quiet: unknown/)).toHaveCount(0);
   await page.getByLabel("Change this evening").fill("Prefer a quiet room");
   await page.getByRole("button", { name: "Review this change" }).click();
   await expect(page.getByRole("heading", { name: "Review the change" })).toBeVisible();
@@ -372,7 +391,12 @@ test("keeps a partial plan visible while a change is reviewed", async ({ page })
   await page.getByRole("button", { name: "Review this change" }).click();
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByRole("heading", { name: "1. Kura" })).toBeVisible();
-  expect(plans).toBe(1);
+  expect(plans).toBe(2);
+  expect(resolves).toBe(1);
+  await expect(page.getByText("quiet: unknown. The retrieval did not show this.")).toBeVisible();
+  await page.getByRole("button", { name: "Show evidence" }).click();
+  await expect(page.getByRole("heading", { name: "Checks" })).toBeVisible();
+  await expect(page.getByText("Hours: opening hours were not listed.")).toBeVisible();
   await expectNoSeriousViolations(page);
 });
 

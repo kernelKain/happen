@@ -843,3 +843,30 @@ Commands and results, from a clean `global-live-experience` tree at `4865815` be
 - A place without coordinates is kept. Only a pin more than 80 km away is treated as outside the destination.
 - The next action is a manual local test of one evening. The friend walkthrough, deployment, and submission stay user-owned and were not requested in this step.
 
+## Apply planning constraints to deterministic scoring
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: The v2 plan request and the landing now send party size, budget, preferences, and accessibility needs. Python assesses each requested constraint on a selected stop as met, unmet, unknown, or not applicable. Met and unmet cite the retrieved passage. Unknown evidence adds no selection points. Open hours still outrank a verified preference. An accessibility or dietary contradiction is not selected. If that need was requested and no selected stop verifies it, the outcome is insufficient evidence. A price symbol is compared only with a requested budget tier. A numeric amount is compared only with a numeric price in the same currency. Party size is returned and shown, and it stays unknown without capacity or reservation evidence. The timeline states which constraints were verified and which remain unknown. The response names each check and does not include a numeric score. Gemma stays off.
+- Product behavior changed: yes. Editing party size, budget, preferences, or accessibility asks Python to score the stored candidate pool again. A destination, date, time, or intent change still searches. This step did not deploy.
+- Cost changed: no. Tests use mocks. This step did not call SerpApi.
+
+### Evidence
+
+- A place whose text says it is quiet is selected ahead of a loud place and a place with no quiet statement.
+- Asking for quiet does not raise a place that has no quiet statement.
+- A place that says stairs only is not selected for a wheelchair request, and a place with no access statement is not marked verified.
+- The same two listings select the quiet place or the vegetarian place according to the requested preference.
+- `uv run ruff format --check src tests ../scripts/scan-secrets.py` and `uv run ruff check` passed.
+- `uv run pytest` — 258 passed.
+- Frontend `npx biome check` passed. `npm test` — 41 passed. `npx tsc --noEmit` and `npx vite build` passed.
+- Playwright `tests/landing.spec.ts` passed, 9 tests. Applying a quiet preference keeps the listed stop, does not resolve the destination again, and shows that quiet was not verified.
+- `python3 scripts/scan-secrets.py` — exit 0, no findings.
+
+### Decisions
+
+- Each verified constraint adds 4 points, and the constraint total is capped at 16. Open hours are 100 and unknown hours are 20, so a preference cannot outrank hours.
+- A hard contradiction for wheelchair access, step-free access, a hearing loop, vegetarian, or vegan removes the place from selection.
+- The plan cache key stays the destination, the local evening, and the intents. Constraints are applied when that pool is scored.
+- The next action is a manual local test of one evening. The friend walkthrough, deployment, and submission stay user-owned and were not requested in this step.
+

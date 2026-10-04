@@ -23,7 +23,7 @@ import {
   clockForInput,
   EVENING_TEXT_LIMIT,
   moveIntent,
-  needsAnotherSearch,
+  needsRescore,
   partySizeIssue,
   preferenceIssue,
   preferenceList,
@@ -60,6 +60,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   const partyErrorId = useId();
   const budgetErrorId = useId();
   const preferenceErrorId = useId();
+  const accessErrorId = useId();
   const dateHintId = useId();
   const findNoteId = useId();
   const alertRef = useRef<HTMLDivElement>(null);
@@ -87,6 +88,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   const [budgetAmount, setBudgetAmount] = useState("");
   const [budgetCurrency, setBudgetCurrency] = useState("");
   const [preferenceDraft, setPreferenceDraft] = useState("");
+  const [accessDraft, setAccessDraft] = useState("");
   const [answerDraft, setAnswerDraft] = useState("");
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
 
@@ -101,6 +103,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   const partyMessage = partySizeIssue(partyDraft);
   const budgetMessage = budgetIssue(budgetAmount, budgetCurrency);
   const preferenceMessage = preferenceIssue(preferenceDraft);
+  const accessMessage = preferenceIssue(accessDraft);
   const ready = canFindPlan({
     destination,
     brief,
@@ -169,6 +172,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     setBudgetAmount(next.budget?.amount ?? "");
     setBudgetCurrency(next.budget?.currency ?? "");
     setPreferenceDraft(next.preferences.join(", "));
+    setAccessDraft(next.accessibility_needs.join(", "));
   }
 
   function clearAsked(field: FollowUp["field"]) {
@@ -465,17 +469,10 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       setPlan(null);
     }
     try {
-      const eveningPlan = await requestPlan(
-        {
-          destination,
-          intents: source.intents,
-          local_date: source.local_date,
-          local_start: source.local_start,
-          preferences: source.preferences,
-          prior_billed_requests: prior,
-        },
-        { signal: abortRef.current?.signal, fetchImpl },
-      );
+      const eveningPlan = await requestPlan(planQuery(source, destination, prior), {
+        signal: abortRef.current?.signal,
+        fetchImpl,
+      });
       if (id !== generation.current) {
         return;
       }
@@ -555,7 +552,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     }
     const proposed = restorePrompt(proposal.proposed, originalPrompt);
     const baseline = searchSnapshot ?? brief;
-    if (!needsAnotherSearch(baseline, proposed)) {
+    if (!needsRescore(baseline, proposed)) {
       rememberBrief(proposed);
       setProposal(null);
       setRevision("");
@@ -624,17 +621,10 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
         return;
       }
       setBusy("finding");
-      const eveningPlan = await requestPlan(
-        {
-          destination: place,
-          intents: proposed.intents,
-          local_date: proposed.local_date,
-          local_start: proposed.local_start,
-          preferences: proposed.preferences,
-          prior_billed_requests: prior,
-        },
-        { signal: abortRef.current?.signal, fetchImpl },
-      );
+      const eveningPlan = await requestPlan(planQuery(proposed, place, prior), {
+        signal: abortRef.current?.signal,
+        fetchImpl,
+      });
       if (id !== generation.current) {
         return;
       }
@@ -979,6 +969,23 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
                   />
                 </label>
                 <label className="brief-span">
+                  Accessibility
+                  <input
+                    value={accessDraft}
+                    disabled={busy !== null}
+                    aria-invalid={accessMessage !== null}
+                    aria-describedby={accessMessage ? accessErrorId : undefined}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setAccessDraft(value);
+                      if (preferenceIssue(value)) {
+                        return;
+                      }
+                      setBrief({ ...brief, accessibility_needs: preferenceList(value) });
+                    }}
+                  />
+                </label>
+                <label className="brief-span">
                   Preferences
                   <input
                     value={preferenceDraft}
@@ -1004,6 +1011,11 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
               {budgetMessage ? (
                 <p id={budgetErrorId} className="composer-error" role="alert">
                   {budgetMessage}
+                </p>
+              ) : null}
+              {accessMessage ? (
+                <p id={accessErrorId} className="composer-error" role="alert">
+                  {accessMessage}
                 </p>
               ) : null}
               {preferenceMessage ? (
@@ -1147,6 +1159,20 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       </footer>
     </div>
   );
+}
+
+function planQuery(source: PlanningBrief, destination: ResolvedDestination, prior: number) {
+  return {
+    destination,
+    intents: source.intents,
+    local_date: source.local_date ?? "",
+    local_start: source.local_start ?? "",
+    party_size: source.party_size,
+    budget: source.budget,
+    preferences: source.preferences,
+    accessibility_needs: source.accessibility_needs,
+    prior_billed_requests: prior,
+  };
 }
 
 function budgetFrom(

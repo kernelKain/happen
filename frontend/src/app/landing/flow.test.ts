@@ -6,8 +6,10 @@ import {
   budgetIssue,
   busynessStatus,
   canFindPlan,
+  constraintCopy,
   moveIntent,
   needsAnotherSearch,
+  needsRescore,
   partySizeIssue,
   preferenceIssue,
   priceStatus,
@@ -112,12 +114,25 @@ describe("planning flow", () => {
     expect(preferenceIssue("quiet")).toBeNull();
   });
 
-  it("reuses a plan when only preferences change", () => {
+  it("rescores when a constraint changes and searches again when the evening changes", () => {
     const proposed = { ...brief, preferences: ["quiet"], local_date: "2026-10-05" as const };
     const current = { ...brief, local_date: "2026-10-05" as const };
     expect(needsAnotherSearch(current, proposed)).toBe(false);
+    expect(needsRescore(current, proposed)).toBe(true);
+    expect(needsRescore(current, { ...current, party_size: 4 })).toBe(true);
+    expect(needsRescore(current, { ...current, accessibility_needs: ["step-free"] })).toBe(true);
+    expect(
+      needsRescore(current, {
+        ...current,
+        budget: { amount: "40", currency: "USD", tier: null, bound: "about" },
+      }),
+    ).toBe(true);
+    expect(needsRescore(current, current)).toBe(false);
     expect(needsAnotherSearch(current, { ...current, local_start: "20:00:00" })).toBe(true);
     expect(needsAnotherSearch(current, { ...current, destination_text: "Osaka" })).toBe(true);
+    expect(constraintCopy({ constraint: "quiet", status: "unknown" })).toMatch(/unknown/);
+    expect(constraintCopy({ constraint: "quiet", status: "met" })).toMatch(/verified/);
+    expect(constraintCopy({ constraint: "quiet", status: "not_applicable" })).toBeNull();
   });
 
   it("does not treat a missing price, rating, or crowd listing as a live fact", () => {
