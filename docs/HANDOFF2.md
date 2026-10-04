@@ -11,19 +11,19 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | P0 in progress |
-| Last finished step | P0.1 — Verify accounts and workflow controls |
-| Next step | P0.2 — Prove SerpApi evidence shape |
+| Last finished step | P0.2 — Prove SerpApi evidence shape |
+| Next step | P0.3 — Prove Gemma and Render feasibility |
 | Branch | `phase/p0-prove-access` |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | `SERPAPI_API_KEY` is not configured in this workspace, so the live probe cannot run yet |
+| Biggest blocker | Gemma access and the Render credit balance are still unread |
 
 ## How branches and commits work
 
 You asked for this on October 4, 2026. It replaces the earlier single-branch, no-commit rule for the coding agent.
 
 - One branch per phase, created when that phase starts.
-- One commit per step. The message is a single line and starts with the step id.
+- One commit per step. The message is one plain sentence. It does not include a phase name or a step id.
 - `docs/HANDOFF.md` and `docs/HANDOFF2.md` stay in git so the process is public.
 - Secrets, `.env`, model binaries, and raw provider payloads stay ignored.
 - Cursor does not push, merge, deploy, or publish unless you explicitly ask.
@@ -75,26 +75,51 @@ Your side, still open from this step:
 
 1. Optional, not blocking: in this repo run `entire enable` and choose the agent you are actually using (this build is running in Cursor).
 2. Optional, not blocking: install the CodeRabbit GitHub App on `kernelKain/happen` if it is not already installed.
-3. Required before P0.2: create a local `.env` that is not committed, and set `SERPAPI_API_KEY` there. Say that it is set. Do not paste the key.
+3. Done: `SERPAPI_API_KEY` is set in the ignored `.env`. It was not printed or committed.
 
 ### P0.2 — Prove SerpApi evidence shape
 
-Status: **Next.**
+Status: **Done** on October 4, 2026.
 
-Cursor will run a small Indiranagar restaurant probe: search, one place detail, hours, popular times, and reviews. It will record counts and field names only, then pick the first query shape that returns usable places.
+The key worked. No raw provider payload was committed. Phone numbers and review text were not written down.
 
-Done when the notes name a working query and the account balance, with no key and no raw private payload committed.
+Account after the probe:
 
-Your side after Cursor finishes:
+- Plan: Free Plan, 250 searches per month.
+- Used by this probe: 5.
+- Remaining: 245.
+- That is enough for the planned budget. Live mode stays on.
 
-1. Read the recorded search count and remaining balance in this file.
-2. If the balance is under the planned 250 searches, say so. Live mode gets a smaller budget or stops.
-3. If the probe fails because the key is invalid, replace it locally and say it is updated.
+Working query, and the one to keep:
 
-Your side before Cursor can finish:
+- `engine=google_maps`
+- `type=search`
+- `q=restaurants in Indiranagar, Bengaluru`
+- `hl=en`
+- `gl=in`
 
-1. Set `SERPAPI_API_KEY` in the ignored `.env`.
-2. Reply that it is ready.
+The search returned 20 places in about 2.1 seconds. No second category was needed.
+
+Place details for the first three results:
+
+| Place | Hours | Popular times | Reviews on the place |
+|---|---|---|---|
+| Bombay Brasserie | 7 days | Missing | 9,859 |
+| Chianti, Indiranagar | 7 days | 7 days, 126 points | 8,694 |
+| Truffles - Indiranagar | 7 days | 7 days, 133 points | 21,018 |
+
+Hours come back as a list of seven day entries. Popular times are not on every place. Chianti and Truffles both have a full week, so two candidates already have comparable time evidence. Bombay Brasserie is the missing-busyness case the product must keep as unknown, not as a good sign.
+
+A separate reviews call for Chianti returned 5 excerpts. All 5 had text, a date, and a link. The longest excerpt was 1,217 characters, so later capture must keep only a short quote. Reviewer names were not saved.
+
+Place results also include a `user_reviews` field. The live adapter should use that when it already has enough excerpts, and call the reviews endpoint only when it does not.
+
+Commit: `Record the Indiranagar restaurant evidence probe.`
+
+Your side after this step:
+
+1. Nothing else is required for SerpApi. The remaining 245 searches still match the plan.
+2. Do not paste the key anywhere, and do not commit `.env`.
 
 ### P0.3 — Prove Gemma and Render feasibility
 
@@ -538,9 +563,9 @@ Your side:
 
 | Step | Status | Commit | Your remaining action |
 |---|---|---|---|
-| P0.1 | Done | `P0.1: record account and workflow access checks.` | Optional: Entire and CodeRabbit. Required next: set `SERPAPI_API_KEY` locally. |
-| P0.2 | Next | — | Confirm the key is set, then review the balance note. |
-| P0.3 | Not started | — | Gemma terms, `HF_TOKEN` if gated, Render balance. |
+| P0.1 | Done | `P0.1: record account and workflow access checks.` | Optional: Entire and CodeRabbit. |
+| P0.2 | Done | `Record the Indiranagar restaurant evidence probe.` | Nothing else for SerpApi. |
+| P0.3 | Next | — | Gemma terms, `HF_TOKEN` if gated, Render balance. |
 | P1.1–P1.3 | Not started | — | Review only if a check needs you. |
 | P1.4 | Not started | — | Push, Render services, secrets, public URLs. |
 | P2.1–P2.4 | Not started | — | Nothing unless a note asks. |
