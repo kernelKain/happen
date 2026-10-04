@@ -1,0 +1,67 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M43TETPQS98ZBNBRY2QS51ZZ",
+  "session_id": "5b0f0b4e-31bb-409b-97ab-44dad1a8e9a2",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T16:02:55.327739434Z",
+  "branch": "live-sponsor",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high",
+  "turn_id": "862330541929",
+  "checkpoint_transcript_start": 212,
+  "transcript_lines_at_start": 212,
+  "compact_transcript_start": 27,
+  "token_usage": {
+    "input_tokens": 197671,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 209024,
+    "output_tokens": 787,
+    "api_call_count": 1
+  },
+  "session_metrics": {
+    "turn_count": 13,
+    "context_tokens": 241007,
+    "context_window_size": 256000
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T16:02:55.268954787Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 1,
+    "human_removed": 12,
+    "total_committed": 0,
+    "total_lines_changed": 13,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 38,
+      "user_lines_removed": 12,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "docs/BUILD_LOG.md": 20,
+        "docs/HANDOFF2.md": 18
+      },
+      "user_removed_per_file": {
+        "docs/HANDOFF2.md": 12
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 38,
+      "agent_lines_removed": 12
+    }
+  ]
+}
