@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M43ZVAQVC4ERR6ZQ9SQJ5VMM",
+  "strategy": "manual-commit",
+  "branch": "demo-experience",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/src/app/result/MomentResult.tsx",
+    "frontend/src/lib/evidenceView.test.ts",
+    "frontend/src/lib/evidenceView.ts",
+    "frontend/src/styles/global.css",
+    "frontend/tests/hook.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18369,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1699968,
+    "output_tokens": 8620,
+    "api_call_count": 1
+  }
+}
