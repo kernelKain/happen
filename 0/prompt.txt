@@ -1,35 +1,3 @@
-Read the project instructions and current progress documents first. Confirm the branch is global-live-experience and do not push or deploy.
-
-Implement destination resolution using SerpAPI only for external location data.
-
-Requirements:
-
-- Use SerpAPI’s free Locations API for canonical location matching where it fits.
-- Use a bounded Maps Autocomplete or Maps lookup only when the free lookup cannot resolve enough information.
-- A paid fallback must consume the same eight-request budget used by the later plan request.
-- Return up to three disambiguation choices rather than guessing.
-- Store the canonical display name, country/region, latitude, longitude, SerpAPI location value when available, confidence, and resolution source.
-- Do not add another geocoder or place-data provider.
-- Add an exact compatible timezonefinder dependency and update the lockfile.
-- Derive the IANA timezone offline from resolved coordinates and use Python zoneinfo for date/time logic.
-- Resolve relative dates only after the destination timezone is known.
-- Represent DST gaps, ambiguous local times, unsupported locations, and missing coordinates explicitly.
-- Do not retain or log raw provider payloads.
-- Extend the existing SerpAPI client instead of creating a disconnected second client.
-- Mock every provider call in normal tests.
-
-Test Jaipur, London, New York, Tokyo, an ambiguous Springfield query, an invalid location, DST boundaries, and destination-local “today” or “tomorrow.”
-
-Update progress documentation and run backend checks and the secret scanner.
-
-Commit exactly:
-
-Resolve destinations in their local time.
-
-Stop after the commit and report the hash, tests, and git status.
-
----
-
 Read AGENTS.md and the product/progress contracts first. Confirm the correct branch. Do not push, deploy, use hosted inference, or commit a model binary.
 
 Build a reproducible quality gate for local Gemma rather than assuming that a valid GGUF file is a capable model.
