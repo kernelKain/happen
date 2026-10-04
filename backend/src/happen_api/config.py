@@ -92,6 +92,13 @@ class Settings(BaseSettings):
         pattern=r"^[0-9a-f]{64}$",
     )
     happen_live_enabled: bool = Field(default=False, alias="HAPPEN_LIVE_ENABLED")
+    recommendation_rate_limit: int = Field(default=30, alias="HAPPEN_RATE_LIMIT", ge=1, le=600)
+    recommendation_rate_window_seconds: int = Field(
+        default=60,
+        alias="HAPPEN_RATE_WINDOW_SECONDS",
+        ge=1,
+        le=3600,
+    )
     log_level: LogLevel = Field(default="info", alias="LOG_LEVEL")
     serpapi_api_key: SecretStr = Field(alias="SERPAPI_API_KEY", default=SecretStr(""), repr=False)
     hf_token: SecretStr = Field(alias="HF_TOKEN", default=SecretStr(""), repr=False)

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import {
   type CanonicalPreset,
   contractMajor,
@@ -7,13 +7,26 @@ import {
   type ServiceMeta,
   SUPPORTED_CONTRACT_MAJOR,
 } from "../lib/api/meta";
-import { labelFor, moveItem } from "../lib/labels";
+import {
+  RecommendationRequestError,
+  type RecommendationResult,
+  requestDemoRecommendation,
+} from "../lib/api/recommendation";
+import { formatClock, labelFor, moveItem } from "../lib/labels";
+import { MomentResult } from "./result/MomentResult";
+import { SAMPLE_RESULT } from "./result/sample";
 
 type ShellState =
   | { status: "loading" }
   | { status: "unavailable" }
   | { status: "mismatch"; meta: ServiceMeta }
   | { status: "ready"; meta: ServiceMeta };
+
+type JourneyState =
+  | { status: "idle" }
+  | { status: "gathering" }
+  | { status: "result"; result: RecommendationResult }
+  | { status: "error"; message: string; nextAction: string };
 
 const REPOSITORY_URL = "https://github.com/kernelKain/happen";
 
@@ -22,7 +35,9 @@ export function App() {
   const [reloadKey, setReloadKey] = useState(0);
   const [shell, setShell] = useState<ShellState>({ status: "loading" });
   const [draft, setDraft] = useState<CanonicalPreset>(LOCAL_PRESET);
+  const [journey, setJourney] = useState<JourneyState>({ status: "idle" });
   const statusId = useId();
+  const sampleLayout = new URLSearchParams(window.location.search).get("layout") === "sample";
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey retries metadata
   useEffect(() => {
@@ -58,9 +73,31 @@ export function App() {
     experiences: meta?.supported_experiences ?? [preset.desired_experience],
   };
   const timezone = meta?.timezone ?? "Asia/Kolkata";
-  const canEdit = shell.status === "ready";
-  const modelReady = meta?.model_status === "ready";
-  const submitEnabled = shell.status === "ready" && modelReady;
+  const gathering = journey.status === "gathering";
+  const canEdit = shell.status === "ready" && !gathering;
+  const submitEnabled = canEdit;
+  const inFlight = useRef(false);
+
+  async function submitPlanner() {
+    if (shell.status !== "ready" || inFlight.current) {
+      return;
+    }
+    inFlight.current = true;
+    setJourney({ status: "gathering" });
+    try {
+      const result = await requestDemoRecommendation(draft);
+      setJourney({ status: "result", result });
+    } catch (error) {
+      const known = error instanceof RecommendationRequestError;
+      setJourney({
+        status: "error",
+        message: known ? error.message : "Happen could not complete that request.",
+        nextAction: known ? error.nextAction : "Try again in a moment.",
+      });
+    } finally {
+      inFlight.current = false;
+    }
+  }
 
   return (
     <div className="shell">
@@ -94,9 +131,10 @@ export function App() {
 
       <form
         className="planner"
-        aria-busy={shell.status === "loading"}
+        aria-busy={shell.status === "loading" || gathering}
         onSubmit={(event) => {
           event.preventDefault();
+          void submitPlanner();
         }}
       >
         <div className="fields">
@@ -197,8 +235,8 @@ export function App() {
         </fieldset>
 
         <p className="mode-copy">{evidenceCopy(shell)}</p>
-        <p id={statusId} className="submit-reason">
-          {submitReason(shell)}
+        <p id={statusId} className="submit-reason" role={gathering ? "status" : undefined}>
+          {gathering ? "Gathering evidence." : submitReason(shell)}
         </p>
 
         <div className="actions">
@@ -215,34 +253,63 @@ export function App() {
         </div>
       </form>
 
-      <section className="matrix-frame" aria-labelledby="matrix-heading">
-        <div className="matrix-heading">
-          <h2 id="matrix-heading">Tonight&apos;s moment</h2>
-          <p>Nothing has been recommended yet.</p>
+      {journey.status === "error" ? (
+        <div className="notice notice-error" role="alert">
+          <p>{journey.message}</p>
+          <p>{journey.nextAction}</p>
+          <button type="button" onClick={() => void submitPlanner()}>
+            Retry
+          </button>
         </div>
-        <ul className="legend">
-          <li>
-            <span className="swatch swatch-strong" aria-hidden="true" />
-            Strong — supported
-          </li>
-          <li>
-            <span className="swatch swatch-possible" aria-hidden="true" />
-            Possible — partial support
-          </li>
-          <li>
-            <span className="swatch swatch-weak" aria-hidden="true" />
-            Weak — unfavorable
-          </li>
-          <li>
-            <span className="swatch swatch-unknown" aria-hidden="true" />
-            Unknown — not enough evidence
-          </li>
-        </ul>
-        <p className="matrix-empty">
-          Three restaurant timelines will appear here after evidence is gathered. Missing evidence
-          stays Unknown.
-        </p>
-      </section>
+      ) : null}
+      {journey.status === "result" ? (
+        <MomentResult
+          result={journey.result}
+          onStartOver={() => {
+            setJourney({ status: "idle" });
+            setDraft(preset);
+          }}
+        />
+      ) : null}
+      {journey.status === "idle" && sampleLayout ? (
+        <MomentResult
+          result={SAMPLE_RESULT}
+          sample
+          onStartOver={() => {
+            window.location.assign("/");
+          }}
+        />
+      ) : null}
+      {journey.status !== "result" && !(journey.status === "idle" && sampleLayout) ? (
+        <section className="matrix-frame" aria-labelledby="matrix-heading">
+          <div className="matrix-heading">
+            <h2 id="matrix-heading">Tonight&apos;s moment</h2>
+            <p>{gathering ? "Gathering evidence." : "Nothing has been recommended yet."}</p>
+          </div>
+          <ul className="legend">
+            <li>
+              <span className="swatch swatch-strong" aria-hidden="true" />
+              Strong — supported
+            </li>
+            <li>
+              <span className="swatch swatch-possible" aria-hidden="true" />
+              Possible — partial support
+            </li>
+            <li>
+              <span className="swatch swatch-weak" aria-hidden="true" />
+              Weak — unfavorable
+            </li>
+            <li>
+              <span className="swatch swatch-unknown" aria-hidden="true" />
+              Unknown — not enough evidence
+            </li>
+          </ul>
+          <p className="matrix-empty">
+            Three restaurant timelines will appear here after evidence is gathered. Missing evidence
+            stays Unknown.
+          </p>
+        </section>
+      ) : null}
 
       <footer className="colophon">
         <p>Planning evidence—not live occupancy.</p>
@@ -321,7 +388,7 @@ function modeLabel(shell: ShellState): string {
   if (shell.meta.fixture_available) {
     return "Captured fixture";
   }
-  return "Evidence not ready";
+  return "Synthetic fixture";
 }
 
 /** Explain which evidence sources the ready service reports as available. */
@@ -338,10 +405,10 @@ function evidenceCopy(shell: ShellState): string {
   if (shell.meta.fixture_available) {
     return "Captured evidence is available and will be labeled as a captured fixture.";
   }
-  return "Live evidence is off, and captured evidence is not installed.";
+  return "Find the moment scores the labeled synthetic fixture. It is not a SerpApi capture.";
 }
 
-/** Explain submission availability from the service contract and model readiness. */
+/** Explain when Find the moment can score the synthetic fixture. */
 function submitReason(shell: ShellState): string {
   if (shell.status === "loading") {
     return "Find the moment stays off until the service responds.";
@@ -352,29 +419,10 @@ function submitReason(shell: ShellState): string {
   if (shell.status === "mismatch") {
     return "Find the moment stays off until this page matches the service.";
   }
-  if (shell.meta.model_status === "loading") {
-    return "The evidence model is waking up, so Find the moment stays off.";
-  }
-  if (shell.meta.model_status !== "ready") {
-    return "The evidence model is not ready, so Find the moment stays off.";
-  }
-  return "Find the moment uses the service. It does not run until you choose it.";
+  return "Find the moment scores the synthetic fixture. It does not run until you choose it.";
 }
 
 /** Format the preset arrival window as two display times separated by an en dash. */
 function formatRange(preset: CanonicalPreset): string {
-  return `${formatTime(preset.arrival_start)}–${formatTime(preset.arrival_end)}`;
-}
-
-/** Format an HH:mm time using AM or PM, preserving inputs with noninteger parts. */
-function formatTime(value: string): string {
-  const [hourText, minuteText] = value.split(":");
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
-    return value;
-  }
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const hour12 = hour % 12 || 12;
-  return `${hour12}:${minuteText} ${suffix}`;
+  return `${formatClock(preset.arrival_start)}–${formatClock(preset.arrival_end)}`;
 }

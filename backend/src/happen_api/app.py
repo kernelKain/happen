@@ -10,11 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from happen_api import __version__
+from happen_api.api.demo import router as demo_router
 from happen_api.api.health import router
 from happen_api.config import Settings, get_settings
 from happen_api.errors import error_response, message_for, public_field_errors
 from happen_api.logging import configure_logging, get_logger
 from happen_api.middleware import BodyLimitMiddleware, RequestContextMiddleware, current_request_id
+from happen_api.recommendations.memory import RecommendationMemory
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -32,6 +34,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.settings = resolved
     application.state.started_at = time.monotonic()
     application.state.fixture_available = False
+    application.state.recommendation_memory = RecommendationMemory()
+    application.state.excerpt_generate = None
+    application.state.clock = None
 
     application.add_middleware(BodyLimitMiddleware, fixture_available=False)
     application.add_middleware(RequestContextMiddleware)
@@ -44,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         expose_headers=[],
     )
     application.include_router(router)
+    application.include_router(demo_router)
     application.add_exception_handler(StarletteHTTPException, http_exception_handler)
     application.add_exception_handler(RequestValidationError, validation_exception_handler)
     application.add_exception_handler(Exception, unhandled_exception_handler)
