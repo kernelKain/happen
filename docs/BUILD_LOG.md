@@ -529,3 +529,23 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Evidence: Playwright passed, 18 tests, including 1280×720, 390×844, and reduced motion. Amber text on the raised surface measures about 6.3:1.
 - Decision: do not fade the rows, because a fade made the text fail contrast while it was moving. Do not add a pulsing glow.
 
+## Record the global live planning contract
+
+- Date: 2026-10-04
+- Branch: `global-live-experience`
+- Result: The approved redesign is recorded as section 30 of `docs/HANDOFF.md`. Sections 1–29 stay in place as the October 3 plan. Application code was not edited.
+- Product behavior changed: the contract changed. The running application did not.
+- Cost changed: no. No SerpApi request was made.
+
+### Decisions
+
+- Happen is a global, prompt-led, live evening planner. One plan is one evening and at most two stops.
+- SerpApi is the only external source of place data and supporting web data.
+- Local Gemma may classify a prompt or extract structured preferences. Python validates that output and performs feasibility checks, scoring, and final selection.
+- A user-facing plan carries source provenance, retrieval timestamps, and destination-local time. Missing facts stay unknown. The product does not claim universal coverage.
+- Captured fixtures are test data only. Production does not use them as a user-facing fallback.
+- The flow is a prompt, an editable planning brief, destination disambiguation, one essential follow-up at a time, a results timeline, and an explicit refinement diff.
+- One submitted plan may use at most eight billed SerpApi requests. A paid destination-resolution fallback counts toward that same maximum.
+- Required acceptance criteria are GL-01 through GL-12. Automated tests cover those criteria. The user holds secrets, approves live credit spend, tests locally when asked, and controls deploy and publish.
+- These decisions control where they disagree with sections 1–29. Those sections were not deleted.
+

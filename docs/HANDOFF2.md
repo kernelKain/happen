@@ -2,26 +2,28 @@
 
 This is the running notebook for the build. A new chat must read this file before doing anything else.
 
-`docs/HANDOFF.md` is the locked plan from Prompt 1. Do not edit it to track progress. When this file and `HANDOFF.md` disagree about what has been done, believe this file plus the git history. When they disagree about the product, believe `HANDOFF.md`.
+`docs/HANDOFF.md` sections 1–29 are the historical product plan approved on October 3, 2026. Section 30, approved on October 4, 2026, is the current product contract. Do not edit `HANDOFF.md` to track progress. When this file and `HANDOFF.md` disagree about what has been done, believe this file plus the git history. When they disagree about the product, believe section 30. Use sections 1–29 only where section 30 is silent.
 
 ## Resume for the next chat
 
-Find the moment scores the captured Indiranagar fixture for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar. When live mode is on, Find the moment asks SerpApi first and offers the captured fixture only as a separate action after a live failure. A real submit still returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. Replay of the captured snapshot matched the live decision: insufficient evidence and no winner. The untuned Gemma baseline parsed 2 of 30 held-out excerpts and scored 4.4% dimension-plus-polarity accuracy, so it does not meet the extraction gate. A free Colab T4 estimate of the short adapter printed parse rate 6.7% and dimension-plus-polarity accuracy 3.3%. That estimate does not improve on the baseline, so no adapter was selected and the shipping model stays the untuned 270M file. Health and metadata now report the captured fixture and the model file that is actually installed. `render.yaml` points both services at `live-sponsor` and the backend build downloads the public GGUF. That branch matches `main` after pull request 7. The public Render URL does not exist yet. Local checks on the merged revision passed on October 4, 2026: backend 119 tests, frontend 7 tests, secret scan clean, and GitHub Actions run `37219473378` on `main` succeeded.
+The current branch is `global-live-experience`. The current work is the Global Live Experience redesign. Section 30 of `docs/HANDOFF.md` is the approved contract: a global, prompt-led, live evening planner, one evening, at most two stops, SerpApi as the only external place and supporting-web source, Python validation and selection, and live retrieval only. Captured fixtures stay test data. Application code has not been changed for this redesign. The running application is still the earlier Indiranagar planner until a later implementation change.
 
-`docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
+`global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
+
+Section 27 of `docs/HANDOFF.md` still says the build has not started. That section is the October 3 planning snapshot. This file is the progress log.
 
 | | |
 |---|---|
-| Current phase | Complete demo experience |
-| Phase complete | No. Result states are in the working tree. The public smoke is still not done. |
-| Last finished step | Finish reveal, responsive, and reduced motion |
-| Next step | Conduct the friend walkthrough. Deploy and smoke stays open until the Render URLs exist. |
-| Branch | `demo-experience`. `f88e056` records the evidence panel. Reveal edits are uncommitted. |
-| Pull request | https://github.com/kernelKain/happen/pull/7 merged `live-sponsor` into `main`. https://github.com/kernelKain/happen/pull/5 merged the fixture Hook. |
-| Remote | `origin/main` is at `91b7b94`. `live-sponsor` is at `d05d024`. Those two commits contain the same files. |
+| Current phase | Global live experience |
+| Phase complete | No. The contract is recorded. Implementation has not started. |
+| Last finished step | Record the approved global live planning contract |
+| Next step | Implement section 30. Keep captured fixtures out of the user-facing path. |
+| Branch | `global-live-experience` |
+| Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
+| Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
 | Live URL | Not deployed |
 
-Still open from the walking skeleton, and not a blocker for local scoring:
+Still open from the walking skeleton, and not the current step:
 
 1. Create the Render services from `render.yaml`, then paste the frontend URL and the health URL back here.
 2. Let CodeRabbit finish on the merged walking-skeleton pull request before the next phase pull request.
@@ -30,7 +32,7 @@ Still open from the walking skeleton, and not a blocker for local scoring:
 
 - Branch names, commit messages, and code comments do not use phase or step numbers.
 - Each step gets one short commit message that says what the change does. Do not name the coding tool.
-- One branch per phase: `walking-skeleton`, then `fixture-hook`, `live-sponsor`, `demo-experience`, `harden-freeze`, `production`, `submission`, and `submit`.
+- One branch per phase: `walking-skeleton`, then `fixture-hook`, `live-sponsor`, `demo-experience`, `harden-freeze`, `production`, `submission`, and `submit`. The current branch is `global-live-experience`.
 - After each phase pull request, wait for the CodeRabbit review. Before the next phase, fetch and pull the latest remote branch so review edits are included.
 - Before the next phase, also stop so the app can be tested by hand. Give the exact frontend and backend commands for what exists at that moment.
 - Do not push, merge, deploy, or publish unless asked.
@@ -100,13 +102,13 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | The result rows slide in over about half a second. Reduced motion shows them immediately. At 390 pixels each restaurant is a two-column card. Render services are still not created. |
-| Last finished step | Finish reveal, responsive, and reduced motion |
-| Next step | Conduct the friend walkthrough |
-| Branch | `demo-experience`. Latest commit is `f88e056`. Reveal edits are uncommitted. |
+| Status | The approved global live planning contract is recorded in `docs/HANDOFF.md` section 30. Application code is unchanged. The running page is still the earlier Indiranagar planner. |
+| Last finished step | Record the approved global live planning contract |
+| Next step | Implement section 30 |
+| Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | Render services are still not created. Local result states continued after the deploy step stayed blocked. |
+| Biggest blocker | Implementation of the new contract has not started. Render services are still not created, and that deploy is not the current step. |
 
 ## How branches and commits work
 
@@ -130,6 +132,7 @@ You asked for this on October 4, 2026. It replaces the earlier single-branch, no
 | Production release | `production` | Created when production work starts |
 | Submission evidence | `submission` | Created when submission writing starts |
 | Submit and buffer | `submit` | Created when the final submit work starts |
+| Global live experience | `global-live-experience` | Created for the approved redesign. Current branch. |
 
 ## What you do versus what Cursor does
 
@@ -797,3 +800,4 @@ Your side:
 | Production deploy, smoke, and runbook | Not started | — | Deploy, smoke the public page, name the rollback revision. |
 | README, media, sessions, article, and packet | Not started | — | Read claims, approve media and sessions, keep the article as a draft. |
 | Audit, publish, and submit | Not started | — | Merge, publish, submit, and paste the confirmation. |
+| Global live planning contract | Recorded. Implementation has not started. | `Update the contract for global live planning.` | Nothing until implementation starts. Do not push. |
