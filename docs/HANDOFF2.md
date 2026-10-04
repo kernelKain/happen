@@ -6,7 +6,7 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. The bounded SerpApi client is implemented and tested with fake HTTP. The page does not call it, and no live search was spent. The public Render URL is still missing.
+Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. The SerpApi client and the candidate normalizer are tested with fake provider documents. The page does not call them, and no live search was spent. The public Render URL is still missing.
 
 `docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
 
@@ -14,11 +14,11 @@ Find the moment still scores the synthetic fixture. A real submit returns three 
 |---|---|
 | Current phase | Live sponsor Hook |
 | Phase complete | No |
-| Last finished step | Implement bounded SerpApi client |
-| Next step | Normalize and select candidates |
+| Last finished step | Normalize and select candidates |
+| Next step | Assemble live orchestration and protections |
 | Branch | `live-sponsor` |
 | Pull request | https://github.com/kernelKain/happen/pull/5 merged the fixture Hook into `main` at `b5cf7da`. This branch has no pull request yet. |
-| Remote | `origin/main` is at `b5cf7da`. This branch adds the bounded SerpApi client. |
+| Remote | `origin/main` is at `b5cf7da`. This branch adds the SerpApi client and the candidate normalizer. |
 | Live URL | Not deployed |
 
 Still open from the walking skeleton, and not a blocker for local scoring:
@@ -100,9 +100,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the synthetic fixture. The SerpApi client is tested with fake HTTP and is not wired to the page. The public URL is still not deployed. |
-| Last finished step | Implement bounded SerpApi client |
-| Next step | Normalize and select candidates |
+| Status | Find the moment scores the synthetic fixture. The SerpApi client and normalizer are tested with fake documents and are not wired to the page. The public URL is still not deployed. |
+| Last finished step | Normalize and select candidates |
+| Next step | Assemble live orchestration and protections |
 | Branch | `live-sponsor` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -433,15 +433,17 @@ The client sends search, place, and review calls to `https://serpapi.com/search.
 
 `uv run pytest` passed, 97 tests. Ruff format and lint passed for the new files. The secret scan reported nothing. No live search was spent.
 
-Your side after this step: nothing. The page is unchanged. Normalization is next.
+Your side after this step: nothing. The page is unchanged.
 
 ### Normalize and select candidates
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor maps provider fields into the internal place records and selects three candidates, or returns insufficiency with a reason. Missing fields are not invented.
+Search rows become place records only from fields the provider sent. A row needs a name, a usable id, a restaurant type, and a provenance URL. The URL is a supplied Google Maps link, or the Maps search link built from a safe `place_id`. Phone numbers and reviewer names are dropped. Hours use the existing parser. Popular times become visit-day observations. At most three excerpts are kept, each capped at 400 characters. Missing hours, busyness, or reviews stay missing and produce warnings. A place that is closed on the visit date is rejected. Completeness is ranked ahead of search order. The result is three candidates, or no candidates plus reason codes. When place details are supplied, only rows that match those details can be selected.
 
-Your side after Cursor finishes: nothing.
+`uv run pytest` passed, 102 tests. Ruff format and lint passed for the normalizer. The secret scan reported nothing. No live search was spent.
+
+Your side after this step: nothing. Live orchestration is next.
 
 ### Assemble live orchestration and protections
 
@@ -743,7 +745,8 @@ Your side:
 | Scoring, fixtures, extraction, and fixture API | Local fixture steps are done | — | Nothing unless a note asks. |
 | Matrix UI and fixture Hook proof | Done | `Show the synthetic fixture result from Find the moment.` | Same local check as the fixture Hook proof. |
 | Bounded SerpApi client | Done | `Add a bounded SerpApi client with retries and key redaction.` | Nothing. |
-| Normalization and live orchestration | Not started | — | Nothing unless the key is missing. |
+| Normalize and select candidates | Done | `Normalize provider places into three candidates or an insufficiency result.` | Nothing. |
+| Live orchestration | Not started | — | Nothing unless the key is missing. |
 | Capture and verify canonical fixture | Not started | — | Approve the live capture, then skim the fixture. |
 | Evaluate and optionally tune Gemma | Not started | — | Colab T4, then read the scores. |
 | Deploy and smoke the sponsor slice | Not started | — | Deploy and open the public URL. |

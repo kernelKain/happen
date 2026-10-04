@@ -371,3 +371,25 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Provider phone numbers and review identities stay in the redacted payload until normalization. Credential fields and echoed key values are removed now.
 - Progress stays in this log and `docs/HANDOFF2.md`. `docs/HANDOFF.md` stays the locked plan.
 
+## Candidate normalization
+
+- Date: 2026-10-04
+- Queue step: P3.2
+- Result: Provider documents normalize into three place records, or an insufficiency result with reason codes. No live SerpApi request was sent.
+- Product behavior changed: no. The page still uses the synthetic fixture.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format` and `uv run ruff check` passed for the normalizer and its tests.
+- `uv run pytest` passed, 102 tests.
+- `python3 scripts/scan-secrets.py --extra backend/src/happen_api/providers/serpapi/normalizer.py --extra backend/tests/unit/test_serpapi_normalizer.py` reported nothing.
+
+### Decisions
+
+- A type must contain “restaurant”. Cafes and unlabeled places are rejected instead of being relabeled.
+- The provenance URL is a supplied Google Maps URL. If the provider omits one, Happen builds the Maps search URL from a safe `place_id`.
+- Closure on the visit date rejects the place. Missing hours, busyness, or reviews do not.
+- Place-detail calls restrict selection to the rows those details match.
+- Reviewer names, phones, live busyness, and out-of-range popularity values are not copied. Excerpts stop at three and at 400 characters.
+
