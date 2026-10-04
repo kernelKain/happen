@@ -14,9 +14,9 @@ Find the moment scores the captured Indiranagar fixture for Bombay Brasserie, Tr
 |---|---|
 | Current phase | Complete demo experience |
 | Phase complete | No. Result states are in the working tree. The public smoke is still not done. |
-| Last finished step | Finish evidence and methodology experience |
-| Next step | Finish reveal, responsive, and reduced motion. Deploy and smoke stays open until the Render URLs exist. |
-| Branch | `demo-experience`. `88e080f` records the result states. Evidence-panel edits are uncommitted. |
+| Last finished step | Finish reveal, responsive, and reduced motion |
+| Next step | Conduct the friend walkthrough. Deploy and smoke stays open until the Render URLs exist. |
+| Branch | `demo-experience`. `f88e056` records the evidence panel. Reveal edits are uncommitted. |
 | Pull request | https://github.com/kernelKain/happen/pull/7 merged `live-sponsor` into `main`. https://github.com/kernelKain/happen/pull/5 merged the fixture Hook. |
 | Remote | `origin/main` is at `91b7b94`. `live-sponsor` is at `d05d024`. Those two commits contain the same files. |
 | Live URL | Not deployed |
@@ -100,10 +100,10 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the captured Indiranagar fixture. Why this moment explains the quotes, conflicts, rejected spans, model version, and scoring method. Render services are still not created. |
-| Last finished step | Finish evidence and methodology experience |
-| Next step | Finish reveal, responsive, and reduced motion |
-| Branch | `demo-experience`. Latest commit is `88e080f`. Evidence-panel edits are uncommitted. |
+| Status | The result rows slide in over about half a second. Reduced motion shows them immediately. At 390 pixels each restaurant is a two-column card. Render services are still not created. |
+| Last finished step | Finish reveal, responsive, and reduced motion |
+| Next step | Conduct the friend walkthrough |
+| Branch | `demo-experience`. Latest commit is `f88e056`. Reveal edits are uncommitted. |
 | Live URL | Not deployed |
 | Spend | $0 |
 | Biggest blocker | Render services are still not created. Local result states continued after the deploy step stayed blocked. |
@@ -549,14 +549,20 @@ Your side after this step: optional. Open Why this moment with the keyboard and 
 
 ### Finish reveal, responsive, and reduced motion
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. Not committed.
 
-Cursor checks 1280×720 and 390×844. Reduced motion shows the result immediately.
+The three restaurant rows slide into place in under one second. The selected interval keeps its border, the word Selected, and a static amber outline. There is no glow pulse. When the browser asks for reduced motion, the rows are visible immediately and do not move. At 390 pixels the planner, recommendation, fallback, and evidence stack, and each restaurant timeline is a two-column card. At 1280 pixels the timeline stays six columns wide. Neither width scrolls sideways.
 
-Your side after Cursor finishes:
+Checks that passed:
 
-1. Look at the 1280px screenshot or the local window.
-2. Say if the recommended moment is obvious. Decorative motion can be removed. The three timelines stay.
+- `npx biome check .`
+- `npm run build`
+- `npx playwright test` — 18 tests, including 1280×720, 390×844, and reduced motion.
+
+Your side after this step:
+
+1. Open the local page at 1280 pixels wide, or use the layout sample at `/?layout=sample`.
+2. Say if the recommended moment is obvious. The slide can be removed. The three timelines stay.
 
 ### Conduct friend walkthrough
 
@@ -784,7 +790,7 @@ Your side:
 | Deploy and smoke the sponsor slice | Blocked on Render. Code is on `main` at `91b7b94`. Local tests passed. | `91b7b94` | Create the Blueprint, paste both public URLs, then allow one live run. |
 | Result states | Done locally. Not committed. | — | Optional: say if one error's next action is unclear. |
 | Evidence methodology | Done locally. Not committed. | — | Optional: open Why this moment from the keyboard. |
-| Responsive reveal | Not started | — | Look at the 1280px screen. |
+| Responsive reveal | Done locally. Not committed. | — | Say if the recommended moment is obvious at 1280 pixels. |
 | Friend walkthrough | Not started | — | Friend walkthrough. You send the paraphrase. |
 | Security, performance, and pre-freeze verification | Not started | — | Read the verification list. Rotate a secret if one is found. |
 | Review and freeze the MVP | Not started | — | Review and merge. That is feature freeze. |

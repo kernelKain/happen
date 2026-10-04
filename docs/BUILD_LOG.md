@@ -522,3 +522,10 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Evidence: `npm test` passed, 11 tests. `npm run build` passed. Playwright passed, 17 tests, including a keyboard open and Escape close.
 - Decision: keep the inline panel. Omit a source link that is not a normal http or https address.
 
+## Reveal and viewports
+
+- Date: 2026-10-04
+- Result: the result rows slide in briefly, reduced motion shows them at once, and the 390-pixel timelines are two-column cards. Product behavior changed for that motion and layout only. Cost did not change.
+- Evidence: Playwright passed, 18 tests, including 1280×720, 390×844, and reduced motion. Amber text on the raised surface measures about 6.3:1.
+- Decision: do not fade the rows, because a fade made the text fail contrast while it was moving. Do not add a pulsing glow.
+
