@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M447H6443M33DFZZ2XTP3Q7F",
+  "strategy": "manual-commit",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "backend/src/happen_api/api/recommendations.py",
+    "backend/src/happen_api/app.py",
+    "backend/src/happen_api/planning/discovery.py",
+    "backend/src/happen_api/providers/serpapi/client.py",
+    "backend/src/happen_api/recommendations/live.py",
+    "backend/tests/unit/test_discovery.py",
+    "backend/tests/unit/test_serpapi_client.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ]
+}
