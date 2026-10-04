@@ -53,7 +53,9 @@ _INSTRUCTION = re.compile(
     r"|reveal (?:the )?(?:secret|api key|prompt)"
     r")"
 )
-_SENTENCE = re.compile(r"[^.!?\n]+[.!?\n]?")
+# A period, question mark, or exclamation mark ends a sentence; a newline always
+# does. Splitting keeps the terminator so an abbreviation like `D.C.` is not cut.
+_SENTENCE = re.compile(r"(?<![A-Z])[.!?]|[.!?]+(?=\s)|[\n]+|[.!?]+$")
 
 _ERRORS = {
     PlanningErrorCode.prompt_empty: (
@@ -254,29 +256,49 @@ _ACCESS: tuple[tuple[str, str], ...] = (
     (r"\b(?:step-free|step free|no stairs)\b", "step-free"),
     (r"\bhearing loop\b", "hearing loop"),
 )
-_PLACE_STOP = frozenset(
-    {
-        "the",
-        "this",
-        "next",
-        "tonight",
-        "tomorrow",
-        "today",
-        "evening",
-        "morning",
-        "afternoon",
-        "night",
-        "weekend",
-        "please",
-        "ignore",
-        "dinner",
-        "drinks",
-        "coffee",
-        *_WEEKDAYS,
-        *_MONTHS,
-    }
+_LOCATION_MARKER = re.compile(r"(?i)(?<![\w])(?:in|near|around|close to|outside(?: of)?)(?![\w])")
+_TEMPORAL = (
+    r"tonight|tomorrow|today|yesterday|this|next|earlier|later"
+    r"|on|at|by|starting|start|from|until|until"
+    r"|" + "|".join(_WEEKDAYS) + "|" + "|".join(_MONTHS)
 )
-_UNKNOWN_PLACE = re.compile(r"\b(?:in|near|around)\s+([A-Z][a-z]+(?:[ '-][A-Z][a-z]+){0,2})\b")
+_MONEY = (
+    r"under|below|about|around|roughly|approximately|max|maximum|budget|spend|"
+    r"budget|over|per|euros?|pounds?|dollars?|yen|rupees?|usd|eur|gbp|jpy|inr|cad|aud"
+)
+_PARTY = "|".join(_WORDS)
+# A connective such as `for` or `of` ends the phrase, so `dinner in Berlin for
+# two` does not read "Berlin for". A qualifier such as `with` does not.
+_CONNECTIVE = r"for|of|to|from"
+_INTENT_WORDS = (
+    "dinner|supper|restaurant|drinks|cocktails|cocktail|bar|pub"
+    "|coffee|cafe|café|dessert|desserts|show|concert|theatre|theater|gig|movie"
+    "|cinema|film|walk|stroll|museum|gallery|live|music|jazz"
+)
+_QUALIFIERS = (
+    r"with|then|and|but|plus|however|somewhere|someplace"
+    r"we|i|looking|planning|want|wants|need|needs|prefer|prefers"
+    r"quiet|noisy|loud|romantic|casual|formal|spicy|outdoor|indoor"
+    r"vegetarian|vegan|wheelchair|step-free|stepfree|hearing"
+    r"evening|morning|afternoon|night|weekend|please"
+)
+_PHRASE_BOUNDARY = re.compile(
+    r"(?i)\A(?P<stop>"
+    rf"(?:{_TEMPORAL})"
+    rf"|(?:{_MONEY})"
+    rf"|(?:{_PARTY})"
+    rf"|(?:{_INTENT_WORDS})"
+    rf"|(?:{_QUALIFIERS})"
+    rf"|(?:{_CONNECTIVE})"
+    r"|(?:the|a|an)"
+    r"|(?:\d)"
+    r"|(?:[$€£¥₹])"
+    r")\b"
+)
+_PHRASE_TOKEN = re.compile(r"\S+")
+# A runaway guard, not a word-count gate. Boundaries stop the phrase on their own.
+_MAX_PHRASE_TOKENS = 6
+_MAX_PHRASE_CHARS = 60
 _JOIN_GAP = re.compile(r"\A\s*(?:,|in|near)\s*\Z")
 _SPLIT_GAP = re.compile(r"(?i)\bor\b|\band\b")
 
@@ -370,8 +392,7 @@ def _input_error(code: PlanningErrorCode) -> PlanningInputError:
 
 def _without_instructions(prompt: str) -> str:
     kept: list[str] = []
-    for match in _SENTENCE.finditer(prompt):
-        sentence = match.group(0)
+    for sentence in _sentences(prompt):
         instruction = _INSTRUCTION.search(sentence)
         if instruction is None:
             kept.append(sentence)
@@ -382,16 +403,139 @@ def _without_instructions(prompt: str) -> str:
     return " ".join(kept)
 
 
+def _sentences(prompt: str) -> list[str]:
+    """Split a prompt into sentences without breaking an abbreviated name.
+
+    A period inside a name, as in `D.C.` or `St. John's`, does not end a
+    sentence, so instruction filtering still sees the whole sentence. The
+    terminator is kept with its sentence so no punctuation is lost.
+    """
+
+    sentences: list[str] = []
+    start = 0
+    for match in _SENTENCE.finditer(prompt):
+        end = match.end()
+        chunk = prompt[start:end].strip()
+        if chunk:
+            sentences.append(chunk)
+        start = end
+    tail = prompt[start:].strip()
+    if tail:
+        sentences.append(tail)
+    return sentences
+
+
 def _destination(text: str) -> tuple[str | None, Ambiguity | None]:
+    """Read the destination phrase that follows a location marker.
+
+    The known-city catalog is not the gate. Any phrase after `in`, `near`, or
+    `around` is accepted and handed to the SerpApi resolver, which is the only
+    authority on whether it names a real place. The phrase stops at a temporal,
+    budget, party-size, or intent boundary, so `tomorrow`, `Friday`, `at 7`,
+    `for two`, and intent words stay out of it.
+    """
+
+    marker = _LOCATION_MARKER.search(text)
+    if marker is None:
+        return _catalog_destination(text)
+    phrase = _phrase_after(text, marker.end())
+    if phrase:
+        return _known_ambiguity(text, phrase)
+    return _catalog_destination(text)
+
+
+def _known_ambiguity(text: str, phrase: str) -> tuple[str | None, Ambiguity | None]:
+    """Let the catalog attach an ambiguity hint to an extracted phrase.
+
+    The phrase itself is never rejected or rewritten here. Only a known shared
+    city name, left unqualified, adds the question. SerpApi resolution stays
+    the authority, so the user can still pick either reading.
+    """
+
+    folded = phrase.casefold()
+    if _SPLIT_GAP.search(folded):
+        # Two places in one evening stay one question.
+        return _catalog_destination(text)
+    for place in _PLACES:
+        if not place.alternatives:
+            continue
+        if any(alias == folded for alias in place.aliases):
+            return None, _place_ambiguity(place)
+    return phrase, None
+
+
+def _phrase_after(text: str, start: int) -> str | None:
+    """Collect the destination words that follow one location marker."""
+
+    tokens = list(_PHRASE_TOKEN.finditer(text, start))
+    words: list[str] = []
+    for index, token in enumerate(tokens):
+        if index >= _MAX_PHRASE_TOKENS:
+            break
+        word = token.group(0)
+        # A qualifier keeps extending the phrase, as in "London, Ontario".
+        if index and _PHRASE_BOUNDARY.match(word):
+            break
+        if _is_boundary(word):
+            break
+        words.append(word)
+    phrase = _trim_phrase(" ".join(words))
+    return phrase or None
+
+
+def _is_boundary(word: str) -> bool:
+    """Return whether a word ends the destination phrase."""
+
+    bare = _bare(word)
+    if not bare:
+        return False
+    return _PHRASE_BOUNDARY.match(bare) is not None
+
+
+def _bare(word: str) -> str:
+    """Strip surrounding punctuation and casefold a token for boundary matching.
+
+    Interior periods are kept, so an abbreviation like `D.C.` is still read as
+    a name rather than as a sentence ending.
+    """
+
+    return word.strip(" \t\n\r,;!?\"'()[]").casefold()
+
+
+def _trim_phrase(phrase: str) -> str:
+    """Keep punctuation, accents, apostrophes, and hyphens inside the phrase.
+
+    Only a separator comma is dropped. A period is kept whenever it abbreviates
+    a name, so `St. John's` and `Washington, D.C.` survive intact.
+    """
+
+    text = phrase.strip()
+    while text.endswith(","):
+        text = text[:-1].rstrip()
+    if text.endswith(".") and not _abbreviates(text):
+        text = text[:-1].rstrip()
+    if len(text) > _MAX_PHRASE_CHARS:
+        text = text[:_MAX_PHRASE_CHARS].rsplit(" ", 1)[0].rstrip(" ,")
+    return text
+
+
+def _abbreviates(phrase: str) -> bool:
+    """Whether a period follows a short name fragment, as in `D.C.` or `St.`."""
+
+    fragment = phrase[:-1].rsplit(" ", 1)[-1]
+    return bool(fragment) and fragment[-1].isalpha() and len(fragment) <= 3
+
+
+def _catalog_destination(text: str) -> tuple[str | None, Ambiguity | None]:
+    """Fall back to the known-city catalog when no marker introduced a phrase.
+
+    The catalog only contributes an ambiguity hint. It never refuses a phrase
+    that a marker already introduced.
+    """
+
     hits = _collapse(_known_hits(text))
     if not hits:
-        unknown = _UNKNOWN_PLACE.search(text)
-        if unknown is None:
-            return None, None
-        phrase = unknown.group(1)
-        if phrase.split()[0].casefold() in _PLACE_STOP:
-            return None, None
-        return phrase, None
+        return None, None
     if len(hits) == 1:
         return _single_destination(text, hits[0])
     if _one_phrase(text, hits):

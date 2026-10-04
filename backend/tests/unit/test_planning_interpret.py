@@ -264,11 +264,17 @@ def test_vague_wording_does_not_become_a_place_or_a_time() -> None:
     assert brief.party_size is None
 
 
-def test_lowercase_unknown_city_is_not_guessed() -> None:
-    """A city outside the recognition list is not inferred from lowercase text."""
+def test_lowercase_destination_is_kept_for_the_resolver() -> None:
+    """A city outside the catalog is passed on as written, not guessed away.
+
+    Happen does not hold a city list. The phrase after a location marker is
+    read as written and handed to the SerpApi resolver, which is the authority
+    on whether it names a real place.
+    """
 
     brief = _plan("Dinner in reykjavik on 2026-10-05 at 7pm").brief
-    assert brief.destination_text is None
+    assert brief.destination_text == "reykjavik"
+    assert brief.ambiguities == []
 
 
 def test_capitalized_unknown_city_is_kept_as_text_only() -> None:

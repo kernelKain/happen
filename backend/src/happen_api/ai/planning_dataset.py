@@ -177,11 +177,11 @@ PLANNING_EXAMPLES: tuple[PlanningGold, ...] = (
     PlanningGold(
         example_id="plan-019",
         prompt="Dinner in reykjavik on 2026-10-05 at 7pm",
-        destination_text=None,
+        destination_text="reykjavik",
         local_date="2026-10-05",
         local_start="19:00",
         primary_intent="dinner",
-        tags=["missing", "explicit-date"],
+        tags=["lowercase-destination", "explicit-date"],
     ),
     PlanningGold(
         example_id="plan-020",

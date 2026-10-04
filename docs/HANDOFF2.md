@@ -22,7 +22,7 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Normalize provider hours before feasibility checks |
+| Last finished step | Parse global destination phrases without a city catalog |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -109,7 +109,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Python scores party size, budget, preferences, and accessibility from retrieved evidence. Unknown evidence adds nothing. Gemma claims stay off. |
-| Last finished step | Normalize provider hours before feasibility checks |
+| Last finished step | Parse global destination phrases without a city catalog |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
@@ -143,6 +143,29 @@ Rules the parser holds to:
 The second stop no longer claims a verified arrival. Only the first stop asserts a planned arrival time; the second says that a separate arrival was not planned.
 
 Coverage lives in `tests/unit/test_hours_normalization.py` and the 12-hour strings in `tests/unit/test_scoring.py`. Test fixtures across the planner, discovery, and contract suites now use 12-hour SerpApi-shaped text instead of `17:00-22:00`.
+
+## Destination phrases
+
+`planning.interpret` reads the destination as the phrase that follows a location marker. There is no city catalog gate and no ASCII, capitalization, or word-count requirement.
+
+Recognized markers are `in`, `near`, `around`, `close to`, and `outside of`. The phrase runs until a boundary word, not until a word count, so a name as long as `Ho Chi Minh City` or `Santiago de los Caballeros` survives intact.
+
+Boundaries that stop the phrase:
+
+- temporal words and weekdays, so `tomorrow`, `Friday`, `tonight`, and `on 2026-10-05` stay out;
+- clock words such as `at`, `on`, `by`, `from`, `until`, plus any digit or currency symbol;
+- budget words such as `under`, `about`, `max`, and currency names;
+- party words such as `two` and `four`, plus `for`;
+- intent words such as `dinner`, `coffee`, `show`, and `museum`;
+- connectives and articles such as `of`, `to`, `the`.
+
+Text is kept as written. Accents, apostrophes, hyphens, and abbreviation periods survive, so `São Paulo`, `St. John's`, `N'Djamena`, `Aix-en-Provence`, `Kraków`, and `Washington, D.C.` all read correctly. A comma continues the phrase, so a state, region, or country stays attached: `Austin, Texas`, `London, Ontario`, `Mexico City, Mexico`.
+
+The known-city list still exists, but only as an optional ambiguity hint. A shared name such as an unqualified `London` raises the same question as before; SerpApi resolution stays authoritative, and a qualified phrase such as `London, Ontario` proceeds without asking.
+
+Two things Happen does not do: it does not decide whether an arbitrary phrase names a real place, and it does not add a geocoder or a model call. An unknown phrase such as `somewheretown, nowherecounty` is passed to the resolver, which returns its own unsupported or ambiguous outcome. A prompt with no location marker still asks the destination question.
+
+`tests/unit/test_planning_destination_phrase.py` covers this behavior. The gold label for `plan-019` was updated: `dinner in reykjavik` now reads as `reykjavik` rather than as no destination.
 
 ## How branches and commits work
 
