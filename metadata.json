@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M43J26HXGM0XY3KZ846RKX9R",
+  "strategy": "manual-commit",
+  "branch": "live-sponsor",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "backend/src/happen_api/ai/dataset.py",
+    "backend/src/happen_api/ai/evaluate.py",
+    "backend/src/happen_api/ai/extractor.py",
+    "backend/tests/unit/test_extraction_dataset.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "ml/extraction/held_out.jsonl",
+    "ml/extraction/train.jsonl",
+    "ml/model-manifest.json",
+    "ml/reports/baseline-270m.json",
+    "ml/tune_extraction.ipynb"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 194571,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 4319488,
+    "output_tokens": 35135,
+    "api_call_count": 1
+  }
+}
