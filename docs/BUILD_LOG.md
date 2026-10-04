@@ -393,3 +393,25 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Place-detail calls restrict selection to the rows those details match.
 - Reviewer names, phones, live busyness, and out-of-range popularity values are not copied. Excerpts stop at three and at 400 characters.
 
+## Live orchestration
+
+- Date: 2026-10-04
+- Queue step: P3.3
+- Result: `POST /api/v1/recommendations` scores live evidence or returns an explicit error. A failure does not load the fixture. No live SerpApi request was sent.
+- Product behavior changed: the live route exists. The page still calls the demo endpoint.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed.
+- `uv run pytest` passed, 113 tests.
+- `python3 scripts/scan-secrets.py` reported nothing for the live route, guard, orchestration, and contract tests.
+
+### Decisions
+
+- Live provenance is `live` / `live` / fixture version `none`, with the planning disclaimer. It is not labeled synthetic.
+- Fewer than three candidates is HTTP 200 `insufficient_evidence`. An unreadable search is HTTP 502. Auth and quota disable later live calls. Transient failures use the circuit.
+- The process search budget defaults to 42. Each recommendation still takes at most 7 attempts and 14 provider seconds inside the 28-second server deadline.
+- The snapshot cache stores normalized evidence for 15 minutes. Raw provider documents are not cached.
+- `fixture_available` stays false. The demo route remains the only fixture path.
+

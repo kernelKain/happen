@@ -6,7 +6,7 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. The SerpApi client and the candidate normalizer are tested with fake provider documents. The page does not call them, and no live search was spent. The public Render URL is still missing.
+Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. `POST /api/v1/recommendations` can score live evidence, and a provider failure stays an error instead of loading the fixture. The page still calls the demo endpoint. No live search was spent. The public Render URL is still missing.
 
 `docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
 
@@ -14,11 +14,11 @@ Find the moment still scores the synthetic fixture. A real submit returns three 
 |---|---|
 | Current phase | Live sponsor Hook |
 | Phase complete | No |
-| Last finished step | Normalize and select candidates |
-| Next step | Assemble live orchestration and protections |
+| Last finished step | Assemble live orchestration and protections |
+| Next step | Capture and verify canonical fixture |
 | Branch | `live-sponsor` |
 | Pull request | https://github.com/kernelKain/happen/pull/5 merged the fixture Hook into `main` at `b5cf7da`. This branch has no pull request yet. |
-| Remote | `origin/main` is at `b5cf7da`. This branch adds the SerpApi client and the candidate normalizer. |
+| Remote | `origin/main` is at `b5cf7da`. This branch adds the SerpApi client, the candidate normalizer, and the live recommendation route. |
 | Live URL | Not deployed |
 
 Still open from the walking skeleton, and not a blocker for local scoring:
@@ -100,9 +100,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the synthetic fixture. The SerpApi client and normalizer are tested with fake documents and are not wired to the page. The public URL is still not deployed. |
-| Last finished step | Normalize and select candidates |
-| Next step | Assemble live orchestration and protections |
+| Status | Find the moment scores the synthetic fixture. The live recommendation route is tested with a fake provider and is not wired to the page. The public URL is still not deployed. |
+| Last finished step | Assemble live orchestration and protections |
+| Next step | Capture and verify canonical fixture |
 | Branch | `live-sponsor` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -447,11 +447,13 @@ Your side after this step: nothing. Live orchestration is next.
 
 ### Assemble live orchestration and protections
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor adds the live endpoint, deadlines, and the rule that a failure never silently switches to fixture data.
+`POST /api/v1/recommendations` retrieves the allowlisted Indiranagar search, normalizes it, and scores it. The route keeps the existing idempotency key, rate limit, and active-request cap. A shared 28-second deadline covers validation, SerpApi, Gemma, and scoring. The process search budget defaults to 42. Three transient failures inside five minutes open a two-minute circuit, then one probe is allowed. An authentication or quota failure disables later live calls in this process. A snapshot cache keeps normalized evidence for 15 minutes. An empty or incomplete search returns HTTP 200 with `insufficient_evidence`. A provider failure returns the public error envelope with `fixture_available` false. The fixture route is not called from this path. Live responses use mode `live`, data label `live`, fixture version `none`, and the planning disclaimer. The page still calls the demo endpoint.
 
-Your side after Cursor finishes: nothing.
+`uv run pytest` passed, 113 tests. Ruff format and lint passed. The secret scan reported nothing. No live search was spent.
+
+Your side after this step: nothing until the live capture. Reply `ok` before any SerpApi credit is spent.
 
 ### Capture and verify canonical fixture
 
@@ -746,7 +748,7 @@ Your side:
 | Matrix UI and fixture Hook proof | Done | `Show the synthetic fixture result from Find the moment.` | Same local check as the fixture Hook proof. |
 | Bounded SerpApi client | Done | `Add a bounded SerpApi client with retries and key redaction.` | Nothing. |
 | Normalize and select candidates | Done | `Normalize provider places into three candidates or an insufficiency result.` | Nothing. |
-| Live orchestration | Not started | — | Nothing unless the key is missing. |
+| Live orchestration | Done | `Serve live recommendations without substituting fixture evidence.` | Nothing until the live capture. Reply `ok` before any credit is spent. |
 | Capture and verify canonical fixture | Not started | — | Approve the live capture, then skim the fixture. |
 | Evaluate and optionally tune Gemma | Not started | — | Colab T4, then read the scores. |
 | Deploy and smoke the sponsor slice | Not started | — | Deploy and open the public URL. |
