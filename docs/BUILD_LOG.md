@@ -460,3 +460,23 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The shipping artifact stays `google_gemma-3-270m-it-Q4_K_M.gguf`. An adapter is selected only after a measured held-out gain of at least five percentage points without more invalid outputs.
 - The Colab notebook trains a short QLoRA adapter and prints an estimate. It does not merge, quantize, or replace the manifest.
 
+## Gemma Colab estimate
+
+- Date: 2026-10-04
+- Queue step: P3.5
+- Result: The short adapter estimate did not beat the untuned baseline. No adapter was selected.
+- Product behavior changed: no. Find the moment still scores the synthetic fixture.
+- Cost changed: no
+
+### Evidence
+
+- Printed Colab estimate parse rate: 6.7%.
+- Printed Colab estimate dimension-plus-polarity accuracy: 3.3%.
+- Baseline in that same output: parse rate 6.7%, accuracy 4.4%.
+- No other score was recorded. The adapter was not merged, quantized, or copied into the repo.
+
+### Decisions
+
+- The shipping artifact stays `google_gemma-3-270m-it-Q4_K_M.gguf`.
+- This estimate is not a local held-out measurement and does not replace `ml/reports/baseline-270m.json`.
+
