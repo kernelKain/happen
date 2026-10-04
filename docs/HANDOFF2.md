@@ -23,7 +23,8 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 You asked for this on October 4, 2026. It replaces the earlier single-branch, no-commit rule for the coding agent.
 
 - One branch per phase, created when that phase starts. Branch names do not use phase or step numbers.
-- One commit per step. The message is one plain sentence. Commit messages and code comments do not use phase or step numbers.
+- One commit per step. The message is one short sentence that says what the change does. Do not name the coding tool, and do not use phase or step numbers.
+- After a branch has a pull request, wait for the CodeRabbit review and any changes it pushes. Before starting the next phase, fetch and pull that updated branch so the new work starts from the remote tip.
 - `docs/HANDOFF.md` and `docs/HANDOFF2.md` stay in git so the process is public.
 - Secrets, `.env`, model binaries, and raw provider payloads stay ignored.
 - Cursor does not push, merge, deploy, or publish unless you explicitly ask.
@@ -73,8 +74,8 @@ Commit: `Record account and workflow access checks.`
 
 Your side, still open from this step:
 
-1. Optional, not blocking: in this repo run `entire enable` and choose the agent you are actually using (this build is running in Cursor).
-2. Optional, not blocking: install the CodeRabbit GitHub App on `kernelKain/happen` if it is not already installed.
+1. Set up Entire before the next phase. The CLI is installed, the GitHub login is active, and this repo is not enabled yet. In the repo, run `entire enable --agent cursor --checkpoint-backend refs --project --checkpoint-push-remote origin`, then `entire status`. Commit the generated `.entire/settings.json` when it appears. Leave `.entire/settings.local.json` untracked.
+2. Install the CodeRabbit GitHub App on `kernelKain/happen` if it is not already installed. After each phase pull request, let that review finish and pull its changes before the next phase starts.
 3. Done: `SERPAPI_API_KEY` is set in the ignored `.env`. It was not printed or committed.
 
 ### Prove SerpApi evidence shape

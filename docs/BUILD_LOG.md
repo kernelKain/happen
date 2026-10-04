@@ -57,7 +57,7 @@ Python 3.13 is the locked backend version. The system interpreter is 3.14.4. Ins
 
 Git matches the locked baseline: branch `main`, commit `a45880a`, public remote, no execution branch, no deployment. `docs/HANDOFF.md` remains the uncommitted planning artifact and is now ignored.
 
-The active execution harness is Cursor. When Entire is enabled, select the agent that is actually used. The planning note that expected Codex applies only if that agent performs the work.
+Entire CLI 0.11.3 is installed and the GitHub login is active. The repository is not enabled yet. Enable it before the next phase with `entire enable --agent cursor --checkpoint-backend refs --project --checkpoint-push-remote origin`.
 
 ### Verification
 

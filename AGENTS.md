@@ -8,5 +8,7 @@
 - Keep secrets in an ignored `.env` file. Do not print them or commit them.
 - Do not commit `*.gguf` files. Download the pinned model with `python scripts/download-model.py`.
 - The public quantized model does not need `HF_TOKEN`. Do not call a hosted inference API.
-- One branch per phase. Branch names, commit messages, and code comments do not use phase or step numbers.
+- One branch per phase. Branch names and code comments do not use phase or step numbers.
+- Commit messages are one short sentence describing the change. Do not name the coding tool.
+- Before starting a new phase, pull the latest remote branch after review changes land.
 - Do not push, deploy, or publish unless the user asks.
