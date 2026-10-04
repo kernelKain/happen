@@ -84,26 +84,50 @@ export const recommendationSchema = z.object({
 export type RecommendationResult = z.infer<typeof recommendationSchema>;
 export type SelectedMoment = z.infer<typeof selectedMomentSchema>;
 
+const fieldErrorSchema = z.object({
+  field: z.string().min(1),
+  message: z.string().min(1),
+});
+
 const errorSchema = z.object({
   error: z.object({
     code: z.string().min(1),
     message: z.string().min(1),
     next_action: z.string().min(1),
+    retryable: z.boolean().optional(),
     fixture_available: z.boolean().optional(),
+    fields: z.array(fieldErrorSchema).optional(),
+    retry_after_seconds: z.number().int().nonnegative().nullable().optional(),
   }),
 });
+
+export type FieldError = z.infer<typeof fieldErrorSchema>;
 
 export class RecommendationRequestError extends Error {
   readonly code: string;
   readonly nextAction: string;
   readonly fixtureAvailable: boolean;
+  readonly retryable: boolean;
+  readonly fields: FieldError[];
+  readonly retryAfterSeconds: number | null;
 
-  constructor(code: string, message: string, nextAction: string, fixtureAvailable = false) {
+  constructor(
+    code: string,
+    message: string,
+    nextAction: string,
+    fixtureAvailable = false,
+    retryable = true,
+    fields: FieldError[] = [],
+    retryAfterSeconds: number | null = null,
+  ) {
     super(message);
     this.name = "RecommendationRequestError";
     this.code = code;
     this.nextAction = nextAction;
     this.fixtureAvailable = fixtureAvailable;
+    this.retryable = retryable;
+    this.fields = fields;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -155,6 +179,9 @@ async function requestRecommendation(
         parsed.data.error.message,
         parsed.data.error.next_action,
         parsed.data.error.fixture_available ?? false,
+        parsed.data.error.retryable ?? true,
+        parsed.data.error.fields ?? [],
+        parsed.data.error.retry_after_seconds ?? null,
       );
     }
     throw new RecommendationRequestError(

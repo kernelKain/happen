@@ -49,6 +49,11 @@ test("shows three timelines, one moment, and a different fallback", async ({ pag
     page.getByText("Synthetic development evidence. Planning evidence—not live occupancy."),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: /Selected/ })).toHaveCount(1);
+  const desktopColumns = await page
+    .locator(".timeline ol")
+    .first()
+    .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+  expect(desktopColumns).toBe(6);
   await expectNoHorizontalOverflow(page);
 
   await page.getByRole("button", { name: "Why this moment?" }).click();
@@ -64,8 +69,34 @@ test("shows three timelines, one moment, and a different fallback", async ({ pag
 test("stacks the result without horizontal overflow on a narrow screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?layout=sample");
+  await expect(page.getByLabel("Neighbourhood")).toBeEnabled();
   await expect(page.getByRole("article", { name: "Recommended" })).toBeVisible();
   await expect(page.getByRole("article", { name: "Fallback" })).toBeVisible();
+  const mobileColumns = await page
+    .locator(".timeline ol")
+    .first()
+    .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+  expect(mobileColumns).toBe(2);
+  await page.getByRole("button", { name: "Why this moment?" }).click();
+  await expect(page.getByRole("region", { name: "Why this moment?" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test("shows the selected moment immediately when reduced motion is requested", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/?layout=sample");
+  const selected = page.getByRole("button", { name: /Selected/ });
+  await expect(selected).toBeVisible();
+  const motion = await page
+    .locator(".timeline")
+    .first()
+    .evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { animationName: style.animationName, opacity: style.opacity };
+    });
+  expect(motion.animationName).toBe("none");
+  expect(motion.opacity).toBe("1");
   await expectNoHorizontalOverflow(page);
 });
 

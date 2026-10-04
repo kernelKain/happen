@@ -500,3 +500,32 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Keep the untuned 270M file. Do not treat the failed fine-tune as a passing model, and do not add another model API.
 - The synthetic fixture remains in the repository for the earlier labeled tests. It is not the page source.
 
+## Deploy readiness check
+
+- Date: 2026-10-04
+- Queue step: Deploy and smoke the sponsor vertical slice
+- Result: local checks passed on the merged revision. No Render service was created. Product behavior did not change. Cost did not change.
+- Evidence: `uv run pytest` passed, 119 tests. `npm test` passed, 7 tests. `python3 scripts/scan-secrets.py` passed. GitHub Actions run `37219473378` on `main` succeeded. `origin/main` is `91b7b94`. `live-sponsor` at `d05d024` has the same files.
+- Decision: leave deployment to the user. `render.yaml` still names `live-sponsor`, which matches `main` until the next commit. `HAPPEN_LIVE_ENABLED` stays false until the user turns it on for one public live run.
+
+## Visible result states
+
+- Date: 2026-10-04
+- Result: each required result state has specific copy and a next action. Product behavior changed for those states only. Cost did not change.
+- Evidence: `npm test` passed, 9 tests. `npm run build` passed. Playwright passed, 16 tests.
+- Decision: hide Retry when the server marks the error as not retryable. Keep the captured-fixture action explicit. Do not invent a recommendation when the model is unavailable.
+
+## Evidence methodology
+
+- Date: 2026-10-04
+- Result: Why this moment now explains quotes, conflicts, rejected spans, the model, and the scoring method. Product behavior changed for that panel only. Cost did not change.
+- Evidence: `npm test` passed, 11 tests. `npm run build` passed. Playwright passed, 17 tests, including a keyboard open and Escape close.
+- Decision: keep the inline panel. Omit a source link that is not a normal http or https address.
+
+## Reveal and viewports
+
+- Date: 2026-10-04
+- Result: the result rows slide in briefly, reduced motion shows them at once, and the 390-pixel timelines are two-column cards. Product behavior changed for that motion and layout only. Cost did not change.
+- Evidence: Playwright passed, 18 tests, including 1280×720, 390×844, and reduced motion. Amber text on the raised surface measures about 6.3:1.
+- Decision: do not fade the rows, because a fade made the text fail contrast while it was moving. Do not add a pulsing glow.
+

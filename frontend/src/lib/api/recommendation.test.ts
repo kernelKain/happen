@@ -89,9 +89,11 @@ describe("recommendation result", () => {
           new Response(
             JSON.stringify({
               error: {
-                code: "MODEL_UNAVAILABLE",
-                message: "The evidence model is unavailable.",
-                next_action: "Try again in a moment.",
+                code: "INVALID_INPUT",
+                message: "The request is not valid.",
+                next_action: "Correct the highlighted fields and try again.",
+                retryable: false,
+                fields: [{ field: "arrival_start", message: "This value is not allowed." }],
               },
             }),
             { status: 503 },
@@ -100,9 +102,11 @@ describe("recommendation result", () => {
       ),
     ).rejects.toMatchObject({
       name: "RecommendationRequestError",
-      code: "MODEL_UNAVAILABLE",
-      message: "The evidence model is unavailable.",
-      nextAction: "Try again in a moment.",
+      code: "INVALID_INPUT",
+      message: "The request is not valid.",
+      nextAction: "Correct the highlighted fields and try again.",
+      retryable: false,
+      fields: [{ field: "arrival_start", message: "This value is not allowed." }],
     });
   });
 });

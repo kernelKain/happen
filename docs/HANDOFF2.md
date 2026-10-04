@@ -6,19 +6,19 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-Find the moment scores the captured Indiranagar fixture for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar. When live mode is on, Find the moment asks SerpApi first and offers the captured fixture only as a separate action after a live failure. A real submit still returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. Replay of the captured snapshot matched the live decision: insufficient evidence and no winner. The untuned Gemma baseline parsed 2 of 30 held-out excerpts and scored 4.4% dimension-plus-polarity accuracy, so it does not meet the extraction gate. A free Colab T4 estimate of the short adapter printed parse rate 6.7% and dimension-plus-polarity accuracy 3.3%. That estimate does not improve on the baseline, so no adapter was selected and the shipping model stays the untuned 270M file. Health and metadata now report the captured fixture and the model file that is actually installed. `render.yaml` points both services at `live-sponsor` and the backend build downloads the public GGUF. The public Render URL is still the older walking-skeleton deploy until those services are updated.
+Find the moment scores the captured Indiranagar fixture for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar. When live mode is on, Find the moment asks SerpApi first and offers the captured fixture only as a separate action after a live failure. A real submit still returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. Replay of the captured snapshot matched the live decision: insufficient evidence and no winner. The untuned Gemma baseline parsed 2 of 30 held-out excerpts and scored 4.4% dimension-plus-polarity accuracy, so it does not meet the extraction gate. A free Colab T4 estimate of the short adapter printed parse rate 6.7% and dimension-plus-polarity accuracy 3.3%. That estimate does not improve on the baseline, so no adapter was selected and the shipping model stays the untuned 270M file. Health and metadata now report the captured fixture and the model file that is actually installed. `render.yaml` points both services at `live-sponsor` and the backend build downloads the public GGUF. That branch matches `main` after pull request 7. The public Render URL does not exist yet. Local checks on the merged revision passed on October 4, 2026: backend 119 tests, frontend 7 tests, secret scan clean, and GitHub Actions run `37219473378` on `main` succeeded.
 
 `docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
 
 | | |
 |---|---|
-| Current phase | Live sponsor Hook |
-| Phase complete | No |
-| Last finished step | Evaluate and optionally tune Gemma |
-| Next step | Deploy and smoke the sponsor vertical slice |
-| Branch | `live-sponsor` |
-| Pull request | https://github.com/kernelKain/happen/pull/6 is open for `live-sponsor`. https://github.com/kernelKain/happen/pull/5 merged the fixture Hook into `main` at `b5cf7da`. |
-| Remote | `origin/main` is at `b5cf7da`. This branch adds the SerpApi client, the candidate normalizer, the live recommendation route, and the sanitized Indiranagar fixture. |
+| Current phase | Complete demo experience |
+| Phase complete | No. Result states are in the working tree. The public smoke is still not done. |
+| Last finished step | Finish reveal, responsive, and reduced motion |
+| Next step | Conduct the friend walkthrough. Deploy and smoke stays open until the Render URLs exist. |
+| Branch | `demo-experience`. `f88e056` records the evidence panel. Reveal edits are uncommitted. |
+| Pull request | https://github.com/kernelKain/happen/pull/7 merged `live-sponsor` into `main`. https://github.com/kernelKain/happen/pull/5 merged the fixture Hook. |
+| Remote | `origin/main` is at `91b7b94`. `live-sponsor` is at `d05d024`. Those two commits contain the same files. |
 | Live URL | Not deployed |
 
 Still open from the walking skeleton, and not a blocker for local scoring:
@@ -100,13 +100,13 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the captured Indiranagar fixture. Live mode stays explicit. The Gemma baseline and the Colab adapter estimate both missed the extraction gate. No adapter was selected. Render config points at this branch, and the public URL is still the older deploy until it is updated. |
-| Last finished step | Evaluate and optionally tune Gemma |
-| Next step | Deploy and smoke the sponsor vertical slice |
-| Branch | `live-sponsor` |
+| Status | The result rows slide in over about half a second. Reduced motion shows them immediately. At 390 pixels each restaurant is a two-column card. Render services are still not created. |
+| Last finished step | Finish reveal, responsive, and reduced motion |
+| Next step | Conduct the friend walkthrough |
+| Branch | `demo-experience`. Latest commit is `f88e056`. Reveal edits are uncommitted. |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | Render services are still not created. Local SerpApi client work can continue without them. |
+| Biggest blocker | Render services are still not created. Local result states continued after the deploy step stayed blocked. |
 
 ## How branches and commits work
 
@@ -491,15 +491,25 @@ Your side: disconnect the Colab runtime. Nothing else for tuning.
 
 ### Deploy and smoke the sponsor vertical slice
 
-Status: **Not started.**
+Status: **Blocked on you** as of October 4, 2026. The model download, captured-fixture route, and live route are already on `main` at `91b7b94`. Cursor cannot create the Render services under the current autonomy.
 
-Cursor prepares the model download and the live/fixture wiring. Deployment itself waits for you.
+Local evidence from this check:
 
-Your side after Cursor finishes:
+- `uv run pytest` in `backend` passed, 119 tests.
+- `npm test` in `frontend` passed, 7 tests.
+- `python3 scripts/scan-secrets.py` passed.
+- GitHub Actions run `37219473378` on `main` succeeded.
+- `ml/.cache/google_gemma-3-270m-it-Q4_K_M.gguf` is present locally. A local `.env` has `SERPAPI_API_KEY` set. The shell environment does not. The value was not printed.
 
-1. Deploy or redeploy the backend and frontend on Render.
-2. Open the public fixture path in a fresh browser.
-3. Allow one bounded live run, then paste the public URL and whether the page showed SerpApi sources, the Gemma version, and live-or-fixture labeling.
+`render.yaml` still names branch `live-sponsor`. That branch and `main` have the same files. `HAPPEN_LIVE_ENABLED` is false in the blueprint, so the first public load uses the captured fixture. The API key is not in the blueprint.
+
+Your side:
+
+1. In Render, create a Blueprint from this repo's `render.yaml`. Do not create a second copy by hand. After the services exist, point both at `main`.
+2. When Render prompts, set `SERPAPI_API_KEY` from the local ignored `.env`. Leave `HF_TOKEN` unset.
+3. Leave `HAPPEN_LIVE_ENABLED` false for the first check. Open the frontend URL and `https://<api-host>/healthz`. Paste those two URLs back here. Do not paste the key.
+4. For one bounded live run, set `HAPPEN_LIVE_ENABLED` to `true`, redeploy the API, and submit once from the public page. Then paste whether the page showed SerpApi sources, the Gemma version, and a live or captured label.
+5. `happen-api` on `1c-2g` is $25/month from the existing $50 credits and does not sleep. Suspend it after the smoke check if you are not ready to leave it running. The static site is free.
 
 ---
 
@@ -511,30 +521,48 @@ Goal: every visible state, the evidence view, and the 1280px and 390px layouts. 
 
 ### Complete all visible result states
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. Not committed.
 
-Cursor adds specific copy and a next action for loading, partial, insufficient evidence, timeout, quota, model failure, and fixture mode.
+Loading says to wait for the request. An insufficient result tells the user to start over and restore the demo preset. A partial result keeps three timelines and says Unknown intervals are not a recommendation. A captured-fixture result says it is saved evidence, not a live search. Quota and invalid-input errors keep Retry off. A model-unavailable page names that dependency and retries metadata. Contract mismatch still asks for a refresh.
 
-Your side after Cursor finishes: click one error state if a local page is running, and say if the next action is unclear.
+Checks that passed:
+
+- `npm test` — 9 tests.
+- `npm run check` and `npm run build`.
+- `npx playwright test` — 16 tests, including partial, quota, invalid input, model unavailable, the fixture Hook, and the 1280 and 390 shell checks.
+
+Your side after this step: optional. If a local page is running, trigger one error and say if the next action is unclear. The public Render deploy is still waiting.
 
 ### Finish evidence and methodology experience
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. Not committed.
 
-Cursor finishes the evidence drawer or an inline panel: exact quotes, source links, conflicts, rejected-span count, and model version.
+Why this moment stays an inline panel. It shows exact quotes, underlined source links, a conflict note when one priority both supports and conflicts, the rejected-span count, the model and adapter, the scoring policy, and the planning disclaimer. Escape closes it and returns focus to Why this moment. Unsafe source addresses are not linked.
 
-Your side after Cursor finishes: open evidence from the keyboard only, if the notes say the browser check could not be completed here.
+Checks that passed:
+
+- `npm test` — 11 tests.
+- `npm run check` and `npm run build`.
+- `npx playwright test` — 17 tests. The new one opens the panel from the keyboard, checks the methodology, and closes it with Escape. The open panel had no serious accessibility violations.
+
+Your side after this step: optional. Open Why this moment with the keyboard and say if the explanation is unclear.
 
 ### Finish reveal, responsive, and reduced motion
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. Not committed.
 
-Cursor checks 1280×720 and 390×844. Reduced motion shows the result immediately.
+The three restaurant rows slide into place in under one second. The selected interval keeps its border, the word Selected, and a static amber outline. There is no glow pulse. When the browser asks for reduced motion, the rows are visible immediately and do not move. At 390 pixels the planner, recommendation, fallback, and evidence stack, and each restaurant timeline is a two-column card. At 1280 pixels the timeline stays six columns wide. Neither width scrolls sideways.
 
-Your side after Cursor finishes:
+Checks that passed:
 
-1. Look at the 1280px screenshot or the local window.
-2. Say if the recommended moment is obvious. Decorative motion can be removed. The three timelines stay.
+- `npx biome check .`
+- `npm run build`
+- `npx playwright test` — 18 tests, including 1280×720, 390×844, and reduced motion.
+
+Your side after this step:
+
+1. Open the local page at 1280 pixels wide, or use the layout sample at `/?layout=sample`.
+2. Say if the recommended moment is obvious. The slide can be removed. The three timelines stay.
 
 ### Conduct friend walkthrough
 
@@ -759,8 +787,10 @@ Your side:
 | Live orchestration | Done | `Serve live recommendations without substituting fixture evidence.` | Nothing. |
 | Capture and verify canonical fixture | Done | `Save the sanitized Indiranagar capture and verify its replay matches the live decision.` | Skim the sanitized fixture and say if anything private must be removed. |
 | Evaluate and optionally tune Gemma | Done. Baseline and Colab estimate both miss the gate. No adapter selected. | `Keep the untuned model after the adapter estimate missed the baseline.` | Disconnect the Colab runtime. |
-| Deploy and smoke the sponsor slice | Not started | — | Deploy and open the public URL. |
-| Result states, evidence, and responsive reveal | Not started | — | Look at the states and the 1280px screen. |
+| Deploy and smoke the sponsor slice | Blocked on Render. Code is on `main` at `91b7b94`. Local tests passed. | `91b7b94` | Create the Blueprint, paste both public URLs, then allow one live run. |
+| Result states | Done locally. Not committed. | — | Optional: say if one error's next action is unclear. |
+| Evidence methodology | Done locally. Not committed. | — | Optional: open Why this moment from the keyboard. |
+| Responsive reveal | Done locally. Not committed. | — | Say if the recommended moment is obvious at 1280 pixels. |
 | Friend walkthrough | Not started | — | Friend walkthrough. You send the paraphrase. |
 | Security, performance, and pre-freeze verification | Not started | — | Read the verification list. Rotate a secret if one is found. |
 | Review and freeze the MVP | Not started | — | Review and merge. That is feature freeze. |

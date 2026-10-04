@@ -110,6 +110,9 @@ test("shows three timelines and no winner when evidence is insufficient", async 
   await expect(
     page.getByText("Fewer than two restaurants have enough comparable evidence."),
   ).toBeVisible();
+  await expect(
+    page.getByText("Choose Start over to restore the verified demo preset."),
+  ).toBeVisible();
   await expect(page.getByRole("article", { name: "Courtyard Lantern" })).toBeVisible();
   await expect(page.getByRole("article", { name: "North Gallery Supper" })).toBeVisible();
   await expect(page.getByRole("article", { name: "Platform Seats" })).toBeVisible();
@@ -188,7 +191,149 @@ test("offers captured evidence only after the user chooses it", async ({ page })
   expect(demoCalls).toBe(0);
   await page.getByRole("button", { name: "Use captured evidence" }).click();
   await expect(page.getByText("Captured fixture ·")).toBeVisible();
+  await expect(
+    page.getByText("Captured fixture. This is saved place evidence, not a live search."),
+  ).toBeVisible();
   expect(demoCalls).toBe(1);
+});
+
+test("shows a partial result without hiding unknown intervals", async ({ page }) => {
+  await page.route("**/api/v1/demo-recommendations", async (route) => {
+    await route.fulfill({
+      json: { ...SAMPLE_RESULT, outcome: "partial_evidence" },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Find the moment" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Partial result." })).toBeVisible();
+  await expect(page.getByRole("article", { name: "Recommended" })).toContainText(
+    "Courtyard Lantern",
+  );
+  await expect(page.getByRole("article", { name: "Platform Seats" })).toBeVisible();
+});
+
+test("keeps retry off when the search allowance is exhausted", async ({ page }) => {
+  await page.unroute("**/api/v1/recommendations");
+  await page.route("**/api/v1/meta", async (route) => {
+    await route.fulfill({
+      json: { ...meta, fixture_available: true, live_available: true, model_status: "ready" },
+    });
+  });
+  await page.route("**/api/v1/recommendations", async (route) => {
+    await route.fulfill({
+      status: 503,
+      json: {
+        request_id: "error-quota",
+        contract_version: "1.0.0",
+        error: {
+          code: "SERPAPI_QUOTA_EXHAUSTED",
+          message: "Live evidence is unavailable because the search allowance has been reached.",
+          retryable: false,
+          next_action:
+            "Use captured evidence. Do not retry until the search allowance is available.",
+          fixture_available: true,
+        },
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Find the moment" }).click();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Search allowance reached");
+  await expect(alert).toContainText("Do not retry until the search allowance is available.");
+  await expect(alert.getByRole("button", { name: "Retry" })).toHaveCount(0);
+  await expect(alert.getByRole("button", { name: "Use captured evidence" })).toBeVisible();
+});
+
+test("shows invalid fields and does not offer retry", async ({ page }) => {
+  await page.route("**/api/v1/demo-recommendations", async (route) => {
+    await route.fulfill({
+      status: 422,
+      json: {
+        request_id: "error-input",
+        contract_version: "1.0.0",
+        error: {
+          code: "INVALID_INPUT",
+          message: "The request is not valid.",
+          retryable: false,
+          next_action: "Correct the highlighted fields and try again.",
+          fixture_available: false,
+          fields: [{ field: "arrival_start", message: "This value is not allowed." }],
+        },
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Find the moment" }).click();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("These inputs are not valid");
+  await expect(alert).toContainText("Arrival from: This value is not allowed.");
+  await expect(alert.getByRole("button", { name: "Retry" })).toHaveCount(0);
+  await expect(page.getByLabel("Arrival from")).toBeVisible();
+});
+
+test("names an unavailable evidence model and retries metadata", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/api/v1/meta", async (route) => {
+    calls += 1;
+    await route.fulfill({
+      json: { ...meta, model_status: calls === 1 ? "unavailable" : "not_loaded" },
+    });
+  });
+  await page.goto("/");
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("The evidence model is unavailable.");
+  await expect(alert).toContainText("Retry the connection after the model file is installed.");
+  await expect(page.getByRole("button", { name: "Find the moment" })).toBeDisabled();
+  await alert.getByRole("button", { name: "Retry" }).click();
+  await expect(page.getByRole("button", { name: "Find the moment" })).toBeEnabled();
+  expect(calls).toBe(2);
+});
+
+test("opens the evidence methodology from the keyboard and closes it with Escape", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/demo-recommendations", async (route) => {
+    await route.fulfill({
+      json: {
+        ...SAMPLE_RESULT,
+        rejected_evidence_count: 2,
+        evidence: [
+          ...SAMPLE_RESULT.evidence,
+          {
+            ...SAMPLE_RESULT.evidence[1],
+            evidence_id: "north-gallery-conflict",
+            polarity: "negative",
+            quoted_span: "the room was too loud to talk",
+          },
+        ],
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Find the moment" }).click();
+  const trigger = page.getByRole("button", { name: "Why this moment?" });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("region", { name: "Why this moment?" });
+  await expect(panel).toContainText("Python scoring chooses the moment");
+  await expect(panel).toContainText("bartowski/google_gemma-3-270m-it-GGUF");
+  await expect(panel).toContainText("Adapter none");
+  await expect(panel).toContainText(
+    "Rejected signals: 2. Rejected quotes are not shown and do not affect the score.",
+  );
+  await expect(panel).toContainText("Planning evidence—not live occupancy.");
+  await expect(panel).toContainText(
+    "This priority has conflicting evidence. Both quotes stay visible.",
+  );
+  await expect(panel.getByRole("link", { name: "Open source" }).first()).toHaveAttribute(
+    "rel",
+    "noopener noreferrer",
+  );
+  await expectNoSeriousViolations(page);
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect(panel).toHaveCount(0);
 });
 
 /** Assert that an axe audit reports no serious or critical accessibility violations. */
