@@ -1,0 +1,111 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M42GPGM3W09E4H1DCNHQ6MH0",
+  "session_id": "12cf0f9a-65b9-413a-be35-1b83841f0db0",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T03:53:06.884568459Z",
+  "branch": "walking-skeleton",
+  "checkpoints_count": 3,
+  "save_step_count": 3,
+  "files_touched": [
+    ".env.example",
+    ".github/workflows/ci.yml",
+    ".gitignore",
+    "backend/pyproject.toml",
+    "backend/src/happen_api/api/__init__.py",
+    "backend/src/happen_api/api/health.py",
+    "backend/src/happen_api/app.py",
+    "backend/src/happen_api/catalog.py",
+    "backend/src/happen_api/config.py",
+    "backend/src/happen_api/errors.py",
+    "backend/src/happen_api/logging.py",
+    "backend/src/happen_api/main.py",
+    "backend/src/happen_api/middleware.py",
+    "backend/tests/conftest.py",
+    "backend/tests/contract/test_health_meta.py",
+    "backend/tests/unit/test_config.py",
+    "backend/tests/unit/test_logging.py",
+    "backend/tests/unit/test_secret_scan.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/biome.json",
+    "frontend/package.json",
+    "frontend/playwright.config.ts",
+    "frontend/src/app/App.tsx",
+    "frontend/src/lib/api/meta.test.ts",
+    "frontend/src/lib/api/meta.ts",
+    "frontend/src/lib/labels.ts",
+    "frontend/src/main.tsx",
+    "frontend/src/styles/global.css",
+    "frontend/src/vite-env.d.ts",
+    "frontend/tests/shell.spec.ts",
+    "frontend/vite.config.ts",
+    "render.yaml",
+    "scripts/render-backend-build.sh",
+    "scripts/scan-secrets.py"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high",
+  "turn_id": "fd231bc81285",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 852459,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 18407808,
+    "output_tokens": 154297,
+    "api_call_count": 3
+  },
+  "session_metrics": {
+    "turn_count": 3,
+    "context_tokens": 244247,
+    "context_window_size": 256000
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T03:53:06.81301779Z",
+    "agent_lines": 2721,
+    "agent_removed": 49,
+    "human_added": 0,
+    "human_modified": 4,
+    "human_removed": 0,
+    "total_committed": 2723,
+    "total_lines_changed": 2774,
+    "agent_percentage": 99.85580389329488,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1193,
+      "agent_lines_removed": 19
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2289,
+      "agent_lines_removed": 42
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 2,
+      "user_lines_removed": 2,
+      "agent_lines_added": 2725,
+      "agent_lines_removed": 51,
+      "user_added_per_file": {
+        "frontend/src/lib/api/meta.test.ts": 2
+      },
+      "user_removed_per_file": {
+        "frontend/src/lib/api/meta.test.ts": 2
+      }
+    }
+  ]
+}
