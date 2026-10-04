@@ -105,6 +105,34 @@ def build_recommendation(
 ) -> RecommendationResponse:
     """Validate excerpts, score windows, and shape the public response."""
 
+    return score_places(
+        loaded.places,
+        body,
+        visit_date=loaded.visit_date,
+        settings=settings,
+        now=now,
+        generate=generate,
+        request_id=request_id,
+        provenance=_provenance(loaded, settings, now),
+        notices=_fixture_notices(loaded),
+    )
+
+
+def score_places(
+    places: list[NormalizedPlace],
+    body: RecommendationRequest,
+    *,
+    visit_date: date,
+    settings: Settings,
+    now: datetime,
+    generate: Callable[[str], str] | None,
+    request_id: str,
+    provenance: Provenance,
+    notices: list[WarningItem],
+    before_excerpt: Callable[[], None] | None = None,
+) -> RecommendationResponse:
+    """Score an already normalized shortlist and shape the public response."""
+
     signals_by_candidate: dict[str, list[AcceptedSignal]] = {}
     evidence: list[PublicEvidence] = []
     rejected = 0
@@ -112,11 +140,13 @@ def build_recommendation(
     extracted: list[
         tuple[NormalizedPlace, ReviewExcerpt, ValidatedExtraction, list[AcceptedSignal]]
     ] = []
-    for place in loaded.places:
+    for place in places:
         collected: list[AcceptedSignal] = []
         for excerpt in place.review_excerpts[:_EXCERPTS_PER_CANDIDATE]:
             if remaining == 0:
                 break
+            if before_excerpt is not None:
+                before_excerpt()
             remaining -= 1
             try:
                 validated = extract_excerpt(excerpt, settings=settings, generate=generate)
@@ -137,13 +167,8 @@ def build_recommendation(
         signals_by_candidate[place.candidate_id] = collected
 
     candidates = [
-        _candidate_evidence(
-            place,
-            loaded.visit_date,
-            body,
-            signals_by_candidate[place.candidate_id],
-        )
-        for place in loaded.places
+        _candidate_evidence(place, visit_date, body, signals_by_candidate[place.candidate_id])
+        for place in places
     ]
     windows_by_candidate = {candidate.candidate_id: candidate.windows for candidate in candidates}
     for place, excerpt, validated, accepted in extracted:
@@ -164,18 +189,18 @@ def build_recommendation(
             assessments,
             signals_by_candidate[place.candidate_id],
         )
-        for place, candidate in zip(loaded.places, candidates, strict=True)
+        for place, candidate in zip(places, candidates, strict=True)
     ]
-    names = {place.candidate_id: place.name for place in loaded.places}
+    names = {place.candidate_id: place.name for place in places}
     return RecommendationResponse(
         request_id=request_id,
         outcome=decision.outcome,
-        input=_input(body, loaded),
-        provenance=_provenance(loaded, settings, now),
+        input=_input_for(body, visit_date),
+        provenance=provenance,
         candidates=public_candidates,
         recommendation=_selected(decision.primary_window_id, assessments, names),
         fallback=_selected(decision.fallback_window_id, assessments, names),
-        warnings=_warnings(loaded, decision.outcome),
+        warnings=_outcome_warnings(notices, decision.outcome),
         rejected_evidence_count=rejected,
         duration_ms=0,
         evidence=evidence,
@@ -404,17 +429,20 @@ def _selected(
     )
 
 
-def _warnings(loaded: LoadedFixture, outcome: Outcome) -> list[WarningItem]:
-    warnings = [
-        WarningItem(code="synthetic_development", message=loaded.disclaimer),
-    ]
+def _fixture_notices(loaded: LoadedFixture) -> list[WarningItem]:
+    notices = [WarningItem(code="synthetic_development", message=loaded.disclaimer)]
     if loaded.stale:
-        warnings.append(
+        notices.append(
             WarningItem(
                 code="stale_evidence",
                 message="This evidence is older than seven days.",
             )
         )
+    return notices
+
+
+def _outcome_warnings(notices: list[WarningItem], outcome: Outcome) -> list[WarningItem]:
+    warnings = list(notices)
     if outcome is Outcome.insufficient_evidence:
         warnings.append(
             WarningItem(
@@ -435,7 +463,7 @@ def _warnings(loaded: LoadedFixture, outcome: Outcome) -> list[WarningItem]:
     return warnings
 
 
-def _input(body: RecommendationRequest, loaded: LoadedFixture) -> NormalizedInput:
+def _input_for(body: RecommendationRequest, visit_date: date) -> NormalizedInput:
     return NormalizedInput(
         neighborhood=body.neighborhood,
         restaurant_category=body.restaurant_category,
@@ -443,7 +471,7 @@ def _input(body: RecommendationRequest, loaded: LoadedFixture) -> NormalizedInpu
         arrival_end=body.arrival_end,
         desired_experience=body.desired_experience,
         priorities=[item.value for item in body.priorities],
-        visit_date=loaded.visit_date,
+        visit_date=visit_date,
     )
 
 

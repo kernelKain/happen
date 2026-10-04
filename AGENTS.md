@@ -8,7 +8,7 @@
 - Keep secrets in an ignored `.env` file. Do not print them or commit them.
 - Do not commit `*.gguf` files. Download the pinned model with `python scripts/download-model.py`.
 - The public quantized model does not need `HF_TOKEN`. Do not call a hosted inference API.
-- Read `docs/HANDOFF2.md` first. The walking-skeleton phase is not complete. Continue at “Build health, metadata, and safe config.”
+- Read `docs/HANDOFF2.md` first and continue from its next step.
 - One branch per phase. Branch names and code comments do not use phase or step numbers.
 - Commit messages are one short sentence describing the change. Do not name the coding tool.
 - Before a new phase, pull the latest remote branch after CodeRabbit changes land, and let the user test the app locally.

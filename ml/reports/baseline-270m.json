@@ -1,0 +1,239 @@
+{
+  "report_version": "1",
+  "created_on": "2026-10-04",
+  "model_id": "bartowski/google_gemma-3-270m-it-GGUF",
+  "model_revision": "d127a4e2c6ed47fdf409a956867b604c040432f9",
+  "model_filename": "google_gemma-3-270m-it-Q4_K_M.gguf",
+  "model_sha256": "c866c9f113f2e9aa2225c5997ede437392b8fa844ba5db9e4c77e315ffe20800",
+  "prompt_version": "1",
+  "sampling": {
+    "temperature": 0.0,
+    "max_tokens": 384,
+    "repeat_penalty": 1.0,
+    "seed": 0
+  },
+  "train_sha256": "c24c5d60e0219ccdde95bc644b915a432110e1e355b2d39c478fbffb3bee6641",
+  "held_out_sha256": "e804960d679bd228e7004134c6e87e7f9ea18ecbe3fc5e327ac2ee72348ee7a3",
+  "held_out_count": 30,
+  "parsed_count": 2,
+  "parse_rate": 0.0667,
+  "correct_pairs": 4,
+  "pair_count": 90,
+  "dimension_polarity_accuracy": 0.0444,
+  "ac05_parse": false,
+  "ac05_accuracy": false,
+  "selected_artifact": "untuned_270m",
+  "selection_reason": "No tuned adapter has been measured. The untuned 270M artifact stays selected until a held-out run improves accuracy by at least five percentage points without increasing invalid outputs.",
+  "examples": [
+    {
+      "example_id": "hold-001",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-002",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-003",
+      "kind": "negative",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-004",
+      "kind": "negative",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-005",
+      "kind": "negative",
+      "malformed": false,
+      "parse_attempt": 2,
+      "correct_pairs": 2
+    },
+    {
+      "example_id": "hold-006",
+      "kind": "unsupported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-007",
+      "kind": "unsupported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-008",
+      "kind": "injection",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-009",
+      "kind": "injection",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-010",
+      "kind": "conflicting",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-011",
+      "kind": "conflicting",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-012",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-013",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-014",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-015",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-016",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-017",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-018",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-019",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-020",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-021",
+      "kind": "negative",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-022",
+      "kind": "negative",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-023",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-024",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-025",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-026",
+      "kind": "conflicting",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-027",
+      "kind": "supported",
+      "malformed": false,
+      "parse_attempt": 2,
+      "correct_pairs": 2
+    },
+    {
+      "example_id": "hold-028",
+      "kind": "supported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-029",
+      "kind": "unsupported",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    },
+    {
+      "example_id": "hold-030",
+      "kind": "injection",
+      "malformed": true,
+      "parse_attempt": 2,
+      "correct_pairs": 0
+    }
+  ]
+}

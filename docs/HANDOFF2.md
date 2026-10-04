@@ -6,17 +6,19 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-Find the moment is connected to the synthetic fixture endpoint on `fixture-hook`. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. Scoring, the synthetic fixture, extraction, and the demo recommendation API are already committed. The public Render URL is still missing, and that remains your step.
+Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. A sanitized SerpApi snapshot for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar is saved separately and is not wired to the page. Replay of that snapshot matched the live decision: insufficient evidence and no winner. The untuned Gemma baseline parsed 2 of 30 held-out excerpts and scored 4.4% dimension-plus-polarity accuracy, so it does not meet the extraction gate. A free Colab T4 estimate of the short adapter printed parse rate 6.7% and dimension-plus-polarity accuracy 3.3%. That estimate does not improve on the baseline, so no adapter was selected and the shipping model stays the untuned 270M file. The public Render URL is still missing.
+
+`docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
 
 | | |
 |---|---|
-| Current phase | Fixture vertical slice |
-| Phase complete | No. The local steps are done. This phase stays open until you check the page. |
-| Last finished step | Prove the fixture Hook end to end |
-| Next step | Your local check, then the bounded SerpApi client |
-| Branch | `fixture-hook` |
-| Pull request | https://github.com/kernelKain/happen/pull/4 merged the walking skeleton into `main` at `6b0f3c5`. This branch has no pull request yet. |
-| Remote | `origin/main` is still at `6b0f3c5`. This branch adds scoring, the synthetic fixture, extraction, and the demo recommendation API. |
+| Current phase | Live sponsor Hook |
+| Phase complete | No |
+| Last finished step | Evaluate and optionally tune Gemma |
+| Next step | Deploy and smoke the sponsor vertical slice |
+| Branch | `live-sponsor` |
+| Pull request | https://github.com/kernelKain/happen/pull/5 merged the fixture Hook into `main` at `b5cf7da`. This branch has no pull request yet. |
+| Remote | `origin/main` is at `b5cf7da`. This branch adds the SerpApi client, the candidate normalizer, the live recommendation route, and the sanitized Indiranagar fixture. |
 | Live URL | Not deployed |
 
 Still open from the walking skeleton, and not a blocker for local scoring:
@@ -98,13 +100,13 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the synthetic fixture. A real submit shows three timelines and no winner. The public URL is still not deployed. |
-| Last finished step | Prove the fixture Hook end to end |
-| Next step | Your local check, then the bounded SerpApi client |
-| Branch | `fixture-hook` |
+| Status | Find the moment scores the synthetic fixture. The Gemma baseline and the Colab adapter estimate both missed the extraction gate. No adapter was selected. The public URL is still not deployed. |
+| Last finished step | Evaluate and optionally tune Gemma |
+| Next step | Deploy and smoke the sponsor vertical slice |
+| Branch | `live-sponsor` |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | Render services are still not created. Local fixture work can continue. |
+| Biggest blocker | Render services are still not created. Local SerpApi client work can continue without them. |
 
 ## How branches and commits work
 
@@ -413,7 +415,7 @@ Your side after this step:
 1. The API is on `http://127.0.0.1:8000` and the page is on `http://127.0.0.1:5173`. If either has stopped, start them with the commands above.
 2. Load `http://127.0.0.1:5173/` fresh, submit the Indiranagar dinner preset, and confirm three timelines and “No moment selected.” This path does not show a recommended winner.
 3. The winner layout is still the labeled sample at `http://127.0.0.1:5173/?layout=sample`.
-4. Say what you saw. Do not continue to live SerpApi until this check is done.
+4. Say what you saw if you try it. The next backend step uses fake HTTP, so this check does not block it.
 
 ---
 
@@ -425,53 +427,67 @@ Goal: one real SerpApi run, a sanitized fixture, and a checked Gemma path. Plann
 
 ### Implement bounded SerpApi client
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor adds search, place, and review calls with redaction, deadlines, one retry, and credit counting. Tests use fake HTTP, not your live key.
+The client sends search, place, and review calls to `https://serpapi.com/search.json`. One client is one recommendation: 7 attempts and 14 seconds, with 8 seconds as the cap for a single attempt. Connection failures, timeouts, and HTTP 5xx retry once. Other 4xx responses, including HTTP 429, do not. An authentication failure or a monthly quota error disables later calls on that client. Returned documents, errors, and logs omit the API key. Redirects are not followed.
 
-Your side after Cursor finishes: nothing unless the notes say the local key is still missing.
+`uv run pytest` passed, 97 tests. Ruff format and lint passed for the new files. The secret scan reported nothing. No live search was spent.
+
+Your side after this step: nothing. The page is unchanged.
 
 ### Normalize and select candidates
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor maps provider fields into the internal place records and selects three candidates, or returns insufficiency with a reason. Missing fields are not invented.
+Search rows become place records only from fields the provider sent. A row needs a name, a usable id, a restaurant type, and a provenance URL. The URL is a supplied Google Maps link, or the Maps search link built from a safe `place_id`. Phone numbers and reviewer names are dropped. Hours use the existing parser. Popular times become visit-day observations. At most three excerpts are kept, each capped at 400 characters. Missing hours, busyness, or reviews stay missing and produce warnings. A place that is closed on the visit date is rejected. Completeness is ranked ahead of search order. The result is three candidates, or no candidates plus reason codes. When place details are supplied, only rows that match those details can be selected.
 
-Your side after Cursor finishes: nothing.
+`uv run pytest` passed, 102 tests. Ruff format and lint passed for the normalizer. The secret scan reported nothing. No live search was spent.
+
+Your side after this step: nothing. Live orchestration is next.
 
 ### Assemble live orchestration and protections
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor adds the live endpoint, deadlines, and the rule that a failure never silently switches to fixture data.
+`POST /api/v1/recommendations` retrieves the allowlisted Indiranagar search, normalizes it, and scores it. The route keeps the existing idempotency key, rate limit, and active-request cap. A shared 28-second deadline covers validation, SerpApi, Gemma, and scoring. The process search budget defaults to 42. Three transient failures inside five minutes open a two-minute circuit, then one probe is allowed. An authentication or quota failure disables later live calls in this process. A snapshot cache keeps normalized evidence for 15 minutes. An empty or incomplete search returns HTTP 200 with `insufficient_evidence`. A provider failure returns the public error envelope with `fixture_available` false. The fixture route is not called from this path. Live responses use mode `live`, data label `live`, fixture version `none`, and the planning disclaimer. The page still calls the demo endpoint.
 
-Your side after Cursor finishes: nothing.
+`uv run pytest` passed, 113 tests. Ruff format and lint passed. The secret scan reported nothing. No live search was spent.
+
+Your side after this step: nothing until the live capture. Reply `ok` before any SerpApi credit is spent.
 
 ### Capture and verify canonical fixture
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor runs one bounded live Indiranagar request, removes reviewer identities, writes the sanitized fixture, and checks that replay matches the live decision.
+One bounded live retrieval saved three restaurants: Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar. The visit date is 2026-10-04. The file is `backend/data/fixtures/captured/v1/scenarios/indiranagar-dinner.json`, with its checksum in that directory's manifest. Reviewer identities and phone numbers are omitted. Raw provider documents were not saved. Scoring the snapshot and scoring the reloaded fixture produced the same decision: `insufficient_evidence` and no winner. The installed model still kept no review spans. The page still scores the synthetic fixture. This capture is not wired to Find the moment.
 
-Your side before Cursor spends credits:
+The provider recorded 4 searches. The plan for this capture and the canonical run allowed 14. No second live request was sent.
 
-1. Reply `ok` to the single live capture. The plan allows up to 14 searches for this capture and the canonical run.
+`uv run pytest` passed, 115 tests. Ruff format and lint passed. The secret scan reported nothing for the fixture and the capture module.
 
-Your side after Cursor finishes:
+Your side after this step:
 
-1. Skim the sanitized fixture for names, keys, or reviewer identities.
+1. Skim `backend/data/fixtures/captured/v1/scenarios/indiranagar-dinner.json` for names, keys, or reviewer identities.
 2. Say if anything private must be removed before it is committed.
 
 ### Evaluate and optionally tune Gemma
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. The extraction gate did not pass. No adapter was selected.
 
-Cursor builds the held-out set, measures the base 270M model, and keeps a tuned adapter only if it is better. If tuning does not improve the locked scores, the untuned model ships.
+The held-out set has 30 authored examples, and the training set has 100. They do not share text. At least 20% of the held-out examples are negative, unsupported, conflicting, or injection-oriented. The installed untuned `google_gemma-3-270m-it-Q4_K_M.gguf` was measured with temperature 0, seed 0, and one schema retry. It parsed 2 of 30 excerpts (6.7%) and scored 4 of 90 dimension-plus-polarity pairs (4.4%). The required gate is 95% parse and 80% accuracy. The two parsed excerpts still missed one pair each. Replies that failed were not valid schema JSON. The report is `ml/reports/baseline-270m.json`. The shipping artifact stays the untuned 270M file. A measured adapter is selected only if a later local held-out run improves accuracy by at least five percentage points without increasing invalid outputs.
 
-Your side after Cursor finishes:
+`uv run pytest` passed, 118 tests. Ruff passed. No SerpApi search was spent.
 
-1. For the training attempt, open a free Colab T4 notebook from `ml/` and let it run, or say that Colab is unavailable.
-2. Read the evaluation numbers. Do not publish a score that is not in the evaluation report.
+The free Colab T4 run of `ml/tune_extraction.ipynb` finished and printed:
+
+```text
+Colab estimate parse rate 6.7%
+Colab estimate dimension-plus-polarity accuracy 3.3%
+```
+
+The baseline printed in that same cell is parse rate 6.7% and accuracy 4.4%. The estimate does not meet the five-point gain, so the adapter was not saved into the repo and the shipping model was not replaced.
+
+Your side: disconnect the Colab runtime. Nothing else for tuning.
 
 ### Deploy and smoke the sponsor vertical slice
 
@@ -735,12 +751,14 @@ Your side:
 | Gemma extraction and validation | Done | `Score synthetic fixture evidence through validated extraction.` | Nothing. No accepted quote to review. |
 | Fixture recommendation API | Done | `Score synthetic fixture evidence through validated extraction.` | Nothing. |
 | Planner, matrix, and evidence UI | Done | `Show the synthetic fixture result from Find the moment.` | Nothing unless the sample looks wrong. |
-| Prove the fixture Hook end to end | Done | `Show the synthetic fixture result from Find the moment.` | Load the local page and confirm three timelines and no winner. |
+| Prove the fixture Hook end to end | Done | `Show the synthetic fixture result from Find the moment.` | Optional: load the local page and confirm three timelines and no winner. |
 | Scoring, fixtures, extraction, and fixture API | Local fixture steps are done | — | Nothing unless a note asks. |
 | Matrix UI and fixture Hook proof | Done | `Show the synthetic fixture result from Find the moment.` | Same local check as the fixture Hook proof. |
-| SerpApi client, normalization, and live orchestration | Not started | — | Nothing unless the key is missing. |
-| Capture and verify canonical fixture | Not started | — | Approve the live capture, then skim the fixture. |
-| Evaluate and optionally tune Gemma | Not started | — | Colab T4, then read the scores. |
+| Bounded SerpApi client | Done | `Add a bounded SerpApi client with retries and key redaction.` | Nothing. |
+| Normalize and select candidates | Done | `Normalize provider places into three candidates or an insufficiency result.` | Nothing. |
+| Live orchestration | Done | `Serve live recommendations without substituting fixture evidence.` | Nothing. |
+| Capture and verify canonical fixture | Done | `Save the sanitized Indiranagar capture and verify its replay matches the live decision.` | Skim the sanitized fixture and say if anything private must be removed. |
+| Evaluate and optionally tune Gemma | Done. Baseline and Colab estimate both miss the gate. No adapter selected. | `Keep the untuned model after the adapter estimate missed the baseline.` | Disconnect the Colab runtime. |
 | Deploy and smoke the sponsor slice | Not started | — | Deploy and open the public URL. |
 | Result states, evidence, and responsive reveal | Not started | — | Look at the states and the 1280px screen. |
 | Friend walkthrough | Not started | — | Friend walkthrough. You send the paraphrase. |

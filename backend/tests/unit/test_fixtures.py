@@ -9,6 +9,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from happen_api.catalog import SCORING_POLICY_VERSION
 from happen_api.domain.timing import KOLKATA, generate_arrival_windows
@@ -174,6 +175,55 @@ def test_a_different_arrival_range_is_unavailable() -> None:
     with pytest.raises(FixtureError) as missing:
         load_fixture(other, as_of=CAPTURED_AT)
     assert missing.value.code == "FIXTURE_NOT_AVAILABLE"
+
+
+def test_captured_indiranagar_fixture_replays_without_identities() -> None:
+    """Verify the sanitized SerpApi snapshot loads and stays separate from the synthetic file."""
+
+    root = Path(__file__).resolve().parents[2] / "data" / "fixtures" / "captured" / "v1"
+    captured_at = datetime.fromisoformat("2026-10-04T12:52:35.030179+05:30")
+    loaded = load_fixture(canonical_request(), root=root, as_of=captured_at)
+    rendered = (root / "scenarios" / "indiranagar-dinner.json").read_text(encoding="utf-8")
+
+    assert loaded.data_label == "captured_fixture"
+    assert loaded.fixture_id == "indiranagar-dinner"
+    assert loaded.visit_date == date(2026, 10, 4)
+    assert loaded.stale is False
+    assert [place.name for place in loaded.places] == [
+        "Bombay Brasserie",
+        "Truffles - Indiranagar",
+        "Chianti, Indiranagar",
+    ]
+    assert "SerpApi" in loaded.attribution
+    assert "Synthetic note:" not in rendered
+    assert "api_key" not in rendered.casefold()
+    assert '"username"' not in rendered
+    assert '"phone"' not in rendered
+    with pytest.raises(FixtureError) as missing:
+        load_fixture(canonical_request(), root=root, visit_date=VISIT, as_of=captured_at)
+    assert missing.value.code == "FIXTURE_NOT_AVAILABLE"
+
+
+def test_captured_fixture_cannot_use_the_synthetic_label() -> None:
+    """Verify a SerpApi snapshot is rejected when it still looks synthetic."""
+
+    loaded = load_fixture(canonical_request(), as_of=CAPTURED_AT)
+    with pytest.raises(ValidationError):
+        FixtureScenario(
+            fixture_id="indiranagar-dinner",
+            schema_version="1.0.0",
+            data_label="captured_fixture",
+            visit_date=VISIT,
+            timezone="Asia/Kolkata",
+            captured_at=CAPTURED_AT,
+            request=canonical_request(),
+            places=loaded.places,
+            source_urls=list(loaded.source_urls),
+            safe_request_ids=["captured-search"],
+            attribution="Captured from SerpApi Google Maps for Indiranagar.",
+            disclaimer=LOCKED_DISCLAIMER,
+            expected_structure=ExpectedStructure(candidate_count=3, labeled_synthetic=False),
+        )
 
 
 def _installed_checksum() -> str:

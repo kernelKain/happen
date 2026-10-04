@@ -350,3 +350,133 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The winner characterization is a mocked response. The installed model is not replaced with precomputed spans.
 - The client timeout is 30 seconds. The measured cold request finished in 13.9 seconds.
 
+## Bounded SerpApi client
+
+- Date: 2026-10-04
+- Queue step: P3.1
+- Result: Search, place, and review calls are implemented behind fake HTTP. No live SerpApi request was sent.
+- Product behavior changed: no. The page still uses the synthetic fixture.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src/happen_api/providers` and `backend/tests/unit/test_serpapi_client.py`.
+- `uv run pytest` passed, 97 tests.
+- `python3 scripts/scan-secrets.py --extra backend/src/happen_api/providers --extra backend/tests/unit/test_serpapi_client.py` reported nothing.
+
+### Decisions
+
+- One client instance is one recommendation, with a 7-attempt credit budget and a 14-second shared deadline.
+- HTTP 429 is not retried. Monthly quota language disables later calls on that client. A 429 without that language stays transient and does not disable live mode.
+- Provider phone numbers and review identities stay in the redacted payload until normalization. Credential fields and echoed key values are removed now.
+- Progress stays in this log and `docs/HANDOFF2.md`. `docs/HANDOFF.md` stays the locked plan.
+
+## Candidate normalization
+
+- Date: 2026-10-04
+- Queue step: P3.2
+- Result: Provider documents normalize into three place records, or an insufficiency result with reason codes. No live SerpApi request was sent.
+- Product behavior changed: no. The page still uses the synthetic fixture.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format` and `uv run ruff check` passed for the normalizer and its tests.
+- `uv run pytest` passed, 102 tests.
+- `python3 scripts/scan-secrets.py --extra backend/src/happen_api/providers/serpapi/normalizer.py --extra backend/tests/unit/test_serpapi_normalizer.py` reported nothing.
+
+### Decisions
+
+- A type must contain “restaurant”. Cafes and unlabeled places are rejected instead of being relabeled.
+- The provenance URL is a supplied Google Maps URL. If the provider omits one, Happen builds the Maps search URL from a safe `place_id`.
+- Closure on the visit date rejects the place. Missing hours, busyness, or reviews do not.
+- Place-detail calls restrict selection to the rows those details match.
+- Reviewer names, phones, live busyness, and out-of-range popularity values are not copied. Excerpts stop at three and at 400 characters.
+
+## Live orchestration
+
+- Date: 2026-10-04
+- Queue step: P3.3
+- Result: `POST /api/v1/recommendations` scores live evidence or returns an explicit error. A failure does not load the fixture. No live SerpApi request was sent.
+- Product behavior changed: the live route exists. The page still calls the demo endpoint.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed.
+- `uv run pytest` passed, 113 tests.
+- `python3 scripts/scan-secrets.py` reported nothing for the live route, guard, orchestration, and contract tests.
+
+### Decisions
+
+- Live provenance is `live` / `live` / fixture version `none`, with the planning disclaimer. It is not labeled synthetic.
+- Fewer than three candidates is HTTP 200 `insufficient_evidence`. An unreadable search is HTTP 502. Auth and quota disable later live calls. Transient failures use the circuit.
+- The process search budget defaults to 42. Each recommendation still takes at most 7 attempts and 14 provider seconds inside the 28-second server deadline.
+- The snapshot cache stores normalized evidence for 15 minutes. Raw provider documents are not cached.
+- `fixture_available` stays false. The demo route remains the only fixture path.
+
+## Canonical fixture capture
+
+- Date: 2026-10-04
+- Queue step: P3.4
+- Result: One live Indiranagar retrieval was sanitized into a checksummed fixture. Replay matched the live decision. The page still uses the synthetic fixture.
+- Product behavior changed: no. Find the moment still scores the synthetic fixture.
+- Cost changed: yes, 4 SerpApi searches
+
+### Evidence
+
+- Places: Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar. Visit date 2026-10-04.
+- Bombay Brasserie has hours, popular times, and three excerpts. Truffles and Chianti have hours and three excerpts, with popular times missing.
+- Outcome of both the live score and the fixture replay: `insufficient_evidence`, no winner. The installed model kept no review spans.
+- Searches recorded: 4. The allowance for this capture was 14. No second live request was sent.
+- `uv run pytest` passed, 115 tests. Ruff passed. The secret scan reported nothing for the fixture.
+- The fixture file does not contain `api_key`, a `username` field, or a `phone` field. The attribution states that reviewer identities and phone numbers are omitted.
+
+### Decisions
+
+- The captured snapshot lives in `backend/data/fixtures/captured/v1/` so the synthetic demo fixture stays the page's source until a later wiring step.
+- Excerpts that contained a phone-number pattern would have been dropped. None of the kept excerpts matched that pattern.
+- Review-source links that point at a contributor profile are replaced with the restaurant's Maps URL. This capture did not need that replacement.
+
+## Gemma baseline
+
+- Date: 2026-10-04
+- Queue step: P3.5
+- Result: The untuned 270M model missed the held-out extraction gate. No tuned adapter was selected.
+- Product behavior changed: no. Find the moment still scores the synthetic fixture.
+- Cost changed: no
+
+### Evidence
+
+- Training examples: 100. Held-out examples: 30. The splits do not share text. Fourteen held-out examples are negative, unsupported, conflicting, or injection-oriented.
+- Sampling locked in the report: temperature 0, seed 0, 384 tokens, repeat penalty 1, one schema retry.
+- Parse rate: 2/30 = 6.7%. Dimension-plus-polarity accuracy: 4/90 = 4.4%. Required gate: 95% parse and 80% accuracy.
+- The two parsed excerpts were `hold-005` and `hold-027`, with 2 of 3 pairs correct on each. A failed reply used a fenced object that was not the extraction schema.
+- Report: `ml/reports/baseline-270m.json`. `uv run pytest` passed, 118 tests.
+- No SerpApi search was spent. The 1B fallback was not downloaded.
+
+### Decisions
+
+- The shipping artifact stays `google_gemma-3-270m-it-Q4_K_M.gguf`. An adapter is selected only after a measured held-out gain of at least five percentage points without more invalid outputs.
+- The Colab notebook trains a short QLoRA adapter and prints an estimate. It does not merge, quantize, or replace the manifest.
+
+## Gemma Colab estimate
+
+- Date: 2026-10-04
+- Queue step: P3.5
+- Result: The short adapter estimate did not beat the untuned baseline. No adapter was selected.
+- Product behavior changed: no. Find the moment still scores the synthetic fixture.
+- Cost changed: no
+
+### Evidence
+
+- Printed Colab estimate parse rate: 6.7%.
+- Printed Colab estimate dimension-plus-polarity accuracy: 3.3%.
+- Baseline in that same output: parse rate 6.7%, accuracy 4.4%.
+- No other score was recorded. The adapter was not merged, quantized, or copied into the repo.
+
+### Decisions
+
+- The shipping artifact stays `google_gemma-3-270m-it-Q4_K_M.gguf`.
+- This estimate is not a local held-out measurement and does not replace `ml/reports/baseline-270m.json`.
+

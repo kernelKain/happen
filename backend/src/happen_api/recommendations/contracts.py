@@ -87,7 +87,7 @@ class NormalizedInput(BaseModel):
 class Provenance(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["captured_fixture"]
+    mode: Literal["live", "captured_fixture"]
     captured_at: datetime
     generated_at: datetime
     timezone: Literal["Asia/Kolkata"]
@@ -101,7 +101,7 @@ class Provenance(BaseModel):
     fixture_version: str
     contract_version: str
     stale: bool
-    data_label: Literal["synthetic_development"]
+    data_label: Literal["synthetic_development", "captured_fixture", "live"]
 
 
 class PublicWindow(BaseModel):

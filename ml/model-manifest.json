@@ -10,6 +10,7 @@
   "size_bytes": 253115168,
   "sha256": "c866c9f113f2e9aa2225c5997ede437392b8fa844ba5db9e4c77e315ffe20800",
   "extraction_schema_version": "1",
-  "evaluation_result": "not_evaluated",
+  "evaluation_result": "baseline_below_ac05",
+  "evaluation_report": "ml/reports/baseline-270m.json",
   "created_on": "2026-10-04"
 }

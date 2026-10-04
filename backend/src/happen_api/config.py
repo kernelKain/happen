@@ -99,6 +99,12 @@ class Settings(BaseSettings):
         ge=1,
         le=3600,
     )
+    serpapi_search_budget: int = Field(
+        default=42,
+        alias="HAPPEN_SERPAPI_SEARCH_BUDGET",
+        ge=1,
+        le=250,
+    )
     log_level: LogLevel = Field(default="info", alias="LOG_LEVEL")
     serpapi_api_key: SecretStr = Field(alias="SERPAPI_API_KEY", default=SecretStr(""), repr=False)
     hf_token: SecretStr = Field(alias="HF_TOKEN", default=SecretStr(""), repr=False)

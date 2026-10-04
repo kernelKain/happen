@@ -1,0 +1,353 @@
+{
+  "fixture_id": "indiranagar-dinner",
+  "schema_version": "1.0.0",
+  "data_label": "captured_fixture",
+  "visit_date": "2026-10-04",
+  "timezone": "Asia/Kolkata",
+  "captured_at": "2026-10-04T12:52:35.030179+05:30",
+  "request": {
+    "neighborhood": "indiranagar",
+    "restaurant_category": "restaurants",
+    "arrival_start": "18:00",
+    "arrival_end": "21:00",
+    "desired_experience": "easier_conversation",
+    "priorities": [
+      "conversation",
+      "short_wait",
+      "seating"
+    ]
+  },
+  "places": [
+    {
+      "candidate_id": "ChIJnThp-6kWrjsRC7l6znbm4kk",
+      "provider_place_id": "ChIJnThp-6kWrjsRC7l6znbm4kk",
+      "name": "Bombay Brasserie",
+      "category_tags": [
+        "restaurants"
+      ],
+      "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+      "opening_intervals": [
+        {
+          "date": "2026-10-04",
+          "opens_at": "12:00:00",
+          "closes_at": "00:00:00",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "confidence": "verified"
+        }
+      ],
+      "busyness_observations": [
+        {
+          "day_of_week": "sunday",
+          "hour_start": "06:00:00",
+          "relative_popularity": 0,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "07:00:00",
+          "relative_popularity": 0,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "08:00:00",
+          "relative_popularity": 0,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "09:00:00",
+          "relative_popularity": 0,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "10:00:00",
+          "relative_popularity": 0,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "11:00:00",
+          "relative_popularity": 0,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "12:00:00",
+          "relative_popularity": 24,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "13:00:00",
+          "relative_popularity": 40,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "14:00:00",
+          "relative_popularity": 49,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "15:00:00",
+          "relative_popularity": 51,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "16:00:00",
+          "relative_popularity": 46,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "17:00:00",
+          "relative_popularity": 42,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "18:00:00",
+          "relative_popularity": 47,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "19:00:00",
+          "relative_popularity": 59,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "20:00:00",
+          "relative_popularity": 72,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "21:00:00",
+          "relative_popularity": 73,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "22:00:00",
+          "relative_popularity": 61,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        },
+        {
+          "day_of_week": "sunday",
+          "hour_start": "23:00:00",
+          "relative_popularity": 39,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "captured_at": "2026-10-04T12:52:35.030179+05:30"
+        }
+      ],
+      "review_excerpts": [
+        {
+          "excerpt_id": "ex-eb94a2bae57148db",
+          "candidate_id": "ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "text": "I saw lot of reviews on google and wanted to try this place very badly, and i must saw i am so much in love with their dishes. You must visit here at least once and you might end up going there again. The staff is okish, i have had better experiences. Here is what i tried: Aam papad panner- 4/5 Very new flavour but a must try, paneer was very soft and full of flavour. 🤩 Smoked madras lollipop-4.5/",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT2pKdVp5MVJkV2RIYXpOc1owazNNMmN3YUVOblNsRRAB!2m1!1s0x0:0x49e2e676ce7ab90b!3m1!1s2@1:CAIQACodChtycF9oOjJuZy1RdWdHazNsZ0k3M2cwaENnSlE%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": true
+        },
+        {
+          "excerpt_id": "ex-cc0ed9bada879496",
+          "candidate_id": "ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "text": "Bombay Brassiere located at Indiranagar, Bengaluru is part of the famous and popular chain of restaurants in India. They are well known for their variety of North Indian cuisine. We went there as a family reunion and enjoyed our evening. We relished Glenfidich whisky, Red Sangria and mocktails for drinks with Paneer Tikka, Sweet Potato masala and Crispy Corn for Starters. We ordered Tandoori Roti,",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT2toUlpEaGpObXhKYkUxWloxRmxTbFU1UkZVM09VRRAB!2m1!1s0x0:0x49e2e676ce7ab90b!3m1!1s2@1:CAIQACodChtycF9oOkhRZDhjNmxJbE1ZZ1FlSlU5RFU3OUE%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": true
+        },
+        {
+          "excerpt_id": "ex-e41b19a161fbda32",
+          "candidate_id": "ChIJnThp-6kWrjsRC7l6znbm4kk",
+          "text": "We came for a mid week dinner and between the two of us, we shared the Bombay bhel (great texture and flavour), pepper wings (spicy but good), Irani kheema maska pao (tasty), prawn curry with coconut rice (the curry was good but the coconut rice was let down by an excess of coconut milk/cream - it was far too wet).",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT25CMVdFNU1lRlUwVjNabWFFNVdkM2w1Y0UwMWJVRRAB!2m1!1s0x0:0x49e2e676ce7ab90b!3m1!1s2@1:CAIQACodChtycF9oOnB1WE5MeFU0V3ZmaE5Wd3l5cE01bUE%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": false
+        }
+      ],
+      "eligibility_reasons": [
+        "eligible"
+      ],
+      "warnings": []
+    },
+    {
+      "candidate_id": "ChIJ-3cMy7oWrjsRu8up6eYKXaI",
+      "provider_place_id": "ChIJ-3cMy7oWrjsRu8up6eYKXaI",
+      "name": "Truffles - Indiranagar",
+      "category_tags": [
+        "restaurants"
+      ],
+      "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJ-3cMy7oWrjsRu8up6eYKXaI",
+      "opening_intervals": [
+        {
+          "date": "2026-10-04",
+          "opens_at": "11:30:00",
+          "closes_at": "01:00:00",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJ-3cMy7oWrjsRu8up6eYKXaI",
+          "confidence": "verified"
+        }
+      ],
+      "busyness_observations": [],
+      "review_excerpts": [
+        {
+          "excerpt_id": "ex-6aeb16b73d349fbb",
+          "candidate_id": "ChIJ-3cMy7oWrjsRu8up6eYKXaI",
+          "text": "It's a good place if you like American style burgers. The most famous is chicken and all American veg burger I tried the veg one. It comes with 2 patties but feels bit dry. I like the most is Tandoori paneer burger it was the best juicy and tasty. I also tried few other items there like pastas, bao, Thai curry these are also good not great. On weekdays you can easily get seat but on weekends you h",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT2poWVpqQk5abWc1TVhobE5HbFlja0oxTW5vNVpYYxAB!2m1!1s0x0:0xa25d0ae6e9a9cbbb!3m1!1s2@1:CAIQACodChtycF9oOjhYZjBNZmg5MXhlNGlYckJ1Mno5ZXc%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": true
+        },
+        {
+          "excerpt_id": "ex-24d390ce00395785",
+          "candidate_id": "ChIJ-3cMy7oWrjsRu8up6eYKXaI",
+          "text": "We had a really good experience overall. Since we had to stick to vegetarian food that day, we tried the Peri Peri Paneer, and it was packed with flavors—absolutely delicious. The All American Burger was crunchy and satisfying, and both the cheese quality and the bread really elevated the burger. I had heard a lot about this place, and I’d say it’s definitely worth trying. I’m sure the non-vegetar",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT2xac1gwMWpURUl4TFZaaWFWZHVPV1o2TXpKSmRXYxAB!2m1!1s0x0:0xa25d0ae6e9a9cbbb!3m1!1s2@1:CAIQACodChtycF9oOlZsX01jTEIxLVZiaVduOWZ6MzJJdWc%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": true
+        },
+        {
+          "excerpt_id": "ex-664f00d5f39df424",
+          "candidate_id": "ChIJ-3cMy7oWrjsRu8up6eYKXaI",
+          "text": "Truffles, Indiranagar is a great spot for burgers, desserts, and comfort food. The place has a lively vibe and is usually buzzing with people, especially in the evenings. I tried their burgers and shakes, and the taste was really good with generous portions. The menu has a wide variety of options including veg and non-veg dishes, pastas, pizzas, and desserts. Service is fairly quick despite the cr",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT2twUVREVk5UV0oyYTJaUVJETXljVGREYTNaQ04wRRAB!2m1!1s0x0:0xa25d0ae6e9a9cbbb!3m1!1s2@1:CAIQACodChtycF9oOkpQTDVNTWJ2a2ZQRDMycTdDa3ZCN0E%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": true
+        }
+      ],
+      "eligibility_reasons": [
+        "eligible"
+      ],
+      "warnings": [
+        "missing_busyness"
+      ]
+    },
+    {
+      "candidate_id": "ChIJ85IJkKcWrjsRDcVh5mERk6s",
+      "provider_place_id": "ChIJ85IJkKcWrjsRDcVh5mERk6s",
+      "name": "Chianti, Indiranagar",
+      "category_tags": [
+        "restaurants"
+      ],
+      "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJ85IJkKcWrjsRDcVh5mERk6s",
+      "opening_intervals": [
+        {
+          "date": "2026-10-04",
+          "opens_at": "12:00:00",
+          "closes_at": "23:30:00",
+          "source_url": "https://www.google.com/maps/search/?api=1&query_place_id=ChIJ85IJkKcWrjsRDcVh5mERk6s",
+          "confidence": "verified"
+        }
+      ],
+      "busyness_observations": [],
+      "review_excerpts": [
+        {
+          "excerpt_id": "ex-05707443e9d1beb2",
+          "candidate_id": "ChIJ85IJkKcWrjsRDcVh5mERk6s",
+          "text": "Chianti is a great place if you’re looking for good Italian food and a cozy dining experience. The highlight for us was definitely the wine. We tried the Mulled Wine and Bellini, and both were amazing. The Bellini was fruity and refreshing, while the Mulled Wine was a bit stronger but equally enjoyable. We were served a complimentary bread basket, which was a lovely touch. Based on our preference,",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT2xwNVkxRnZjbEUwVlRneVJGcHFjVWh6VUc5YVZHYxAB!2m1!1s0x0:0xab931161e661c50d!3m1!1s2@1:CAIQACodChtycF9oOlp5Y1FvclE0VTgyRFpqcUhzUG9aVGc%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": true
+        },
+        {
+          "excerpt_id": "ex-162fcefb9d40f3e0",
+          "candidate_id": "ChIJ85IJkKcWrjsRDcVh5mERk6s",
+          "text": "I only got a chance to try the pizza here, and it was absolutely delicious. The ambience was pleasant, and the service was excellent as well. Overall, I had a great experience. I would definitely recommend trying the pasta too. I noticed many people ordering it, and it looked so delicious that I could almost imagine how good it tasted just by seeing their plates!",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT2pSRlNHOTBTSGhSVG14RGExSmpkVlpqYjJ4Uk5rRRAB!2m1!1s0x0:0xab931161e661c50d!3m1!1s2@1:CAIQACodChtycF9oOjRFSG90SHhRTmxDa1JjdVZjb2xRNkE%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": false
+        },
+        {
+          "excerpt_id": "ex-170f6add660c6bfe",
+          "candidate_id": "ChIJ85IJkKcWrjsRDcVh5mERk6s",
+          "text": "⭐ 4.5/5 Visited Chianti in Indiranagar for lunch around 1:30 PM and had a great overall experience. We started with a bruschetta—crispy toasted baguette topped with tomatoes, garlic, olive oil, and parmesan. Simple and well done, though slightly on the crispier side. For drinks, we ordered a peach iced tea, a virgin mojito, and a virgin sangria with fresh fruit pieces—it was refreshing and nicely ",
+          "published_at": null,
+          "captured_at": "2026-10-04T12:52:35.030179+05:30",
+          "source_url": "https://www.google.com/maps/reviews/data=!4m8!14m7!1m6!2m5!1sCi9DQUlRQUNvZENodHljRjlvT214SmExWmplVGxDY0hwbFZISnpRMjk2Tm0xUE5WRRAB!2m1!1s0x0:0xab931161e661c50d!3m1!1s2@1:CAIQACodChtycF9oOmxJa1ZjeTlCcHplVHJzQ296Nm1PNVE%7C%7C?hl=en-GB",
+          "language": "en",
+          "truncated": true
+        }
+      ],
+      "eligibility_reasons": [
+        "eligible"
+      ],
+      "warnings": [
+        "missing_busyness"
+      ]
+    }
+  ],
+  "source_urls": [
+    "https://www.google.com/maps/search/?api=1&query_place_id=ChIJnThp-6kWrjsRC7l6znbm4kk",
+    "https://www.google.com/maps/search/?api=1&query_place_id=ChIJ-3cMy7oWrjsRu8up6eYKXaI",
+    "https://www.google.com/maps/search/?api=1&query_place_id=ChIJ85IJkKcWrjsRDcVh5mERk6s"
+  ],
+  "safe_request_ids": [
+    "6ac1febbd20e16bd32c30262",
+    "6ac1febc3c40063f1b551969",
+    "6ac1febd6561a6edeff27df7",
+    "6ac1febe6ee47a3a82e3149b"
+  ],
+  "attribution": "Captured from SerpApi Google Maps for restaurants in Indiranagar, Bengaluru. Reviewer identities and phone numbers are omitted.",
+  "disclaimer": "Planning evidence—not live occupancy.",
+  "expected_structure": {
+    "candidate_count": 3,
+    "labeled_synthetic": false
+  }
+}
