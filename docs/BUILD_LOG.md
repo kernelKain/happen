@@ -699,3 +699,24 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The landing does not call the plan API yet. Holding the evening is not a retrieved plan.
 - The earlier Indiranagar planner stays available for its existing checks. It is not the customer page.
 
+## Build the prompt-led planning flow
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: The landing sends a prompt for interpretation, shows an editable brief, and asks one essential question. When more than one place matches, the user chooses. Live place retrieval starts only after Find the plan. Loading copy follows the request in flight. Cancel stops the page from using that response or starting another search. Quota, timeout, unreachable, and no-result states stay on the page. The page does not offer a fixture or a sample plan.
+- Product behavior changed: yes. `/` calls the planning routes. `?layout=planner` and `?layout=sample` are unchanged.
+- Cost changed: Find the plan can call SerpApi when the backend is configured. Tests mock that network. This step did not make a live provider call.
+
+### Evidence
+
+- Client and flow tests cover brief preservation, one follow-up, and the search gate.
+- Component tests cover interpretation, an ambiguous destination, one in-flight search, cancel, quota, timeout, an unreachable backend, and no results.
+- Playwright checked 390×844 and 1280×800. The checks cover keyboard use, an example that does not send, an empty submit, one follow-up, cancel, quota, reduced motion, horizontal overflow, and serious accessibility violations.
+- Frontend `npm run check`, `npm test` (35), `npm run build`, and `npm run test:shell` (25) passed.
+
+### Decisions
+
+- Interpretation and destination resolution can run before Find the plan. Place discovery cannot.
+- A follow-up answer keeps the visitor's original prompt on the page.
+- An error that says a fixture exists is not turned into a button.
+

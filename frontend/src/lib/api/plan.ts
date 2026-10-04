@@ -14,6 +14,10 @@ const intentKind = z.enum([
   "museum",
 ]);
 const confidence = z.enum(["high", "medium", "low", "insufficient"]);
+const money = z.preprocess(
+  (value) => (typeof value === "number" ? String(value) : value),
+  z.string().nullable(),
+);
 
 export const planIntentSchema = z.object({
   kind: intentKind,
@@ -35,7 +39,7 @@ export const planBriefSchema = z.object({
   party_size: z.number().int().nullable(),
   budget: z
     .object({
-      amount: z.string().nullable(),
+      amount: money,
       currency: z.string().nullable(),
       tier: z.enum(["low", "moderate", "high"]).nullable(),
       bound: z.enum(["exact", "at_most", "about"]).nullable(),
@@ -63,12 +67,31 @@ export const planBriefSchema = z.object({
   confidence,
 });
 
+export const missingFollowUpSchema = z.object({
+  kind: z.literal("missing"),
+  field: z.enum(["destination", "date", "time", "primary_intent"]),
+  question: z.string().min(1),
+});
+
+export const ambiguityFollowUpSchema = z.object({
+  kind: z.literal("ambiguity"),
+  field: z.string().min(1),
+  message: z.string().min(1),
+  candidates: z.array(z.string()).max(6),
+  blocking: z.boolean(),
+});
+
+export const followUpSchema = z.discriminatedUnion("kind", [
+  missingFollowUpSchema,
+  ambiguityFollowUpSchema,
+]);
+
 export const interpretedBriefSchema = z.object({
   outcome: z.enum(["needs_follow_up", "ready_for_retrieval"]),
   brief: planBriefSchema,
   destination: z.unknown().nullable(),
   stops: z.array(z.unknown()).max(2),
-  follow_up: z.unknown().nullable(),
+  follow_up: followUpSchema.nullable(),
   warnings: z.array(z.string()),
 });
 
@@ -181,7 +204,7 @@ export const refinementProposalSchema = z.object({
   applied: z.literal(false),
   current: planBriefSchema,
   proposed: planBriefSchema,
-  follow_up: z.unknown().nullable(),
+  follow_up: followUpSchema.nullable(),
   diff: briefDiffSchema,
   message: z.string().min(1),
 });
@@ -207,5 +230,11 @@ export const planErrorSchema = z.object({
   }),
 });
 
+export type PlanningBrief = z.infer<typeof planBriefSchema>;
+export type FollowUp = z.infer<typeof followUpSchema>;
+export type InterpretedBrief = z.infer<typeof interpretedBriefSchema>;
+export type ResolvedDestination = z.infer<typeof resolvedDestinationSchema>;
+export type DestinationResolution = z.infer<typeof destinationResolutionSchema>;
 export type EveningPlan = z.infer<typeof eveningPlanSchema>;
 export type RefinementProposal = z.infer<typeof refinementProposalSchema>;
+export type PlanErrorBody = z.infer<typeof planErrorSchema>;

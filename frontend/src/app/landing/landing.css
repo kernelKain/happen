@@ -142,6 +142,157 @@
   margin: 0;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.flow,
+.brief,
+.follow-up,
+.plan,
+.notice,
+.brief-fields,
+.intent-order,
+.find-row,
+.status-row {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.flow {
+  gap: 1.25rem;
+}
+
+.status-row,
+.intent-order li,
+.find-row {
+  align-items: center;
+}
+
+.status-row,
+.intent-order li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.brief,
+.follow-up,
+.plan,
+.notice {
+  padding: 1rem;
+  background: #17211d;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+}
+
+.brief h2,
+.plan h2,
+.follow-up legend,
+.intent-order h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.original,
+.field-hint,
+.plan p,
+.notice p,
+.brief p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.brief-fields label,
+.follow-up label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.brief input,
+.follow-up input {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.follow-up fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.follow-up label:has(input[type="radio"]) {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 44px;
+}
+
+.follow-up input[type="radio"] {
+  width: 1.15rem;
+  min-height: 1.15rem;
+  padding: 0;
+}
+
+.flow button,
+.brief button,
+.follow-up button,
+.notice button {
+  min-height: 44px;
+  padding: 0.7rem 1.15rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brass);
+  color: var(--brass-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.flow button:disabled,
+.brief button:disabled,
+.follow-up button:disabled,
+.composer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.intent-order ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.plan ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.plan ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
 .examples ul,
 .steps ol {
   list-style: none;
@@ -189,6 +340,14 @@
   .composer {
     padding: 1.25rem;
   }
+
+  .brief-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .brief-span {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -215,7 +374,8 @@
   }
 
   .composer button,
-  .examples button {
+  .examples button,
+  .flow button {
     transition: none;
   }
 }
