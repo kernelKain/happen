@@ -132,9 +132,22 @@ describe("landing", () => {
     expect(screen.getByRole("button", { name: "Plan this evening" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "How it works" })).toBeTruthy();
     expect(screen.getByText(/live SerpApi results/)).toBeTruthy();
-    expect(screen.getByText(/Gemma runs locally/)).toBeTruthy();
+    expect(screen.getByText(/local deterministic parsing/)).toBeTruthy();
+    expect(screen.getByText(/Python picks the stops/)).toBeTruthy();
+    expect(screen.getByText(/missed its quality gates, so it stays switched off/)).toBeTruthy();
     expect(document.querySelector(".mark")).toBeTruthy();
     expect(screen.getByText("Happen", { selector: ".wordmark" })).toBeTruthy();
+  });
+
+  it("never tells a visitor that a model reads the request", () => {
+    render(<Landing />);
+    const trust = document.querySelector(".trust")?.textContent ?? "";
+    // The false sentence must not come back.
+    expect(trust).not.toMatch(/Gemma runs locally/);
+    expect(trust).not.toMatch(/Gemma reads/);
+    expect(trust).not.toMatch(/model reads the request/);
+    // Nor may unused weights be implied to help the plan.
+    expect(trust).not.toMatch(/improves|stronger|better because/i);
   });
 
   it("keeps repository and implementation language off the page", () => {

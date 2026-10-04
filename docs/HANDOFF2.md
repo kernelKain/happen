@@ -22,7 +22,7 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Enforce plan budgets on the server. |
+| Last finished step | Align public claims with measured behavior. |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -109,7 +109,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Python scores party size, budget, preferences, and accessibility from retrieved evidence. Unknown evidence adds nothing. Gemma claims stay off. |
-| Last finished step | Enforce plan budgets on the server. |
+| Last finished step | Align public claims with measured behavior. |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
@@ -955,6 +955,63 @@ Your side:
 
 | Evidence provenance | Done. Every displayed claim carries its kind, field, safe URL, match method, and verification state. Official evidence is no longer filed as community. | `Preserve evidence provenance and useful review signals.` | Manual test of one evening. Do not push. Do not deploy. |
 
+## Public claims and measured behavior
+
+Every shipped sentence about the model now matches `ml/reports/model-quality.json`.
+
+### What runs in the customer path
+
+Deterministic local parsing reads the prompt. SerpApi supplies live place
+evidence. Python does feasibility, scoring, and selection. No model loads.
+
+### What was experimentally evaluated
+
+Local open-weight Gemma, measured on held-out planning and review sets. The
+artifact, dataset, gates, and numbers are committed, so the evaluation is
+reproducible.
+
+### What failed its gate
+
+Both candidates. The pinned 270M model parsed 22 of 24 planning examples
+(0.9167, gate 0.95) and reached 0.6667 essential-field accuracy (gate 0.90). On
+30 held-out review examples it parsed 2 (0.0667) with 0.0444
+dimension-polarity accuracy (gate 0.80). The 1B candidate passed the schema gate
+but reached 0.7917 essential-field accuracy and 0.6778 review polarity.
+`claims_enabled` is false and the fallback is `deterministic_parser`.
+
+### What SerpApi and Python actually do
+
+SerpApi is the only place-data source. Python scores from retrieved evidence
+only; unknown evidence adds nothing.
+
+### Corrections made in this step
+
+- The landing footer claimed "Gemma runs locally to read the request." It now
+  states deterministic parsing, Python selection, and that the measured model
+  stays switched off.
+- `README.md` section "What Gemma does, and what Python decides" became "What the
+  customer path actually runs."
+- The DEV challenge story was split into the five subsections above.
+- The README claimed a refinement gets a fresh cap of eight. It reuses the same
+  plan token, so it shares one allowance; only a deliberately new plan gets a new
+  cap.
+- `GET /api/v1/meta` gained `planning_reader` and
+  `planner_model_in_request_path`. `model_status` reports whether the artifact
+  matches its checksum, which a reader could otherwise mistake for a model in the
+  request path.
+- `docs/HANDOFF.md` section 30 is the approved contract and keeps its permissive
+  "may" language. It was not rewritten here.
+
+### Guards
+
+- `frontend/src/app/landing/Landing.test.tsx` asserts the corrected trust
+  statement and rejects the old sentence.
+- `backend/tests/unit/test_public_claims.py` reads the shipped README, landing
+  copy, and docs as a reviewer would, and fails if a banned claim returns. It
+  also asserts the quality report still records the failure, so the report cannot
+  be edited into a pass.
+
+
 ## Plan allowance
 
 The eight-request budget is counted on the server, not reported by the caller.
@@ -1010,3 +1067,5 @@ plan-local real count) and `remaining_requests`. The landing page reads these
 and keeps no counter of its own.
 
 | Server-side plan budgets | Done. A prompt issues an opaque token. Both billed routes require it, atomic claims stop concurrent requests from jointly exceeding eight, and the caller no longer reports its own count. | `Enforce plan budgets on the server.` | Manual test of one evening. Do not push. Do not deploy. |
+
+| Public claims aligned | Done. The landing, README, metadata, and submission guidance match the measured report. The model is described as measured and disabled. | `Align public claims with measured behavior.` | Read the README once more. Do not push. Do not deploy. |

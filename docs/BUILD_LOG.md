@@ -1098,3 +1098,46 @@ claiming eight credits of its own accord.
 Process-local and in-memory. A restart clears all allowances; a second worker
 would hold its own copy and the effective ceiling would be eight per worker.
 This is documented in `docs/HANDOFF2.md` rather than papered over.
+
+## Align public claims with measured behavior.
+
+### The false claim
+
+The landing footer read: "Place evidence comes from live SerpApi results for
+that evening. Gemma runs locally to read the request." That was false. The
+customer path loads no model. `POST /api/v2/briefs/interpret` calls
+`interpret()`, which is deterministic parsing in
+`planning/interpret.py`, and `GET /api/v1/meta` already reported
+`model_claims_enabled: false`.
+
+A frontend test asserted the false sentence was present, so it was pinned in
+place by CI. Correcting the copy required correcting that assertion too.
+
+### Other corrections
+
+- README's "What Gemma does, and what Python decides" implied the model was in
+  the path. Renamed to "What the customer path actually runs" and rewritten.
+- The README claimed "A refinement is a new plan with its own cap of eight."
+  Commit `3ccb1ff` made a refinement reuse the same plan token, so it shares one
+  allowance. Corrected.
+- `model_status` in `/api/v1/meta` means the artifact matches its checksum. That
+  is not "a model is running." Added `planning_reader` and
+  `planner_model_in_request_path` so the public document cannot be misread.
+- The DEV challenge story was split into what runs, what was evaluated, what
+  failed, what SerpApi and Python do, and the honest prize position. The README
+  now states plainly that this build does not claim a Gemma prize category.
+
+### What was deliberately left alone
+
+`docs/HANDOFF.md` section 30 says local Gemma "may" classify or extract. That is
+the approved contract addendum and permissive future-tense language is not a
+false claim about present behavior. Rewriting an approved contract is out of
+scope for this step. `ml/reports/model-quality.json` is untouched.
+
+### Guards
+
+- `Landing.test.tsx` asserts the corrected trust sentence and asserts the old one
+  is absent.
+- `backend/tests/unit/test_public_claims.py` scans the shipped README, landing
+  copy, and docs for banned claims. Verified it fails when the false sentence is
+  reintroduced, then reverted.

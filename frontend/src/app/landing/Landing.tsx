@@ -1175,8 +1175,10 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       <footer className="trust">
         <h2>Live evidence</h2>
         <p>
-          Place evidence comes from live SerpApi results for that evening. Gemma runs locally to
-          read the request. Happen does not claim it can plan every city or every night.
+          Place evidence comes from live SerpApi results for that evening. Your request is read by
+          local deterministic parsing, and Python picks the stops. A local Gemma model was measured
+          here and missed its quality gates, so it stays switched off. Happen does not claim it can
+          plan every city or every night.
         </p>
       </footer>
     </div>

@@ -15,13 +15,18 @@ It is for someone who already knows the night they want: dinner in one city, the
 
 An example on the page fills the composer. It does not send a search.
 
-## What Gemma does, and what Python decides
+## What the customer path actually runs
 
-Local Gemma may classify a prompt or extract structured preferences. It may also extract structured evidence from retrieved text. It does not check feasibility, score options, or choose the stops.
+The customer path loads no model. Reading your prompt is deterministic local
+parsing in `backend/src/happen_api/planning/interpret.py`. Choosing and ordering
+the stops is Python in `backend/src/happen_api/planning/itinerary.py`, scoring
+from retrieved evidence only. A fact the retrieval did not supply adds nothing,
+so an unknown hour or an unverified preference cannot win a comparison.
 
-Python validates any model output, checks feasibility, scores the options, and selects the plan. A model result is unused until Python accepts it. Invalid output cannot select a stop.
-
-The current customer path does not load Gemma. The planning reader is the deterministic parser in `backend/src/happen_api/planning/interpret.py`. Selection is in `backend/src/happen_api/planning/itinerary.py`.
+Local Gemma remains in the repository for reproducible evaluation, not for the
+request path. No hosted model API receives the prompt; the prompt never leaves
+the machine. Unused model weights do not improve a plan, and this README does
+not claim they do.
 
 ## Measured model quality
 
@@ -37,7 +42,9 @@ A public 1B candidate was measured and not selected. It parsed all 24 planning e
 
 SerpApi is the only external source of place data and supporting web data. Shown places carry source provenance and a retrieval timestamp. Clock times use the destination's local zone. A fact the retrieval did not supply stays unknown. Unknown hours are not treated as a reason to pick a stop.
 
-One submitted plan may spend at most eight billed SerpApi requests. Place search, details, reviews, supporting web search, a paid destination-resolution fallback, and a retry that consumes a credit all count. The free Locations API does not. Happen stops before a ninth billed request. A refinement is a new plan with its own cap of eight. Unused requests from the previous plan do not raise it.
+One submitted plan may spend at most eight billed SerpApi requests. Place search, details, reviews, supporting web search, a paid destination-resolution fallback, and a retry that consumes a credit all count. The free Locations API does not. Happen stops before a ninth billed request.
+
+The count is kept on the server. Reading a prompt issues an opaque plan token, and both billed routes require it, so a caller cannot lower or reset its own reported spend by sending a number. Destination resolution and place discovery draw on that one allowance rather than getting eight each. A refinement keeps the same token, so a rescore from stored evidence spends nothing. A refinement treated as a new submitted plan is issued a fresh token deliberately and gets a fresh cap of eight.
 
 Identical place lists are cached in memory for 15 minutes, at most 32 entries. The cache key is a sha256 of the canonical destination, the local date, the time window, and the ordered intents. It does not store the prompt, the API key, raw provider payloads, or review text. A repeat of that same plan does not send another provider request. Quota, timeout, and empty results are not cached. The cache belongs to one process and is gone when that process stops.
 
@@ -120,7 +127,7 @@ npm run test:shell
 
 - One evening, at most two stops. Extra nights or stops stay unplanned.
 - Happen does not claim universal coverage.
-- Gemma does not currently read the customer prompt, and model claims stay off.
+- No model loads in the customer path. Local Gemma was measured and missed its gates, so it stays disabled and model claims stay off.
 - Travel time between stops stays unverified until a source states it.
 - Hours, reviews, or pages the provider did not return stay unknown.
 - The in-memory throttle and plan cache reset when the process stops. They are not shared across processes.
@@ -144,6 +151,22 @@ Do not put the provider key in `render.yaml`, docs, or git. `render.yaml` tracks
 
 Happen is for one person planning one real evening with someone they want to take out: a place, a date, a time, and at most one more stop. The night is specific. The product is not a general travel guide.
 
-Local open Gemma matters because the evening wording and any model read stay on this machine. Happen does not call a hosted model API. The open weights can be checksummed, replaced, or left unused. The measured 270M and 1B files both missed a quality gate, so the deterministic parser reads the prompt and Python selects the stops. A model that failed its gate cannot invent a place. That is the open-model result: the failure is recorded, and the plan does not depend on an unmeasured claim.
+### What runs in the customer path
 
-SerpApi is how the plan meets the city. Place identity, hours, review-derived highlights, and supporting web facts for that evening come from SerpApi and nowhere else. Each shown fact keeps its source and retrieval time. The search stops at eight billed requests, so one evening cannot turn into an unbounded crawl. When the evidence is missing or the quota is spent, the page says so and does not substitute a captured fixture.
+Deterministic local parsing reads the prompt into a brief. SerpApi supplies live place evidence for that evening. Python scores and selects one or two stops. No model is loaded, and no hosted model API receives the prompt.
+
+### What was experimentally evaluated
+
+Local open-weight Gemma was downloaded, checksummed, and measured on held-out sets. That evaluation is reproducible from this repository: the pinned artifact, the dataset, the gate thresholds, and the measured numbers are all committed. The evaluation is real work with a recorded negative result.
+
+### What failed its gate
+
+Both measured candidates failed. The pinned 270M model parsed 22 of 24 planning examples and missed the schema gate at 0.9167, and reached 0.6667 essential-field accuracy against a 0.90 gate. On 30 held-out review examples it parsed 2, with 0.0444 dimension-polarity accuracy against a 0.80 gate. The 1B candidate passed the schema gate but reached only 0.7917 essential-field accuracy and 0.6778 review polarity. Failed output is rejected rather than repaired into a claim, `claims_enabled` is false, and the model stays disabled.
+
+### What SerpApi and Python actually do
+
+SerpApi is how the plan meets the city. Place identity, hours, review-derived highlights, and supporting web facts come from SerpApi and nowhere else. Each shown fact keeps its source and retrieval time, and one submitted plan stops at eight billed requests so a single evening cannot become an unbounded crawl. Python does the feasibility checks, the scoring from retrieved evidence, and the selection. When evidence is missing or the allowance is spent, the page says so and does not substitute a captured fixture.
+
+### The honest open-model result
+
+No hosted model API is called, and the open weights can be checksummed, replaced, or left unused. This build does not claim a Gemma prize category: the model is measured and disabled, so open-source AI is not at the runtime core of the customer path. What the failure demonstrates is that a gate held: a model that missed its benchmark cannot invent a place, and the plan does not depend on an unmeasured claim.

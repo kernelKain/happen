@@ -22,6 +22,10 @@ export const metaSchema = z.object({
   fixture_available: z.boolean(),
   live_available: z.boolean(),
   model_status: z.enum(["not_loaded", "loading", "ready", "unavailable"]),
+  // The reader the customer path really uses. Present so a checksum-matching
+  // artifact is never mistaken for a model in the request path.
+  planning_reader: z.literal("deterministic_parser").default("deterministic_parser"),
+  planner_model_in_request_path: z.literal(false).default(false),
   scoring_policy_version: z.string().min(1),
   timezone: z.string().min(1),
 });

@@ -50,6 +50,8 @@ META_FIELDS = {
     "artifact_status",
     "model_quality",
     "model_claims_enabled",
+    "planning_reader",
+    "planner_model_in_request_path",
     "scoring_policy_version",
     "timezone",
 }
@@ -141,6 +143,9 @@ def test_metadata_exposes_the_canonical_preset(
     assert body["supported_categories"] == ["restaurants"]
     assert body["supported_experiences"] == ["easier_conversation"]
     assert body["priority_dimensions"] == ["conversation", "short_wait", "seating"]
+    # Public metadata must not leave a reader guessing which reader is active.
+    assert body["planning_reader"] == "deterministic_parser"
+    assert body["planner_model_in_request_path"] is False
     assert body["canonical_preset"] == {
         "neighborhood": "indiranagar",
         "restaurant_category": "restaurants",

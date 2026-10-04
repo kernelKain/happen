@@ -72,6 +72,11 @@ class MetaResponse(BaseModel):
     artifact_status: ModelStatus
     model_quality: ModelQuality
     model_claims_enabled: bool
+    # The reader the customer path really uses. `model_status` reports whether
+    # the artifact matches its checksum, which is not the same as a model
+    # participating in the request path. These two fields remove the ambiguity.
+    planning_reader: Literal["deterministic_parser"]
+    planner_model_in_request_path: Literal[False]
     scoring_policy_version: str
     timezone: str
 
@@ -144,6 +149,8 @@ def meta(request: Request) -> MetaResponse:
         artifact_status=model_status,
         model_quality=quality,
         model_claims_enabled=claims_enabled,
+        planning_reader="deterministic_parser",
+        planner_model_in_request_path=False,
         scoring_policy_version=SCORING_POLICY_VERSION,
         timezone=TIMEZONE if historical else "",
     )
