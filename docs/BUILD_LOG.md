@@ -57,7 +57,7 @@ Python 3.13 is the locked backend version. The system interpreter is 3.14.4. Ins
 
 Git matches the locked baseline: branch `main`, commit `a45880a`, public remote, no execution branch, no deployment. `docs/HANDOFF.md` remains the uncommitted planning artifact and is now ignored.
 
-Entire CLI 0.11.3 is installed and the GitHub login is active. The repository is not enabled yet. Enable it before the next phase with `entire enable --agent cursor --checkpoint-backend refs --project --checkpoint-push-remote origin`.
+Entire CLI 0.11.3 is installed and the GitHub login is active. The repository is not enabled yet. Before the next phase, run `entire enable` from the repository root, then `entire status`. Checkpoints appear on the next push. The walking-skeleton phase is not complete. The next step is the health and metadata API.
 
 ### Verification
 

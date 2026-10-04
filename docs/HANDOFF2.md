@@ -1,8 +1,84 @@
 # Happen execution notes
 
-This is the running notebook for the build. It is for you and for Cursor.
+This is the running notebook for the build. A new chat must read this file before doing anything else.
 
 `docs/HANDOFF.md` is the locked plan from Prompt 1. Do not edit it to track progress. When this file and `HANDOFF.md` disagree about what has been done, believe this file plus the git history. When they disagree about the product, believe `HANDOFF.md`.
+
+## Resume for the next chat
+
+The walking-skeleton phase is **not complete**. Do not start `fixture-hook` or any later branch.
+
+| | |
+|---|---|
+| Current phase | Walking skeleton |
+| Phase complete | No |
+| Last finished step | Scaffold the locked monorepo |
+| Next step | Build health, metadata, and safe config |
+| Branch | `walking-skeleton` |
+| Pull request | https://github.com/kernelKain/happen/pull/2 |
+| Remote | In sync with `origin/walking-skeleton` as of the latest notes commit |
+| Live URL | Not deployed |
+
+Remaining before this phase can be called complete:
+
+1. Build health, metadata, and safe config.
+2. Build the frontend shell.
+3. Add CI and the first public deployment.
+4. You open the local app, then the public URL, and confirm what you see.
+5. CodeRabbit reviews the pull request. Pull those remote changes before the next phase.
+
+## Working rules for every later chat
+
+- Branch names, commit messages, and code comments do not use phase or step numbers.
+- Each step gets one short commit message that says what the change does. Do not name the coding tool.
+- One branch per phase: `walking-skeleton`, then `fixture-hook`, `live-sponsor`, `demo-experience`, `harden-freeze`, `production`, `submission`, and `submit`.
+- After each phase pull request, wait for the CodeRabbit review. Before the next phase, fetch and pull the latest remote branch so review edits are included.
+- Before the next phase, also stop so the app can be tested by hand. Give the exact frontend and backend commands for what exists at that moment.
+- Do not push, merge, deploy, or publish unless asked.
+- Keep secrets out of git, notes, and logs.
+
+## How to run what exists today
+
+The page can be opened. The API server does not exist yet, so there is no health URL to call.
+
+Frontend, from the repository root:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the local address Vite prints, usually `http://127.0.0.1:5173`. The page should show “Happen” and “Know where. Know when.” Stop it with Ctrl+C.
+
+Backend, from the repository root:
+
+```bash
+cd backend
+uv sync
+uv run python -c "import happen_api; print(happen_api.__version__)"
+```
+
+That should print `0.1.0`. There is no `uvicorn` app to browse until the health step is built.
+
+## Entire
+
+The CLI is already installed and the GitHub login is already active. This repository is not enabled yet. Do this before the next phase, from the repository root:
+
+```bash
+entire enable
+entire status
+```
+
+If the CLI were missing on another machine, the full sequence is:
+
+```bash
+curl -fsSL https://entire.io/install.sh | bash
+entire login
+entire enable
+```
+
+Then keep working as usual. The first checkpoint appears when the repository is pushed after `entire enable`. Commit `.entire/settings.json` if Entire generates it. Do not commit `.entire/settings.local.json`. Do not paste tokens into chat.
 
 Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build hour 19 of 24. Spend cap: $0 out of pocket. Existing free credits may be used.
 
@@ -10,7 +86,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Walking skeleton started |
+| Status | Walking skeleton in progress. Phase is not complete. |
 | Last finished step | Scaffold the locked monorepo |
 | Next step | Build health, metadata, and safe config |
 | Branch | `walking-skeleton` |
@@ -24,7 +100,7 @@ You asked for this on October 4, 2026. It replaces the earlier single-branch, no
 
 - One branch per phase, created when that phase starts. Branch names do not use phase or step numbers.
 - One commit per step. The message is one short sentence that says what the change does. Do not name the coding tool, and do not use phase or step numbers.
-- After a branch has a pull request, wait for the CodeRabbit review and any changes it pushes. Before starting the next phase, fetch and pull that updated branch so the new work starts from the remote tip.
+- After a branch has a pull request, wait for the CodeRabbit review and any changes it pushes. Before the next phase, fetch and pull that updated branch, and let the app be tested by hand.
 - `docs/HANDOFF.md` and `docs/HANDOFF2.md` stay in git so the process is public.
 - Secrets, `.env`, model binaries, and raw provider payloads stay ignored.
 - Cursor does not push, merge, deploy, or publish unless you explicitly ask.
@@ -74,8 +150,8 @@ Commit: `Record account and workflow access checks.`
 
 Your side, still open from this step:
 
-1. Set up Entire before the next phase. The CLI is installed, the GitHub login is active, and this repo is not enabled yet. In the repo, run `entire enable --agent cursor --checkpoint-backend refs --project --checkpoint-push-remote origin`, then `entire status`. Commit the generated `.entire/settings.json` when it appears. Leave `.entire/settings.local.json` untracked.
-2. Install the CodeRabbit GitHub App on `kernelKain/happen` if it is not already installed. After each phase pull request, let that review finish and pull its changes before the next phase starts.
+1. From the repository root, run `entire enable`, then `entire status`. The CLI is already installed and the GitHub login is already active. Commit `.entire/settings.json` if it is generated. Leave `.entire/settings.local.json` untracked.
+2. Install the CodeRabbit GitHub App on `kernelKain/happen` if it is not already installed. After each phase pull request, let that review finish. Pull the remote branch, and test the app locally, before the next phase starts.
 3. Done: `SERPAPI_API_KEY` is set in the ignored `.env`. It was not printed or committed.
 
 ### Prove SerpApi evidence shape
