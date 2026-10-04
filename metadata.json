@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M42QZY7FW4VDSGXQ3CXZXYBW",
+  "strategy": "manual-commit",
+  "branch": "fixture-hook",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/src/app/App.tsx",
+    "frontend/src/app/result/MomentResult.tsx",
+    "frontend/src/app/result/sample.ts",
+    "frontend/src/lib/api/recommendation.test.ts",
+    "frontend/src/lib/api/recommendation.ts",
+    "frontend/src/lib/labels.ts",
+    "frontend/src/styles/global.css",
+    "frontend/tests/hook.spec.ts",
+    "frontend/tests/result.spec.ts",
+    "frontend/tests/shell.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 284882,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 10320256,
+    "output_tokens": 62151,
+    "api_call_count": 2
+  }
+}
