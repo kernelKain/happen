@@ -11,9 +11,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | P0 in progress |
-| Last finished step | P0.3 — Prove Gemma and Render feasibility |
-| Next step | P1.1 — Scaffold the locked monorepo |
-| Branch | `phase/p0-prove-access` |
+| Last finished step | P1.1 — Scaffold the locked monorepo |
+| Next step | P1.2 — Build health, metadata, and safe config |
+| Branch | `phase/p1-walking-skeleton` |
 | Live URL | Not deployed |
 | Spend | $0 |
 | Biggest blocker | None for the next build step. Do not leave a paid Render service running after judging. |
@@ -169,14 +169,21 @@ Goal: a public HTTPS frontend and a health/metadata API. Planned budget: hours 1
 
 ### P1.1 — Scaffold the locked monorepo
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor creates the backend, frontend, `ml/`, scripts, `.env.example`, and lockfiles from the locked layout. Python 3.13.15 is installed with `uv`. Empty decorative folders are not added.
+The installable backend and the production frontend build both succeed. Python is 3.13.15. Empty feature folders were not created.
 
-Your side after Cursor finishes:
+What exists now:
 
-1. Nothing is required if the install and import check pass.
-2. If a package version has to move inside the locked range, read the one-line note in this file and object only if you disagree.
+- `backend/` installs the locked API packages, including `llama-cpp-python` 0.3.36. `import happen_api` works. Ruff reports no issues in the new Python files.
+- `frontend/` builds with Vite 8.3.2, React 19.3.0, and TypeScript 7.0.2. The page currently shows the name and tagline only. The planner screen is the next UI step.
+- React 19.3.0 does not ship TypeScript declarations. `@types/react` 19.3.0 and `@types/react-dom` 19.3.0 were added. Both are MIT. No other package moved off the locked versions.
+- `ml/model-manifest.json` records the public Q4_K_M file and its checksum. `python scripts/download-model.py` prints `checksum-ok` for the local copy. The model file stays ignored.
+- `.env.example` has empty secrets and the public model checksum. `AGENTS.md` points agents at the locked plan.
+
+Commit: `Scaffold the backend, frontend, and model manifest.`
+
+Your side after this step: nothing. Do not create a Render service yet.
 
 ### P1.2 — Build health, metadata, and safe config
 
@@ -587,7 +594,8 @@ Your side:
 | P0.1 | Done | `P0.1: record account and workflow access checks.` | Optional: Entire and CodeRabbit. |
 | P0.2 | Done | `Record the Indiranagar restaurant evidence probe.` | Nothing else for SerpApi. |
 | P0.3 | Done | `Record the free Gemma runtime proof and Render credit limit.` | Before deploy, cap Render spend at the credits and suspend the paid service after judging. No token needed now. |
-| P1.1–P1.3 | Not started | — | Review only if a check needs you. |
+| P1.1 | Done | `Scaffold the backend, frontend, and model manifest.` | Nothing. |
+| P1.2–P1.3 | Not started | — | Review only if a check needs you. |
 | P1.4 | Not started | — | Push, Render services, secrets, public URLs. |
 | P2.1–P2.4 | Not started | — | Nothing unless a note asks. |
 | P2.5–P2.6 | Not started | — | Look at the local Hook once. |

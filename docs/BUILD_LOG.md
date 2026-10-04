@@ -123,3 +123,23 @@ Keep `restaurants in Indiranagar, Bengaluru` as the canonical discovery query. D
 
 Operate on the local quantized 270M model. Do not call a hosted model API. Do not generate a Hugging Face token unless an official-weight download is rejected as restricted. Keep the backend off the free 512 MB plan. Prefer `1c-2g` at deploy time because the measured memory fits, and move to `2c-4g` only if a live timing run misses the 30-second limit.
 
+## P1.1 — Scaffold the locked monorepo
+
+- Date: 2026-10-04
+- Result: backend import and frontend production build succeed
+- Product behavior changed: no
+- Cost changed: no
+
+### Evidence
+
+- `uv sync --project backend` installed the locked packages on Python 3.13.15, including `llama-cpp-python==0.3.36`.
+- `import happen_api` prints `0.1.0`. `llama_cpp.__version__` is `0.3.36`.
+- `ruff check` passed for `backend/src` and `scripts/download-model.py`.
+- `npm run build` passed with Vite 8.3.2 after adding the React type packages.
+- `python scripts/download-model.py` printed `checksum-ok google_gemma-3-270m-it-Q4_K_M.gguf`.
+- Direct Python dependencies are MIT, BSD-3-Clause, or Apache-2.0. The added `@types/react` and `@types/react-dom` packages are MIT.
+
+### Decision
+
+Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0` publishes JavaScript without TypeScript declarations. No locked runtime version changed.
+

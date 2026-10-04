@@ -30,6 +30,7 @@ blob-report/
 # Model binaries, training checkpoints, and local model caches
 *.gguf
 *.safetensors
+ml/.cache/
 ml/checkpoints/
 ml/merged/
 ml/output/
