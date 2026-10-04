@@ -74,6 +74,9 @@ class PlanStop(BaseModel):
     website: HttpUrl | None = None
     confidence: Literal["high", "medium", "low"]
     hours_status: Literal["open", "unknown"]
+    price: str | None = Field(default=None, max_length=40)
+    busyness: Literal["listed", "unknown"] = "unknown"
+    rating: float | None = None
     explanation: str = Field(min_length=1, max_length=300)
     evidence: list[PlanEvidence] = Field(max_length=8)
     unknown_fields: list[str] = Field(default_factory=list, max_length=8)
@@ -385,6 +388,9 @@ def _stop(
         website=website,
         confidence=confidence,
         hours_status=hours,
+        price=place.price,
+        busyness="listed" if place.popular_times_known else "unknown",
+        rating=place.rating,
         explanation=explanation,
         evidence=evidence[:8],
         unknown_fields=unknown,

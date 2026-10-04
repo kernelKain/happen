@@ -132,6 +132,10 @@ def test_price_and_busyness_gaps_do_not_raise_a_place() -> None:
     idle = _place(name="Bravo", place_id="idle", unknown_fields=["price", "popular_times"])
     assert _plan([priced, quiet]).stops[0].name == "Alpha"
     assert _plan([idle, busy]).stops[0].name == "Alpha"
+    listed = _plan([priced], [_intent()]).stops[0]
+    assert listed.price == "$$$$"
+    assert listed.busyness == "unknown"
+    assert _plan([busy], [_intent()]).stops[0].busyness == "listed"
 
 
 def test_official_source_breaks_a_name_tie_and_equal_places_use_the_name() -> None:

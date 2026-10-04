@@ -417,6 +417,62 @@ describe("landing", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
     expect(await screen.findByText("No live places matched this evening.")).toBeTruthy();
     expect(screen.getByText(`Your words: ${original}`)).toBeTruthy();
-    expect(screen.queryByText("Kura")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "1. Kura" })).toBeNull();
+  });
+
+  it("reviews a change without replacing the plan until Apply, and skips a repeat search", async () => {
+    let planCalls = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/briefs/interpret")) {
+        return json(interpreted());
+      }
+      if (url.endsWith("/api/v2/destinations/resolve")) {
+        return json(resolved);
+      }
+      if (url.endsWith("/api/v2/plans/refine")) {
+        const body = JSON.parse(String(init?.body)) as { revision: string };
+        return json({
+          version: "2",
+          applied: false,
+          current: brief,
+          proposed: { ...brief, raw_prompt: body.revision, preferences: ["quiet"] },
+          follow_up: null,
+          diff: {
+            added: [],
+            removed: [],
+            changed: [{ field: "preferences", before: "quiet", after: "lively" }],
+          },
+          message: "The current plan was not changed.",
+        });
+      }
+      planCalls += 1;
+      return json(eveningPlan);
+    });
+    render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
+    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    expect(await screen.findByRole("heading", { name: "1. Kura" })).toBeTruthy();
+    expect(planCalls).toBe(1);
+    fireEvent.change(screen.getByLabelText("Change this evening"), {
+      target: { value: "Make it lively" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
+    expect(await screen.findByRole("heading", { name: "Review the change" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
+    expect(screen.getByText(/Preferences: quiet to lively/)).toBeTruthy();
+    expect(planCalls).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("heading", { name: "Review the change" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Change this evening"), {
+      target: { value: "Make it lively" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
+    await screen.findByRole("button", { name: "Apply" });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(screen.queryByRole("heading", { name: "Review the change" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
+    expect(planCalls).toBe(1);
   });
 });

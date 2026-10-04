@@ -163,6 +163,9 @@ export const planStopSchema = z.object({
   website: z.string().nullable(),
   confidence: z.enum(["high", "medium", "low"]),
   hours_status: z.enum(["open", "unknown"]),
+  price: z.string().nullable().optional(),
+  busyness: z.enum(["listed", "unknown"]).optional(),
+  rating: z.number().nullable().optional(),
   explanation: z.string().min(1),
   evidence: z.array(planEvidenceSchema).max(8),
   unknown_fields: z.array(z.string()),
@@ -235,6 +238,7 @@ export type FollowUp = z.infer<typeof followUpSchema>;
 export type InterpretedBrief = z.infer<typeof interpretedBriefSchema>;
 export type ResolvedDestination = z.infer<typeof resolvedDestinationSchema>;
 export type DestinationResolution = z.infer<typeof destinationResolutionSchema>;
+export type PlanStop = z.infer<typeof planStopSchema>;
 export type EveningPlan = z.infer<typeof eveningPlanSchema>;
 export type RefinementProposal = z.infer<typeof refinementProposalSchema>;
 export type PlanErrorBody = z.infer<typeof planErrorSchema>;

@@ -1,5 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { EveningPlan, FollowUp, PlanningBrief, ResolvedDestination } from "../../lib/api/plan";
+import type {
+  EveningPlan,
+  FollowUp,
+  PlanningBrief,
+  RefinementProposal,
+  ResolvedDestination,
+} from "../../lib/api/plan";
 import {
   interpretBrief,
   type PlanFetch,
@@ -16,15 +22,15 @@ import {
   canFindPlan,
   clockForInput,
   moveIntent,
-  outcomeLead,
+  needsAnotherSearch,
   partySizeIssue,
   preferenceIssue,
   preferenceList,
   restorePrompt,
   shouldResolve,
-  visibleWarning,
 } from "./flow";
 import { Mark } from "./Mark";
+import { EveningTimeline, RefinementDiff } from "./timeline";
 import "./landing.css";
 
 type LandingProps = {
@@ -32,7 +38,7 @@ type LandingProps = {
   fetchImpl?: PlanFetch;
 };
 
-type Busy = "reading" | "checking" | "finding";
+type Busy = "reading" | "checking" | "finding" | "reviewing";
 
 type Failure = {
   message: string;
@@ -44,13 +50,8 @@ const BUSY_LABEL: Record<Busy, string> = {
   reading: "Reading the evening.",
   checking: "Checking the destination.",
   finding: "Finding live places.",
+  reviewing: "Reading the change.",
 };
-
-const SOURCE_LABEL = {
-  official: "Official",
-  maps: "Maps",
-  community: "Community",
-} as const;
 
 /** Customer landing. Place search starts only after Find the plan. */
 export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
@@ -78,6 +79,9 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   const [composerError, setComposerError] = useState<string | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [plan, setPlan] = useState<EveningPlan | null>(null);
+  const [proposal, setProposal] = useState<RefinementProposal | null>(null);
+  const [revision, setRevision] = useState("");
+  const [searchSnapshot, setSearchSnapshot] = useState<PlanningBrief | null>(null);
   const [partyDraft, setPartyDraft] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
   const [budgetCurrency, setBudgetCurrency] = useState("");
@@ -103,7 +107,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     choosing,
     busy: busy !== null,
   });
-  const showFind = ready && failure === null;
+  const showFind = ready && failure === null && proposal === null;
   const showCheck = Boolean(
     brief?.destination_text?.trim() &&
       !destination?.timezone_name &&
@@ -186,6 +190,13 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       return null;
     }
     if (error instanceof PlanRequestError) {
+      if (error.status === 500) {
+        return {
+          message: "Something unexpected happened.",
+          next: "Try again.",
+          retry: error.retryable ? retry : null,
+        };
+      }
       return {
         message: error.message,
         next: error.nextAction,
@@ -275,6 +286,8 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       setSelectedChoice(null);
       setBilled(0);
       setPlan(null);
+      setProposal(null);
+      setSearchSnapshot(null);
       if (shouldResolve(next, result.follow_up)) {
         setBusy("checking");
         await resolveInto(next, id);
@@ -423,11 +436,17 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     }
   }
 
-  async function findPlan() {
-    if (!brief || !destination?.timezone_name || !brief.local_date || !brief.local_start) {
+  async function findPlan(options?: {
+    keepCurrent?: boolean;
+    prior?: number;
+    source?: PlanningBrief;
+  }) {
+    const source = options?.source ?? brief;
+    if (!source || !destination?.timezone_name || !source.local_date || !source.local_start) {
       return;
     }
-    if (billed >= 8) {
+    const prior = options?.prior ?? billed;
+    if (prior >= 8) {
       setFailure({
         message: "The search allowance for this plan has been reached.",
         next: "Try again later.",
@@ -441,16 +460,18 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     }
     setFailure(null);
     setBusy("finding");
-    setPlan(null);
+    if (!options?.keepCurrent) {
+      setPlan(null);
+    }
     try {
       const eveningPlan = await requestPlan(
         {
           destination,
-          intents: brief.intents,
-          local_date: brief.local_date,
-          local_start: brief.local_start,
-          preferences: brief.preferences,
-          prior_billed_requests: billed,
+          intents: source.intents,
+          local_date: source.local_date,
+          local_start: source.local_start,
+          preferences: source.preferences,
+          prior_billed_requests: prior,
         },
         { signal: abortRef.current?.signal, fetchImpl },
       );
@@ -458,6 +479,158 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
         return;
       }
       setPlan(eveningPlan);
+      setSearchSnapshot(source);
+    } catch (error) {
+      if (id !== generation.current) {
+        return;
+      }
+      const nextFailure = settle(error, "plan");
+      if (nextFailure) {
+        setFailure(nextFailure);
+      }
+    } finally {
+      if (id === generation.current) {
+        setBusy(null);
+      }
+      end(id);
+    }
+  }
+
+  async function reviewChange(text: string) {
+    if (!brief || !originalPrompt) {
+      return;
+    }
+    const cleaned = text.trim();
+    if (!cleaned) {
+      return;
+    }
+    const id = begin();
+    if (id === null) {
+      return;
+    }
+    setBusy("reviewing");
+    setFailure(null);
+    try {
+      const next = await refineBrief(restorePrompt(brief, originalPrompt), cleaned, {
+        signal: abortRef.current?.signal,
+        fetchImpl,
+      });
+      if (id !== generation.current) {
+        return;
+      }
+      setProposal(next);
+    } catch (error) {
+      if (id !== generation.current) {
+        return;
+      }
+      const nextFailure = settle(error, "interpret");
+      if (nextFailure) {
+        setFailure(nextFailure);
+      }
+    } finally {
+      if (id === generation.current) {
+        setBusy(null);
+      }
+      end(id);
+    }
+  }
+
+  function cancelProposal() {
+    setProposal(null);
+    setRevision("");
+  }
+
+  async function applyProposal() {
+    if (!proposal || !brief || !originalPrompt || proposal.follow_up) {
+      return;
+    }
+    const proposed = restorePrompt(proposal.proposed, originalPrompt);
+    const baseline = searchSnapshot ?? brief;
+    if (!needsAnotherSearch(baseline, proposed)) {
+      rememberBrief(proposed);
+      setProposal(null);
+      setRevision("");
+      return;
+    }
+    const id = begin();
+    if (id === null) {
+      return;
+    }
+    setProposal(null);
+    setRevision("");
+    rememberBrief(proposed);
+    const samePlace =
+      (baseline.destination_text ?? "").trim() === (proposed.destination_text ?? "").trim();
+    try {
+      let place = destination;
+      let prior = 0;
+      if (!samePlace || !place?.timezone_name) {
+        const query = proposed.destination_text?.trim();
+        if (!query || !proposed.local_date || !proposed.local_start) {
+          return;
+        }
+        setBusy("checking");
+        const phrase = proposed.pending_date?.phrase;
+        const resolution = await resolveDestination(
+          {
+            query,
+            pending_date: phrase === "today" || phrase === "tomorrow" ? phrase : undefined,
+            local_date: proposed.local_date,
+            local_start: proposed.local_start,
+          },
+          { signal: abortRef.current?.signal, fetchImpl },
+        );
+        if (id !== generation.current) {
+          return;
+        }
+        prior = resolution.billed_requests;
+        setBilled(prior);
+        if (resolution.status === "ambiguous") {
+          setDestination(null);
+          setSelectedChoice(null);
+          setChoices(resolution.choices);
+          return;
+        }
+        if (resolution.status !== "resolved" || !resolution.destination?.timezone_name) {
+          setFailure({
+            message: "Happen could not place that destination in a local time.",
+            next: "Choose a different place.",
+            retry: null,
+          });
+          return;
+        }
+        place = resolution.destination;
+        setDestination(place);
+        setChoices([]);
+      }
+      if (!place?.timezone_name || !proposed.local_date || !proposed.local_start) {
+        return;
+      }
+      if (prior >= 8) {
+        setFailure({
+          message: "The search allowance for this plan has been reached.",
+          next: "Try again later.",
+          retry: null,
+        });
+        return;
+      }
+      setBusy("finding");
+      const eveningPlan = await requestPlan(
+        {
+          destination: place,
+          intents: proposed.intents,
+          local_date: proposed.local_date,
+          local_start: proposed.local_start,
+          preferences: proposed.preferences,
+          prior_billed_requests: prior,
+        },
+        { signal: abortRef.current?.signal, fetchImpl },
+      );
+      if (id !== generation.current) {
+        return;
+      }
+      setPlan(eveningPlan);
+      setSearchSnapshot(proposed);
     } catch (error) {
       if (id !== generation.current) {
         return;
@@ -881,7 +1054,44 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
               ) : null}
             </section>
           ) : null}
-          {plan ? <PlanResult plan={plan} /> : null}
+          {plan ? (
+            <EveningTimeline
+              plan={plan}
+              timezone={destination?.timezone_name ?? null}
+              intentCount={
+                searchSnapshot?.intents.length ?? brief?.intents.length ?? plan.stops.length
+              }
+            />
+          ) : null}
+          {plan && brief && !proposal ? (
+            <form
+              className="refine"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void reviewChange(revision);
+              }}
+            >
+              <label htmlFor="revision">Change this evening</label>
+              <textarea
+                id="revision"
+                rows={3}
+                value={revision}
+                disabled={busy !== null}
+                onChange={(event) => setRevision(event.target.value)}
+              />
+              <button type="submit" disabled={busy !== null || revision.trim() === ""}>
+                Review this change
+              </button>
+            </form>
+          ) : null}
+          {proposal ? (
+            <RefinementDiff
+              proposal={proposal}
+              busy={busy !== null}
+              onApply={() => void applyProposal()}
+              onCancel={cancelProposal}
+            />
+          ) : null}
         </section>
 
         <section className="examples" aria-labelledby="examples-heading">
@@ -943,51 +1153,4 @@ function budgetFrom(
     tier: brief.budget?.tier ?? null,
     bound: brief.budget?.bound ?? "about",
   };
-}
-
-function PlanResult({ plan }: { plan: EveningPlan }) {
-  const lead = outcomeLead(plan.outcome);
-  const notes = plan.warnings.filter((note) => visibleWarning(note) && note !== lead);
-  return (
-    <section className="plan" aria-labelledby="plan-heading">
-      <h2 id="plan-heading">This evening</h2>
-      {lead ? <p>{lead}</p> : null}
-      {plan.stops.length > 0 ? (
-        <ol>
-          {plan.stops.map((stop) => (
-            <li key={stop.position}>
-              <h3>{`${stop.position}. ${stop.name}`}</h3>
-              <p>{stop.explanation}</p>
-              <p>
-                {stop.hours_status === "unknown"
-                  ? "Opening hours were not listed."
-                  : "Opening hours cover this arrival."}
-              </p>
-              {stop.unknown_fields.includes("price") ? <p>Price was not listed.</p> : null}
-              {stop.evidence.length > 0 ? (
-                <ul>
-                  {stop.evidence.map((item) => (
-                    <li key={`${item.source}-${item.retrieved_at}-${item.text}`}>
-                      {SOURCE_LABEL[item.source]}: {item.text}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {stop.warnings.filter(visibleWarning).map((note) => (
-                <p key={note}>{note}</p>
-              ))}
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      {plan.transition ? (
-        <p>
-          Travel time is not verified. <a href={plan.transition.directions_url}>Directions</a>
-        </p>
-      ) : null}
-      {notes.map((note) => (
-        <p key={note}>{note}</p>
-      ))}
-    </section>
-  );
 }

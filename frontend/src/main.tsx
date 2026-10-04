@@ -12,6 +12,6 @@ if (!root) {
 }
 
 const layout = new URLSearchParams(window.location.search).get("layout");
-const earlierPlanner = layout === "sample" || layout === "planner";
+const earlierPlanner = layout === "planner";
 
 createRoot(root).render(earlierPlanner ? <App /> : <Landing />);

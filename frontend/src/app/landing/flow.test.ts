@@ -4,10 +4,14 @@ import {
   activeFollowUp,
   applyLocalTime,
   budgetIssue,
+  busynessStatus,
   canFindPlan,
   moveIntent,
+  needsAnotherSearch,
   partySizeIssue,
   preferenceIssue,
+  priceStatus,
+  ratingStatus,
   restorePrompt,
   shouldResolve,
   visibleWarning,
@@ -106,6 +110,33 @@ describe("planning flow", () => {
     expect(budgetIssue("40", "")).toMatch(/together/);
     expect(budgetIssue("40", "USD")).toBeNull();
     expect(preferenceIssue("quiet")).toBeNull();
+  });
+
+  it("reuses a plan when only preferences change", () => {
+    const proposed = { ...brief, preferences: ["quiet"], local_date: "2026-10-05" as const };
+    const current = { ...brief, local_date: "2026-10-05" as const };
+    expect(needsAnotherSearch(current, proposed)).toBe(false);
+    expect(needsAnotherSearch(current, { ...current, local_start: "20:00:00" })).toBe(true);
+    expect(needsAnotherSearch(current, { ...current, destination_text: "Osaka" })).toBe(true);
+  });
+
+  it("does not treat a missing price, rating, or crowd listing as a live fact", () => {
+    const missing = {
+      price: null,
+      busyness: "unknown" as const,
+      rating: null,
+      unknown_fields: ["price", "popular_times"],
+      hours_status: "unknown" as const,
+    };
+    expect(priceStatus(missing)).toBe("Price was not listed.");
+    expect(busynessStatus(missing)).toBe("Busyness was not listed.");
+    expect(ratingStatus(missing)).toBe("A rating was not listed.");
+    expect(priceStatus({ ...missing, price: "$$", unknown_fields: ["popular_times"] })).toMatch(
+      /not a live quote/,
+    );
+    expect(busynessStatus({ ...missing, busyness: "listed", unknown_fields: ["price"] })).toMatch(
+      /not a live crowd/,
+    );
   });
 
   it("hides stand-in plan notes", () => {

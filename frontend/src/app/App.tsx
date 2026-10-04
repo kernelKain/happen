@@ -16,7 +16,6 @@ import {
 import { formatClock, labelFor, moveItem } from "../lib/labels";
 import { errorTitle, fieldLabel } from "../lib/resultStates";
 import { MomentResult } from "./result/MomentResult";
-import { SAMPLE_RESULT } from "./result/sample";
 
 type ShellState =
   | { status: "loading" }
@@ -51,8 +50,6 @@ export function App() {
   const [draft, setDraft] = useState<CanonicalPreset>(LOCAL_PRESET);
   const [journey, setJourney] = useState<JourneyState>({ status: "idle" });
   const statusId = useId();
-  const sampleLayout = new URLSearchParams(window.location.search).get("layout") === "sample";
-
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey retries metadata
   useEffect(() => {
     let active = true;
@@ -330,16 +327,7 @@ export function App() {
           }}
         />
       ) : null}
-      {journey.status === "idle" && sampleLayout ? (
-        <MomentResult
-          result={SAMPLE_RESULT}
-          sample
-          onStartOver={() => {
-            window.location.assign("/");
-          }}
-        />
-      ) : null}
-      {journey.status !== "result" && !(journey.status === "idle" && sampleLayout) ? (
+      {journey.status !== "result" ? (
         <section className="matrix-frame" aria-labelledby="matrix-heading">
           <div className="matrix-heading">
             <h2 id="matrix-heading">Tonight&apos;s moment</h2>

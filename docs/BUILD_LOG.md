@@ -720,3 +720,23 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - A follow-up answer keeps the visitor's original prompt on the page.
 - An error that says a fixture exists is not turned into a button.
 
+## Present and refine live evening plans
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: After Find the plan, the evening is a vertical timeline of at most two stops. Each stop shows why it fits, the planned local arrival, hours, price, busyness, rating, confidence, and the retrieval time. Missing price, busyness, and rating stay unknown and are not treated as live facts. Official, Maps, and community evidence are separate and stay behind Show evidence. A natural-language change shows an added, removed, and changed diff. Apply and Cancel are explicit. The current timeline stays up while the change is prepared. Apply reuses that timeline when the destination, date, and intents are unchanged. Quota, timeout, unexpected failure, no results, and incomplete evidence stay on the page. `?layout=sample` opens the landing.
+- Product behavior changed: yes. The old winner layout is no longer a normal page. `?layout=planner` remains the earlier planner.
+- Cost changed: Apply can start a new place search when the destination, date, or intents change. A preference-only change does not. Tests mock the network. This step did not make a live provider call.
+
+### Evidence
+
+- Component tests cover a two-stop timeline, closed evidence, known and missing price, busyness, and rating, a partial evening, no results, insufficient evidence, and a refinement that can be cancelled or applied without a second search.
+- Playwright covers the timeline at 1280×800, evidence disclosure, a partial plan at review time, an unexpected failure, quota, and `?layout=sample` at 390×844.
+- Frontend `npm run check`, `npm test` (40), `npm run build`, and `npm run test:shell` (25) passed. The itinerary unit tests passed after the plan response gained price, busyness, and rating.
+
+### Decisions
+
+- A listed price, rating, or busyness is described as a retrieved listing. It is not described as a live quote or a live crowd.
+- The second stop does not receive an invented arrival time. Travel time stays unverified.
+- The old sample winner is not linked from the landing and is not served at `?layout=sample`.
+

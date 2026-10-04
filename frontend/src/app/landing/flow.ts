@@ -162,3 +162,110 @@ export function outcomeLead(
   }
   return null;
 }
+
+/** Another place search is needed only when the destination, date, time, or intents change. */
+export function needsAnotherSearch(current: PlanningBrief, proposed: PlanningBrief): boolean {
+  return searchKey(current) !== searchKey(proposed);
+}
+
+function searchKey(brief: PlanningBrief): string {
+  const intents = brief.intents.map((item) => `${item.position}:${item.kind}`).join(",");
+  return [
+    brief.destination_text?.trim() ?? "",
+    brief.local_date ?? "",
+    clockForInput(brief.local_start),
+    intents,
+  ].join("|");
+}
+
+type StatusStop = {
+  price?: string | null;
+  busyness?: "listed" | "unknown";
+  rating?: number | null;
+  unknown_fields: string[];
+  hours_status: "open" | "unknown";
+};
+
+/** A listed price stays tied to the retrieval. A missing price is not a recommendation. */
+export function priceStatus(stop: StatusStop): string {
+  if (stop.price && !stop.unknown_fields.includes("price")) {
+    return `Price listed: ${stop.price}. That listing is from the retrieval, not a live quote.`;
+  }
+  return "Price was not listed.";
+}
+
+/** Popular times are a listing, never a live crowd count. */
+export function busynessStatus(stop: StatusStop): string {
+  if (stop.busyness === "listed" && !stop.unknown_fields.includes("popular_times")) {
+    return "Busyness was listed. It is not a live crowd count.";
+  }
+  return "Busyness was not listed.";
+}
+
+/** A rating is shown only when the retrieval included one. */
+export function ratingStatus(stop: StatusStop): string {
+  if (typeof stop.rating === "number" && !stop.unknown_fields.includes("rating")) {
+    return `A rating of ${stop.rating} was listed. It is not a live measure.`;
+  }
+  return "A rating was not listed.";
+}
+
+export function hoursCopy(stop: StatusStop): string {
+  if (stop.hours_status === "open") {
+    return "Opening hours cover this arrival.";
+  }
+  return "Opening hours were not listed.";
+}
+
+export function confidenceCopy(value: "high" | "medium" | "low"): string {
+  if (value === "high") {
+    return "Confidence is high.";
+  }
+  if (value === "medium") {
+    return "Confidence is medium.";
+  }
+  return "Confidence is low.";
+}
+
+export function arrivalCopy(position: number, localStart: string, timezone: string | null): string {
+  const clock = clockForInput(localStart);
+  const zone = timezone ? ` (${timezone})` : "";
+  if (position === 1) {
+    return `Planned arrival ${clock}${zone}.`;
+  }
+  return `A separate arrival was not planned. The evening starts at ${clock}${zone}.`;
+}
+
+export function retrievalCopy(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return `Retrieved ${value}.`;
+  }
+  const stamp = parsed
+    .toISOString()
+    .replace("T", " ")
+    .replace(".000Z", " UTC")
+    .replace("Z", " UTC");
+  return `Retrieved ${stamp}.`;
+}
+
+export function evidenceShape(
+  plan: {
+    outcome: "planned" | "no_results" | "insufficient_evidence";
+    stops: { hours_status: "open" | "unknown" }[];
+    warnings: string[];
+  },
+  intentCount: number,
+): "planned" | "partial" | "insufficient" | "none" {
+  if (plan.outcome === "no_results") {
+    return "none";
+  }
+  if (plan.outcome === "insufficient_evidence") {
+    return "insufficient";
+  }
+  const thin =
+    plan.stops.length < intentCount ||
+    plan.stops.some((stop) => stop.hours_status === "unknown") ||
+    plan.warnings.some((note) => /did not respond|allowance stopped|No open place/i.test(note));
+  return thin ? "partial" : "planned";
+}

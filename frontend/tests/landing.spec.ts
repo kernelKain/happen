@@ -70,15 +70,30 @@ const eveningPlan = {
       latitude: 35.01,
       longitude: 135.77,
       maps_link: "https://maps.example/kura",
-      website: null,
+      website: "https://kura.example",
       confidence: "high",
       hours_status: "open",
+      price: "$$",
+      busyness: "listed",
+      rating: 4.6,
       explanation: "Maps hours cover 19:00 on 2026-10-05.",
       evidence: [
+        {
+          source: "official",
+          text: "The dining room is open this evening.",
+          url: "https://kura.example",
+          retrieved_at: "2026-10-04T12:00:00Z",
+        },
         {
           source: "maps",
           text: "monday: 17:00-22:00",
           url: "https://maps.example/kura",
+          retrieved_at: "2026-10-04T12:00:00Z",
+        },
+        {
+          source: "community",
+          text: "Neighbors mention a quiet room.",
+          url: null,
           retrieved_at: "2026-10-04T12:00:00Z",
         },
       ],
@@ -117,7 +132,12 @@ test("plans an evening from the keyboard at desktop width", async ({ page }) => 
   expect(calls.filter((url) => url.includes("/api/v2/plans"))).toHaveLength(0);
   await page.getByRole("button", { name: "Find the plan" }).click();
   await expect(page.getByRole("heading", { name: "This evening" })).toBeVisible();
-  await expect(page.getByText("Kura")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1. Kura" })).toBeVisible();
+  await expect(page.getByText(/Price listed: \$\$/)).toBeVisible();
+  await expect(page.getByText("Neighbors mention a quiet room.")).toHaveCount(0);
+  await page.getByRole("button", { name: "Show evidence" }).click();
+  await expect(page.getByText("Neighbors mention a quiet room.")).toBeVisible();
+  await expect(page.getByText("Community statements are not live facts.")).toBeVisible();
   expect(calls.filter((url) => url.includes("/api/v2/plans"))).toHaveLength(1);
   await expect(page.getByText("Project repository")).toHaveCount(0);
   await expect(page.getByText(/fixture|captured evidence/i)).toHaveCount(0);
@@ -273,6 +293,131 @@ test("shows a quota failure without a stand-in plan", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("search allowance");
   await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
   await expect(page.getByText(/fixture|captured evidence|sample plan/i)).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("keeps a partial plan visible while a change is reviewed", async ({ page }) => {
+  let plans = 0;
+  await page.route("**/api/v2/**", async (route) => {
+    const url = route.request().url();
+    if (url.includes("/briefs/interpret")) {
+      await fulfill(route, {
+        outcome: "ready_for_retrieval",
+        brief,
+        destination: null,
+        stops: [],
+        follow_up: null,
+        warnings: [],
+      });
+      return;
+    }
+    if (url.includes("/destinations/resolve")) {
+      await fulfill(route, resolved);
+      return;
+    }
+    if (url.includes("/plans/refine")) {
+      await fulfill(route, {
+        version: "2",
+        applied: false,
+        current: brief,
+        proposed: { ...brief, preferences: ["quiet"] },
+        follow_up: null,
+        diff: {
+          added: ["preferences"],
+          removed: [],
+          changed: [],
+        },
+        message: "The current plan was not changed.",
+      });
+      return;
+    }
+    if (url.includes("/plans")) {
+      plans += 1;
+      await fulfill(route, {
+        ...eveningPlan,
+        warnings: ["No open place matched walk."],
+        stops: [
+          {
+            ...eveningPlan.stops[0],
+            hours_status: "unknown",
+            confidence: "low",
+            price: null,
+            busyness: "unknown",
+            rating: null,
+            unknown_fields: ["price", "popular_times"],
+          },
+        ],
+      });
+      return;
+    }
+    throw new Error(url);
+  });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Describe the evening" }).fill(original);
+  await page.getByRole("button", { name: "Plan this evening" }).click();
+  await page.getByRole("button", { name: "Find the plan" }).click();
+  await expect(page.getByText("The evidence for this evening is incomplete.")).toBeVisible();
+  await expect(page.getByText("Price was not listed.")).toBeVisible();
+  await expect(page.getByText("Busyness was not listed.")).toBeVisible();
+  await page.getByLabel("Change this evening").fill("Prefer a quiet room");
+  await page.getByRole("button", { name: "Review this change" }).click();
+  await expect(page.getByRole("heading", { name: "Review the change" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "1. Kura" })).toBeVisible();
+  await expect(page.getByRole("status")).toHaveCount(0);
+  expect(plans).toBe(1);
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("heading", { name: "Review the change" })).toHaveCount(0);
+  await page.getByLabel("Change this evening").fill("Prefer a quiet room");
+  await page.getByRole("button", { name: "Review this change" }).click();
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByRole("heading", { name: "1. Kura" })).toBeVisible();
+  expect(plans).toBe(1);
+  await expectNoSeriousViolations(page);
+});
+
+test("shows an unexpected failure without replacing a missing plan", async ({ page }) => {
+  await page.route("**/api/v2/**", async (route) => {
+    const url = route.request().url();
+    if (url.includes("/briefs/interpret")) {
+      await fulfill(route, {
+        outcome: "ready_for_retrieval",
+        brief,
+        destination: null,
+        stops: [],
+        follow_up: null,
+        warnings: [],
+      });
+      return;
+    }
+    if (url.includes("/destinations/resolve")) {
+      await fulfill(route, resolved);
+      return;
+    }
+    await fulfill(
+      route,
+      {
+        request_id: "req-500",
+        contract_version: "2",
+        error: {
+          code: "UNEXPECTED",
+          message: "The plan could not be prepared.",
+          retryable: true,
+          next_action: "Try again.",
+          fixture_available: false,
+        },
+      },
+      500,
+    );
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Describe the evening" }).fill(original);
+  await page.getByRole("button", { name: "Plan this evening" }).click();
+  await page.getByRole("button", { name: "Find the plan" }).click();
+  await expect(page.getByRole("alert")).toContainText("Something unexpected happened.");
+  await expect(page.getByRole("heading", { name: "This evening" })).toHaveCount(0);
+  await expect(page.getByText(/fixture|captured evidence/i)).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });
 

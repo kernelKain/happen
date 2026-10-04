@@ -281,11 +281,76 @@
   gap: 0.5rem;
 }
 
-.plan ol {
+.plan ol,
+.timeline {
   margin: 0;
-  padding-left: 1.25rem;
+  padding: 0 0 0 1.25rem;
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
+}
+
+.timeline {
+  list-style: none;
+  border-left: 1px solid var(--line);
+}
+
+.timeline li {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.evidence,
+.diff,
+.refine {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.evidence section {
+  display: grid;
+  gap: 0.35rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-official {
+  border-left: 3px solid var(--brass);
+  padding-left: 0.75rem;
+}
+
+.evidence-maps {
+  border-left: 3px solid var(--muted);
+  padding-left: 0.75rem;
+}
+
+.evidence-community {
+  border-left: 3px solid var(--focus);
+  padding-left: 0.75rem;
+}
+
+.diff,
+.refine {
+  padding: 1rem;
+  background: #17211d;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+}
+
+.refine textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  font: inherit;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.stop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .plan ul {
