@@ -37,6 +37,9 @@ test("a sample query stays on the landing", async ({ page }) => {
   await expect(page.getByText("Courtyard Lantern")).toHaveCount(0);
   await expect(page.getByText("Layout sample")).toHaveCount(0);
   await expect(page.getByText("Recommended")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Use captured evidence" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Project repository" })).toHaveCount(0);
+  await expect(page.getByText("Indiranagar")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });
 

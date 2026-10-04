@@ -740,3 +740,24 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The second stop does not receive an invented arrival time. Travel time stays unverified.
 - The old sample winner is not linked from the landing and is not served at `?layout=sample`.
 
+## Remove demo-only production paths
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: The customer page is only the landing. A layout query does not open a planner or a sample winner. The page has no captured-evidence action, no repository link, and no neighbourhood preset. Production does not mount `POST /api/v1/demo-recommendations` or `POST /api/v1/recommendations`. Production metadata does not publish that preset, a fixed timezone, or fixture availability. A live failure says to try again and does not name captured evidence. Captured fixture files stay in the repository for tests. Development still mounts the historical routes so those tests can replay them. `render.yaml` tracks `main`, enables live mode, and keeps `SERPAPI_API_KEY` as a dashboard secret with no value in the file.
+- Product behavior changed: yes. Deployed production cannot return a captured recommendation. This step did not deploy.
+- Cost changed: no. Tests use fixtures and mocks. This step did not call SerpApi.
+
+### Evidence
+
+- A production contract test checks that both historical recommendation routes return HTTP 404, that the error does not offer a fixture, and that metadata omits the preset and the fixed timezone.
+- Development live-recommendation tests still require an honest failure and now require the next action to omit captured evidence.
+- Playwright checks `/?layout=sample`, `/?layout=planner`, and `/` at 1280 and 390. None of them request the historical routes or show a fixture result.
+- Backend `uv run pytest` passed, 230 tests. Frontend `npm test` passed, 40 tests. `npm run build` and `npm run test:shell` passed, 15 Playwright tests. The production bundle does not contain the demo route, the captured-evidence action, the repository link, or the neighbourhood preset.
+
+### Decisions
+
+- The historical routes stay in the development process so fixture replay tests keep their assertions.
+- Production cannot turn those routes back on with a request flag.
+- Health may still report that the fixture file verifies. That status is not a plan.
+

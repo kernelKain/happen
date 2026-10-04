@@ -1,121 +1,51 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-const meta = {
-  contract_version: "1.0.0",
-  service_version: "0.1.0",
-  supported_neighborhoods: ["indiranagar"],
-  supported_categories: ["restaurants"],
-  supported_experiences: ["easier_conversation"],
-  priority_dimensions: ["conversation", "short_wait", "seating"],
-  canonical_preset: {
-    neighborhood: "indiranagar",
-    restaurant_category: "restaurants",
-    arrival_start: "18:00",
-    arrival_end: "21:00",
-    desired_experience: "easier_conversation",
-    priorities: ["conversation", "short_wait", "seating"],
-  },
-  fixture_available: false,
-  live_available: false,
-  model_status: "not_loaded",
-  scoring_policy_version: "v1",
-  timezone: "Asia/Kolkata",
-};
-
 test.beforeEach(async ({ page }) => {
+  await page.route("**/api/v1/meta", async (route) => {
+    throw new Error(`unexpected metadata request ${route.request().url()}`);
+  });
   await page.route("**/api/v1/recommendations", async (route) => {
     throw new Error(`unexpected recommendation request ${route.request().url()}`);
   });
+  await page.route("**/api/v1/demo-recommendations", async (route) => {
+    throw new Error(`unexpected fixture request ${route.request().url()}`);
+  });
 });
 
-test("shows the planner after metadata loads", async ({ page }) => {
-  let release = () => undefined;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await page.route("**/api/v1/meta", async (route) => {
-    await gate;
-    await route.fulfill({ json: meta });
-  });
-
+test("a layout query stays on the landing", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/?layout=planner");
-  await expect(page.getByRole("status")).toContainText("Checking the Happen service");
-  release();
-  await expect(page.getByRole("heading", { name: "Happen" })).toBeVisible();
-  await expect(page.getByLabel("Neighbourhood")).toHaveValue("indiranagar");
-  await expect(page.getByRole("button", { name: "Find the moment" })).toBeEnabled();
-  await expect(page.getByText("Synthetic fixture", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText(
-      "Find the moment scores the synthetic fixture. It does not run until you choose it.",
-    ),
-  ).toBeVisible();
-  await expect(page.getByText("Planning evidence—not live occupancy.")).toBeVisible();
-  await expectNoHorizontalOverflow(page);
+  for (const target of ["/?layout=sample", "/?layout=planner", "/"]) {
+    await page.goto(target);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "One evening, held to two stops.",
+    );
+    await expect(page.getByRole("button", { name: "Plan this evening" })).toBeVisible();
+    await expect(page.getByLabel("Neighbourhood")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Find the moment" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Use captured evidence" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Restore demo preset" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Project repository" })).toHaveCount(0);
+    await expect(page.getByText("Courtyard Lantern")).toHaveCount(0);
+    await expect(page.getByText("Synthetic fixture")).toHaveCount(0);
+    await expect(page.getByText("Indiranagar")).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+  }
+  await expectNoSeriousViolations(page);
 });
 
-test("keeps the planner usable at 390 pixels", async ({ page }) => {
-  await page.route("**/api/v1/meta", async (route) => {
-    await route.fulfill({ json: meta });
-  });
+test("the landing stays usable at 390 pixels without a demo preset", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?layout=planner");
-  await expect(page.getByRole("button", { name: "Restore demo preset" })).toBeVisible();
-  await page.getByLabel("Arrival from").fill("19:00");
-  await page.getByRole("button", { name: "Restore demo preset" }).focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByLabel("Arrival from")).toHaveValue("18:00");
-  await page.getByRole("button", { name: "Move Shorter waiting earlier" }).click();
-  await expect(page.getByRole("listitem").nth(0)).toContainText("Shorter waiting");
+  await expect(page.getByRole("textbox", { name: "Describe the evening" })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Dinner in Kyoto tomorrow at 7, then a short walk." })
+    .click();
+  await expect(page.getByRole("textbox", { name: "Describe the evening" })).toHaveValue(
+    "Dinner in Kyoto tomorrow at 7, then a short walk.",
+  );
+  await expect(page.getByText("Indiranagar")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
-});
-
-test("shows a service error with retry and no invented result", async ({ page }) => {
-  let available = false;
-  await page.route("**/api/v1/meta", async (route) => {
-    if (!available) {
-      await route.abort();
-      return;
-    }
-    await route.fulfill({ json: meta });
-  });
-  await page.goto("/?layout=planner");
-  await expect(page.getByRole("alert")).toContainText("The Happen service is unavailable");
-  await expect(page.getByRole("heading", { name: "Happen" })).toBeVisible();
-  await expect(page.getByText("Nothing has been recommended yet.")).toBeVisible();
-  available = true;
-  await page.getByRole("button", { name: "Retry" }).click();
-  await expect(page.getByLabel("Neighbourhood")).toHaveValue("indiranagar");
-  await expect(page.getByRole("alert")).toHaveCount(0);
-});
-
-test("disables submission when the contract major version differs", async ({ page }) => {
-  await page.route("**/api/v1/meta", async (route) => {
-    await route.fulfill({ json: { ...meta, contract_version: "2.0.0", model_status: "ready" } });
-  });
-  await page.goto("/?layout=planner");
-  await expect(page.getByRole("alert")).toContainText("A new version is available");
-  await expect(page.getByRole("button", { name: "Find the moment" })).toBeDisabled();
-  await expect(page.getByLabel("Neighbourhood")).toBeDisabled();
-});
-
-test("initial and error states have no serious accessibility violations", async ({ page }) => {
-  await page.route("**/api/v1/meta", async (route) => {
-    await route.fulfill({ json: meta });
-  });
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/?layout=planner");
-  await expect(page.getByLabel("Neighbourhood")).toHaveValue("indiranagar");
-  await expectNoSeriousViolations(page);
-
-  await page.unroute("**/api/v1/meta");
-  await page.route("**/api/v1/meta", async (route) => {
-    await route.abort();
-  });
-  await page.reload();
-  await expect(page.getByRole("alert")).toBeVisible();
   await expectNoSeriousViolations(page);
 });
 

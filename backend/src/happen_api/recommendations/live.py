@@ -35,13 +35,13 @@ _PUBLIC_FAILURES = {
     "LIVE_MODE_DISABLED": (
         503,
         "Live evidence is unavailable.",
-        "Use captured evidence, or try again after live evidence is configured.",
+        "Try again after live evidence is configured.",
         False,
     ),
     "SERPAPI_QUOTA_EXHAUSTED": (
         503,
         "Live evidence is unavailable because the search allowance has been reached.",
-        "Use captured evidence. Do not retry until the search allowance is available.",
+        "Try again later.",
         False,
     ),
     "SERPAPI_UNAVAILABLE": (

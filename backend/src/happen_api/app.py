@@ -53,8 +53,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.state.settings = resolved
     application.state.started_at = time.monotonic()
-    _, fixture_available = captured_fixture_status()
-    application.state.fixture_available = fixture_available
+    _, fixture_ready = captured_fixture_status()
+    # Production does not advertise a captured fixture as a user-facing fallback.
+    application.state.fixture_available = fixture_ready and resolved.app_env != "production"
     application.state.recommendation_memory = RecommendationMemory()
     application.state.live_guard = LiveGuard(budget=resolved.serpapi_search_budget)
     application.state.excerpt_generate = None
@@ -62,7 +63,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.clock = None
     application.state.monotonic = None
 
-    application.add_middleware(BodyLimitMiddleware, fixture_available=fixture_available)
+    application.add_middleware(
+        BodyLimitMiddleware,
+        fixture_available=bool(application.state.fixture_available),
+    )
     application.add_middleware(RequestContextMiddleware)
     application.add_middleware(
         CORSMiddleware,
@@ -73,8 +77,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         expose_headers=[],
     )
     application.include_router(router)
-    application.include_router(demo_router)
-    application.include_router(live_router)
+    if resolved.app_env != "production":
+        application.include_router(demo_router)
+        application.include_router(live_router)
     application.include_router(plan_router)
     application.add_exception_handler(StarletteHTTPException, http_exception_handler)
     application.add_exception_handler(RequestValidationError, validation_exception_handler)

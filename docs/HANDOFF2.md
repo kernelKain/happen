@@ -10,9 +10,9 @@ The current branch is `global-live-experience`. The current work is the Global L
 
 The planning records, a deterministic prompt parser, and destination resolution are in `backend/src/happen_api/planning/`. A prompt becomes a brief with at most one follow-up. Relative dates stay pending until a destination timezone is known. Destination resolution uses the existing SerpApi client: the free Locations API first, then at most one billed Maps lookup when coordinates are still missing. That lookup shares the eight-request plan budget. Timezones come from coordinates through `timezonefinder` offline, and date arithmetic uses `zoneinfo`. The parser does not load Gemma.
 
-Local Gemma was measured and missed the planning and review gates. Model claims stay off. Find the moment still scores the captured fixture, and it does not load Gemma while claims are off. The deterministic parser remains the planning reader.
+Local Gemma was measured and missed the planning and review gates. Model claims stay off. The customer page does not score a captured fixture. The deterministic parser remains the planning reader.
 
-Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents, reuses inline place evidence, and keeps details, reviews, and at most two web searches inside the same eight billed requests as destination resolution. `POST /api/v2/plans` uses that discovery, then Python selects one or two stops. The existing recommendation route still searches the historical Indiranagar preset. The customer page is the landing composer. It interprets a prompt, shows one follow-up when needed, resolves the destination, and calls place discovery only after Find the plan. The result is a vertical timeline of at most two stops. A later change shows a diff and waits for Apply or Cancel. A change that keeps the destination, date, and intents reuses the plan already on the page. It does not offer a fixture or a sample plan. The earlier planner remains at `?layout=planner`. `?layout=sample` is the landing, not the old winner layout.
+Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents, reuses inline place evidence, and keeps details, reviews, and at most two web searches inside the same eight billed requests as destination resolution. `POST /api/v2/plans` uses that discovery, then Python selects one or two stops. The customer page is the landing composer. It interprets a prompt, shows one follow-up when needed, resolves the destination, and calls place discovery only after Find the plan. The result is a vertical timeline of at most two stops. A later change shows a diff and waits for Apply or Cancel. A change that keeps the destination, date, and intents reuses the plan already on the page. It does not offer a fixture or a sample plan. A layout query stays on that page. When `APP_ENV` is production, the process does not mount the historical recommendation routes, and metadata does not publish the Indiranagar preset or a fixed timezone. Development still mounts those routes so tests can replay captured fixtures. A live failure does not tell the visitor to use captured evidence.
 
 `global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
 
@@ -22,8 +22,8 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Present and refine live evening plans |
-| Next step | Ask the user to try one evening locally. Leave the v1 routes in place. Do not deploy. |
+| Last finished step | Remove demo-only production paths |
+| Next step | Ask the user to try one evening locally. Do not deploy. |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
@@ -46,7 +46,7 @@ Still open from the walking skeleton, and not the current step:
 
 ## How to run what exists today
 
-The page can be opened. The customer page interprets one evening, keeps the original wording on an editable brief, and retrieves live places only after Find the plan. If the place, date, or time is missing, it asks one question. An ambiguous destination stays a choice. A failure stays on the page and does not substitute a sample plan. The earlier Indiranagar planner is at `http://127.0.0.1:5173/?layout=planner`, and the labeled sample is at `http://127.0.0.1:5173/?layout=sample`. The API serves health, metadata, `POST /api/v1/demo-recommendations`, and `POST /api/v1/recommendations`. It also serves `POST /api/v2/briefs/interpret`, `POST /api/v2/destinations/resolve`, `POST /api/v2/plans`, and `POST /api/v2/plans/refine`. Metadata reports the captured fixture as available. `model_status` is file integrity: `ready` when the pinned GGUF is present and its checksum matches, otherwise `not_loaded` or `unavailable`. `model_quality` and `model_claims_enabled` are separate. The checked-in report marks the pinned 270M artifact `failed` and leaves claims off. Overall health stays `ok` when the file and the captured fixture are both ready. **Find the moment** scores the captured Indiranagar fixture when live mode is off, without loading Gemma. When live mode is on, it calls SerpApi and does not switch to the fixture unless you choose **Use captured evidence**. A real submit on the earlier planner currently returns three timelines and no winner. `http://127.0.0.1:5173/?layout=sample` opens the landing. The old winner layout is not part of normal navigation.
+The page can be opened. The customer page interprets one evening, keeps the original wording on an editable brief, and retrieves live places only after Find the plan. If the place, date, or time is missing, it asks one question. An ambiguous destination stays a choice. A failure stays on the page and does not substitute a sample plan. A `layout` query does not open another page. The customer page does not link to the repository, show a neighbourhood preset, or offer captured evidence. The API serves health, metadata, `POST /api/v2/briefs/interpret`, `POST /api/v2/destinations/resolve`, `POST /api/v2/plans`, and `POST /api/v2/plans/refine`. A development process also mounts `POST /api/v1/demo-recommendations` and `POST /api/v1/recommendations` so tests can replay fixtures. Production does not mount those routes. `model_status` is file integrity: `ready` when the pinned GGUF is present and its checksum matches, otherwise `not_loaded` or `unavailable`. `model_quality` and `model_claims_enabled` are separate. The checked-in report marks the pinned 270M artifact `failed` and leaves claims off. Overall health stays `ok` when the file and the captured fixture are both ready. Health can report that the fixture file verifies. That report is not a user-facing plan.
 
 Frontend, from the repository root:
 
@@ -66,7 +66,7 @@ uv sync
 uv run uvicorn happen_api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000/healthz` and `http://127.0.0.1:8000/api/v1/meta`. Health returns HTTP 200. `fixture_status` is `ready` and `fixture_available` is true when the captured Indiranagar fixture verifies. `model_status` is `ready` when `ml/.cache/google_gemma-3-270m-it-Q4_K_M.gguf` matches the manifest checksum, and `not_loaded` when that file is absent. `model_quality` is `failed` for that pinned checksum because `ml/reports/model-quality.json` records a missed gate, and `model_claims_enabled` is false. A different checksum is `unmeasured` and also leaves claims off. Overall `status` is `ok` only when the artifact and the fixture are ready. Neither response includes a secret. Stop the server with Ctrl+C.
+Open `http://127.0.0.1:8000/healthz` and `http://127.0.0.1:8000/api/v1/meta`. Health returns HTTP 200. On this default development process, `fixture_status` is `ready` and metadata `fixture_available` is true when the captured fixture file verifies. Production metadata sets `fixture_available` to false and does not publish a neighbourhood or a fixed timezone. `model_status` is `ready` when `ml/.cache/google_gemma-3-270m-it-Q4_K_M.gguf` matches the manifest checksum, and `not_loaded` when that file is absent. `model_quality` is `failed` for that pinned checksum because `ml/reports/model-quality.json` records a missed gate, and `model_claims_enabled` is false. A different checksum is `unmeasured` and also leaves claims off. Overall `status` is `ok` only when the artifact and the fixture file are ready. Neither response includes a secret. `render.yaml` points both services at `main`, turns live mode on, and leaves `SERPAPI_API_KEY` as a dashboard secret. Stop the server with Ctrl+C.
 
 Checks:
 
@@ -108,9 +108,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | The customer page shows a live timeline and reviews a change before replacing it. Failures stay on the page. Gemma claims stay off. |
-| Last finished step | Present and refine live evening plans |
-| Next step | Ask the user to try one evening locally. Leave the v1 routes in place. Do not deploy. |
+| Status | The customer page shows a live timeline. Production does not serve a sample layout, a captured-evidence action, or the historical recommendation routes. Gemma claims stay off. |
+| Last finished step | Remove demo-only production paths |
+| Next step | Ask the user to try one evening locally. Do not deploy. |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -815,3 +815,4 @@ Your side:
 | Happen landing | Done. Customer page is the composer. Earlier planner remains on `?layout=planner`. | `Create the Happen landing experience.` | Nothing. Do not push. |
 | Prompt-led planning | Done. The landing interprets, asks one question, resolves a destination, and retrieves only after Find the plan. | `Build the prompt-led planning flow.` | Nothing. Do not push. |
 | Live timeline and refinement | Done. The result is a two-stop timeline. A change shows a diff before Apply. `?layout=sample` is no longer the old winner. | `Present and refine live evening plans.` | Nothing. Do not push. |
+| Demo paths removed from production | Done. Production does not mount the historical recommendation routes. The customer page has no sample layout or captured-evidence action. | `Remove demo-only production paths.` | Nothing. Do not push. Do not deploy. |

@@ -117,21 +117,33 @@ def meta(request: Request) -> MetaResponse:
     """Return supported planner choices, the preset, and configured service availability."""
 
     settings: Settings = request.app.state.settings
-    _, model_status, quality, claims_enabled, _, fixture_available = dependency_status(settings)
+    _, model_status, quality, claims_enabled, _, fixture_ready = dependency_status(settings)
+    historical = settings.app_env != "production"
     return MetaResponse(
         contract_version=CONTRACT_VERSION,
         service_version=__version__,
-        supported_neighborhoods=list(NEIGHBORHOODS),
-        supported_categories=list(CATEGORIES),
-        supported_experiences=list(EXPERIENCES),
-        priority_dimensions=list(PRIORITIES),
-        canonical_preset=CanonicalPreset.model_validate(CANONICAL_PRESET),
-        fixture_available=fixture_available,
+        supported_neighborhoods=list(NEIGHBORHOODS) if historical else [],
+        supported_categories=list(CATEGORIES) if historical else [],
+        supported_experiences=list(EXPERIENCES) if historical else [],
+        priority_dimensions=list(PRIORITIES) if historical else [],
+        canonical_preset=CanonicalPreset.model_validate(
+            CANONICAL_PRESET
+            if historical
+            else {
+                "neighborhood": "",
+                "restaurant_category": "",
+                "arrival_start": "",
+                "arrival_end": "",
+                "desired_experience": "",
+                "priorities": [],
+            }
+        ),
+        fixture_available=fixture_ready and historical,
         live_available=settings.live_configured,
         model_status=model_status,
         artifact_status=model_status,
         model_quality=quality,
         model_claims_enabled=claims_enabled,
         scoring_policy_version=SCORING_POLICY_VERSION,
-        timezone=TIMEZONE,
+        timezone=TIMEZONE if historical else "",
     )

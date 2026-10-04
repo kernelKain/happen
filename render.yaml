@@ -1,12 +1,13 @@
+# Both services track main. Live retrieval is on.
+# The provider key is entered in the Render dashboard and is not stored in this file.
 # The backend build downloads the pinned public GGUF. That file does not need a Hugging Face token.
 # Move happen-api from 1c-2g to 2c-4g if the first timed live run misses 30 seconds.
-# Point both services at main after live-sponsor merges.
 
 services:
   - type: web
     name: happen-web
     runtime: static
-    branch: live-sponsor
+    branch: main
     autoDeployTrigger: checksPass
     buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
     staticPublishPath: frontend/dist
@@ -31,7 +32,7 @@ services:
     name: happen-api
     runtime: python
     plan: 1c-2g
-    branch: live-sponsor
+    branch: main
     region: singapore
     autoDeployTrigger: checksPass
     healthCheckPath: /healthz
@@ -62,7 +63,7 @@ services:
       - key: MODEL_SHA256
         value: c866c9f113f2e9aa2225c5997ede437392b8fa844ba5db9e4c77e315ffe20800
       - key: HAPPEN_LIVE_ENABLED
-        value: "false"
+        value: "true"
       - key: LOG_LEVEL
         value: info
       - key: SERPAPI_API_KEY
