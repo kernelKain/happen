@@ -316,7 +316,7 @@ GitHub Actions and `render.yaml` are in the working tree. The same checks CI run
 
 The workflow installs the locked backend and frontend, checks formatting, runs the backend tests and frontend unit tests, builds the frontend, and scans tracked files and `frontend/dist` for credential material. It prints a path and a rule name, never a secret value. Browser tests stay local. The Hook characterization test is not in the tree yet; the backend test job will run it when it arrives.
 
-`render.yaml` defines a free static site, `happen-web`, and one Python web service, `happen-api`, on `1c-2g` in Singapore. Both track `walking-skeleton` and deploy only after CI checks pass. The build does not download the model. `HAPPEN_LIVE_ENABLED` is false. Production CORS and `VITE_API_BASE_URL` come from the other service's public HTTPS URL. `SERPAPI_API_KEY` is prompted in the dashboard and is not written in the blueprint.
+`render.yaml` defines a free static site, `happen-web`, and one Python web service, `happen-api`, on `1c-2g` in Singapore. The static site has no region because Render serves it from its CDN. Both track `walking-skeleton` and deploy only after CI checks pass. The build does not download the model. `HAPPEN_LIVE_ENABLED` is false. Production CORS and `VITE_API_BASE_URL` come from the other service's public HTTPS URL. `SERPAPI_API_KEY` is prompted in the dashboard and is not written in the blueprint.
 
 Checks that passed locally:
 

@@ -17,6 +17,8 @@ request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 
 
 def current_request_id() -> str:
+    """Return the active request ID, or generate one when no context is available."""
+
     return request_id_var.get() or uuid4().hex
 
 
@@ -24,9 +26,13 @@ class RequestContextMiddleware:
     """Assign a request ID, add safe headers, and log operational metadata."""
 
     def __init__(self, app: ASGIApp) -> None:
+        """Store the ASGI application to wrap with request context and access logging."""
+
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Add HTTP correlation headers and access logs, then reset the request context."""
+
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -36,6 +42,8 @@ class RequestContextMiddleware:
         status_code = 500
 
         async def send_wrapper(message: Message) -> None:
+            """Capture the response status and add correlation and content-safety headers."""
+
             nonlocal status_code
             if message["type"] == "http.response.start":
                 status_code = int(message["status"])
@@ -64,10 +72,14 @@ class BodyLimitMiddleware:
     """Reject bodies over 16 KB before the application parses them."""
 
     def __init__(self, app: ASGIApp, *, fixture_available: bool) -> None:
+        """Store the wrapped application and fixture availability for rejection responses."""
+
         self.app = app
         self.fixture_available = fixture_available
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Buffer HTTP bodies within the size limit and reject oversized or invalid lengths."""
+
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -94,6 +106,8 @@ class BodyLimitMiddleware:
         sent = False
 
         async def replay() -> Message:
+            """Deliver the buffered request body once, then return empty completed body messages."""
+
             nonlocal sent
             if not sent:
                 sent = True
@@ -104,6 +118,8 @@ class BodyLimitMiddleware:
 
 
 def _too_large(raw_length: str) -> bool:
+    """Report whether Content-Length exceeds the limit or cannot be parsed as an integer."""
+
     try:
         return int(raw_length) > MAX_BODY_BYTES
     except ValueError:
@@ -117,6 +133,8 @@ async def _reject(
     *,
     fixture_available: bool,
 ) -> None:
+    """Send the public HTTP 413 response with the current request ID and fixture status."""
+
     response = error_response(
         status_code=413,
         request_id=current_request_id(),

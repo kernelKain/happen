@@ -68,6 +68,8 @@ def self_check() -> None:
 
 
 def tracked_files() -> list[Path]:
+    """Return absolute paths for Git-tracked files, propagating Git command failures."""
+
     result = subprocess.run(
         ["git", "ls-files", "-z"],
         cwd=ROOT,
@@ -78,6 +80,8 @@ def tracked_files() -> list[Path]:
 
 
 def files_under(path: Path) -> list[Path]:
+    """List a file or all files below a directory, raising if the path does not exist."""
+
     if path.is_file():
         return [path]
     if not path.exists():
@@ -86,6 +90,8 @@ def files_under(path: Path) -> list[Path]:
 
 
 def display_path(path: Path) -> Path:
+    """Use a repository-relative label when possible, preserving paths outside the repository."""
+
     try:
         return path.resolve().relative_to(ROOT)
     except ValueError:
@@ -93,6 +99,8 @@ def display_path(path: Path) -> Path:
 
 
 def findings_in(paths: list[Path]) -> list[str]:
+    """Collect findings from UTF-8 files and apply filename rules to undecodable files."""
+
     found: list[str] = []
     for path in paths:
         label = display_path(path)
@@ -106,6 +114,8 @@ def findings_in(paths: list[Path]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Check scanner rules, scan tracked and extra files, and return one when findings exist."""
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--extra",

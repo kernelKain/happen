@@ -22,6 +22,8 @@ PUBLIC_SETTINGS = {
 
 
 def make_settings(**overrides: object) -> Settings:
+    """Build isolated test settings with overrides and sanitized configuration failures."""
+
     values = {**PUBLIC_SETTINGS, **overrides}
     try:
         return Settings(_env_file=None, **values)
@@ -31,6 +33,8 @@ def make_settings(**overrides: object) -> Settings:
 
 @pytest.fixture
 def settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
+    """Provide default test settings after removing provider credentials from the environment."""
+
     monkeypatch.delenv("SERPAPI_API_KEY", raising=False)
     monkeypatch.delenv("HF_TOKEN", raising=False)
     return make_settings()
@@ -38,6 +42,8 @@ def settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
 
 @pytest.fixture
 def settings_factory(monkeypatch: pytest.MonkeyPatch) -> object:
+    """Provide a settings factory with provider credentials removed from the environment."""
+
     monkeypatch.delenv("SERPAPI_API_KEY", raising=False)
     monkeypatch.delenv("HF_TOKEN", raising=False)
     return make_settings

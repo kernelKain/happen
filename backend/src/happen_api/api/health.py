@@ -79,6 +79,8 @@ def dependency_status() -> tuple[Literal["ok", "degraded"], ModelStatus, Fixture
 
 @router.get("/healthz", response_model=HealthResponse)
 def health(request: Request) -> HealthResponse:
+    """Return process health and uptime without loading model or fixture artifacts."""
+
     status, model_status, fixture_status = dependency_status()
     uptime = time.monotonic() - request.app.state.started_at
     return HealthResponse(
@@ -93,6 +95,8 @@ def health(request: Request) -> HealthResponse:
 
 @router.get("/api/v1/meta", response_model=MetaResponse)
 def meta(request: Request) -> MetaResponse:
+    """Return supported planner choices, the preset, and configured service availability."""
+
     settings: Settings = request.app.state.settings
     _, model_status, _ = dependency_status()
     return MetaResponse(

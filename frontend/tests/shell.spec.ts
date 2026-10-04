@@ -114,6 +114,7 @@ test("initial and error states have no serious accessibility violations", async 
   await expectNoSeriousViolations(page);
 });
 
+/** Assert that an axe audit reports no serious or critical accessibility violations. */
 async function expectNoSeriousViolations(page: import("@playwright/test").Page) {
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter(
@@ -122,6 +123,7 @@ async function expectNoSeriousViolations(page: import("@playwright/test").Page) 
   expect(serious.map((violation) => violation.id)).toEqual([]);
 }
 
+/** Assert that document overflow stays within one pixel of the viewport width. */
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

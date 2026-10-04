@@ -211,7 +211,7 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 
 ### Decisions
 
-- Backend plan is `1c-2g` in Singapore. Measured RSS after generation was 371.8 MB, under 80% of 2 GB. Move to `2c-4g` only if a live timing run misses 30 seconds.
+- Backend plan is `1c-2g` in Singapore. Measured RSS after generation was 371.8 MB, under 80% of 2 GB. Move to `2c-4g` only if a live timing run misses 30 seconds. The static site has no region; Render rejected `region` on a static site.
 - Both services track `walking-skeleton` and use `autoDeployTrigger: checksPass`. Point them at `main` after this branch merges.
 - The first build does not download the model. Health stays HTTP 200 and `degraded`.
 - `HAPPEN_LIVE_ENABLED` is false. `SERPAPI_API_KEY` is dashboard-only. `HF_TOKEN` is omitted because this model file is public.

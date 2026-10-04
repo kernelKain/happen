@@ -50,10 +50,14 @@ ERROR_FIELDS = {"code", "message", "retryable", "next_action", "fixture_availabl
 
 @pytest.fixture
 def client(settings: Settings) -> TestClient:
+    """Create a test client that returns server errors as responses instead of raising them."""
+
     return TestClient(create_app(settings), raise_server_exceptions=False)
 
 
 def test_health_is_degraded_without_loading_the_model(client: TestClient) -> None:
+    """Verify health responds quickly with degraded readiness without importing the model runtime."""
+
     assert "llama_cpp" not in sys.modules
     started = time.perf_counter()
     response = client.get("/healthz")
@@ -74,6 +78,8 @@ def test_health_is_degraded_without_loading_the_model(client: TestClient) -> Non
 
 
 def test_metadata_exposes_the_canonical_preset(client: TestClient) -> None:
+    """Verify metadata matches the locked planner preset, choices, and availability contract."""
+
     response = client.get("/api/v1/meta")
     assert response.status_code == 200
     body = response.json()
@@ -101,6 +107,8 @@ def test_metadata_exposes_the_canonical_preset(client: TestClient) -> None:
 def test_metadata_reports_live_availability_without_the_key(
     settings_factory: Callable[..., Settings],
 ) -> None:
+    """Verify configured live availability is public while the provider key stays private."""
+
     configured = settings_factory(HAPPEN_LIVE_ENABLED=True, SERPAPI_API_KEY="live-key-value")
     live_client = TestClient(create_app(configured))
     response = live_client.get("/api/v1/meta")
@@ -112,6 +120,8 @@ def test_metadata_reports_live_availability_without_the_key(
 
 
 def test_cors_allows_only_the_configured_origin(client: TestClient) -> None:
+    """Verify allowed and denied origins plus the supported preflight methods and headers."""
+
     allowed = client.get("/healthz", headers={"Origin": "http://127.0.0.1:5173"})
     assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
     assert "access-control-allow-credentials" not in allowed.headers
@@ -138,6 +148,8 @@ def test_cors_allows_only_the_configured_origin(client: TestClient) -> None:
 
 
 def test_unknown_path_uses_the_error_envelope(client: TestClient) -> None:
+    """Verify unknown routes return the public error envelope without a traceback."""
+
     response = client.get("/missing")
     assert response.status_code == 404
     body = response.json()
@@ -149,6 +161,8 @@ def test_unknown_path_uses_the_error_envelope(client: TestClient) -> None:
 
 
 def test_oversized_body_is_rejected_before_parsing(client: TestClient) -> None:
+    """Verify oversized requests receive HTTP 413 without reflecting the submitted body."""
+
     response = client.post("/healthz", content=b"x" * (16 * 1024 + 1))
     assert response.status_code == 413
     assert response.json()["error"]["code"] == "REQUEST_TOO_LARGE"
@@ -156,10 +170,14 @@ def test_oversized_body_is_rejected_before_parsing(client: TestClient) -> None:
 
 
 def test_validation_errors_do_not_echo_submitted_values(settings: Settings) -> None:
+    """Verify validation errors identify rejected fields without disclosing their values."""
+
     app = create_app(settings)
 
     @app.post("/example")
     def example(item: ExampleRequest) -> ExampleRequest:
+        """Echo a validated request to exercise rejection of unexpected fields."""
+
         return item
 
     client = TestClient(app)
@@ -177,10 +195,14 @@ def test_unhandled_errors_hide_internals(
     caplog: pytest.LogCaptureFixture,
     settings: Settings,
 ) -> None:
+    """Verify unexpected errors omit exception secrets and paths from responses and logs."""
+
     app = create_app(settings)
 
     @app.get("/boom")
     def boom() -> None:
+        """Raise an exception containing synthetic sensitive details to test error sanitization."""
+
         raise RuntimeError("authorization=live-key-value path=/tmp/model.gguf")
 
     caplog.set_level(logging.ERROR, logger="happen")
@@ -201,6 +223,8 @@ def test_access_log_omits_authorization_header(
     caplog: pytest.LogCaptureFixture,
     settings: Settings,
 ) -> None:
+    """Verify access logs retain the endpoint without recording authorization values."""
+
     app = create_app(settings)
     caplog.set_level(logging.INFO, logger="happen")
     client = TestClient(app)
