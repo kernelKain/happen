@@ -15,6 +15,7 @@ DEST_DIR = ROOT / "ml" / ".cache"
 
 
 def sha256(path: Path) -> str:
+    """Return the file's SHA-256 hex digest, reading it in 1 MiB chunks."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -23,6 +24,7 @@ def sha256(path: Path) -> str:
 
 
 def download(url: str, dest: Path) -> None:
+    """Stream the URL to dest, using HF_TOKEN for authorization when set."""
     request = urllib.request.Request(url, headers={"User-Agent": "happen-model-download"})
     token = os.environ.get("HF_TOKEN", "").strip()
     if token:
@@ -36,6 +38,11 @@ def download(url: str, dest: Path) -> None:
 
 
 def main() -> int:
+    """Ensure the pinned model is cached and matches its checksum and size.
+
+    Return 0 for a valid cached or downloaded file, or delete an invalid
+    download and return 1. File, manifest, and network errors propagate.
+    """
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     filename = manifest["filename"]
     expected = manifest["sha256"]
