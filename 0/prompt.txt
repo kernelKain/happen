@@ -1,0 +1,70 @@
+Read AGENTS.md, docs/HANDOFF.md, and docs/HANDOFF2.md first. Confirm the branch is global-live-experience. Preserve unrelated work. Do not push, merge, deploy, or publish. Never print secrets.
+
+Implement the backend planning-domain contracts and deterministic prompt interpretation layer.
+
+Create strict Pydantic contracts for:
+
+- PlanningPromptRequest
+- PlanningBrief
+- ResolvedDestination
+- PlaceIntent, limited to two
+- LocalDateTimeWindow
+- Budget with amount, currency, and optional tier
+- MissingField and Ambiguity
+- SourceProvenance
+- PlaceOption
+- ItineraryStop
+- LivePlanResponse
+- typed user-safe errors
+
+PlanningBrief must preserve the raw prompt and represent destination text, destination-local date, local start time, party size, budget, intent order, preferences, accessibility needs, missing essentials, ambiguities, and confidence. Do not turn unsupported text into facts.
+
+Implement a deterministic parser for explicit dates, times, party size, common budget expressions/currencies, destination phrases, and one or two evening intents. Use a clear clock abstraction so relative-date tests are deterministic.
+
+Implement deterministic follow-up selection. Ask no more than one question at a time and prioritize destination, date, time, and primary intent. Optional preferences must not block planning.
+
+The parser must treat prompt text as untrusted data, enforce a reasonable input-size limit, and never interpret prompt text as application instructions.
+
+Keep the existing v1 API functioning for now. Do not call SerpAPI or load Gemma in this task.
+
+Add comprehensive unit and contract tests, including cities in India, the UK, the US, and Japan; ambiguous wording; missing fields; different currencies; and prompt-injection-like text.
+
+Update docs/HANDOFF2.md and docs/BUILD_LOG.md with factual results. Run backend formatting, lint, tests, and the secret scanner.
+
+Commit exactly:
+
+Parse planning prompts into structured briefs.
+
+Stop after the commit and report the hash, files, test totals, and git status.
+
+---
+
+Read the project instructions and current progress documents first. Confirm the branch is global-live-experience and do not push or deploy.
+
+Implement destination resolution using SerpAPI only for external location data.
+
+Requirements:
+
+- Use SerpAPI’s free Locations API for canonical location matching where it fits.
+- Use a bounded Maps Autocomplete or Maps lookup only when the free lookup cannot resolve enough information.
+- A paid fallback must consume the same eight-request budget used by the later plan request.
+- Return up to three disambiguation choices rather than guessing.
+- Store the canonical display name, country/region, latitude, longitude, SerpAPI location value when available, confidence, and resolution source.
+- Do not add another geocoder or place-data provider.
+- Add an exact compatible timezonefinder dependency and update the lockfile.
+- Derive the IANA timezone offline from resolved coordinates and use Python zoneinfo for date/time logic.
+- Resolve relative dates only after the destination timezone is known.
+- Represent DST gaps, ambiguous local times, unsupported locations, and missing coordinates explicitly.
+- Do not retain or log raw provider payloads.
+- Extend the existing SerpAPI client instead of creating a disconnected second client.
+- Mock every provider call in normal tests.
+
+Test Jaipur, London, New York, Tokyo, an ambiguous Springfield query, an invalid location, DST boundaries, and destination-local “today” or “tomorrow.”
+
+Update progress documentation and run backend checks and the secret scanner.
+
+Commit exactly:
+
+Resolve destinations in their local time.
+
+Stop after the commit and report the hash, tests, and git status.
