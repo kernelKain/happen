@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from happen_api import __version__
 from happen_api.api.demo import router as demo_router
 from happen_api.api.health import router
+from happen_api.api.plans import router as plan_router
 from happen_api.api.recommendations import router as live_router
 from happen_api.config import Settings, get_settings
 from happen_api.errors import error_response, message_for, public_field_errors
@@ -74,6 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(router)
     application.include_router(demo_router)
     application.include_router(live_router)
+    application.include_router(plan_router)
     application.add_exception_handler(StarletteHTTPException, http_exception_handler)
     application.add_exception_handler(RequestValidationError, validation_exception_handler)
     application.add_exception_handler(Exception, unhandled_exception_handler)

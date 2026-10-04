@@ -652,3 +652,30 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Missing facts stay unknown. They are not filled by translating the provider text.
 - A web result is kept only when the place id, the official domain, or the place name plus locality or address matches. Other pages are ignored.
 
+## Assemble source-backed evening plans
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: Python selects one or two stops from retrieved places and exposes that flow on v2 routes. A refinement returns a proposed brief and a diff. The current brief is not replaced. The v1 recommendation routes stay registered. The page does not call v2 yet.
+- Product behavior changed: yes, for the API. The Indiranagar page is unchanged.
+- Cost changed: no. Tests mock every provider call. No live SerpApi request was made.
+
+### Evidence
+
+- `POST /api/v2/briefs/interpret` reads a prompt into a brief and does not retrieve places.
+- `POST /api/v2/destinations/resolve` uses the existing resolver. Several matches return HTTP 409 with the choices. One Tokyo match at `2026-10-04 22:00` UTC reports local today as `2026-10-05`.
+- `POST /api/v2/plans` discovers places and selects at most one place for each of up to two intents. Definitely closed places are excluded. Unknown hours stay with a warning and low confidence. A missing price or popular-times value does not raise a place. The response explains the stop with official, Maps, and community evidence and the retrieval time. It does not include a numeric score.
+- Two stops include an unverified directions link and no travel duration.
+- `POST /api/v2/plans/refine` returns `applied: false`, the original brief, a validated proposed brief, and a structured diff. It does not call SerpApi.
+- A plan that already spent eight billed requests does not search. A timeout returns HTTP 504. An exhausted allowance returns HTTP 503. Empty and closed-only results stay explicit. Error text does not include a traceback, a model path, or a prompt to use captured evidence.
+- Opening hours are checked against the destination-local date and arrival. At `2026-10-04 22:00` UTC, Monday-morning hours match Tokyo and do not match New York. A Friday `18:00-02:00` interval covers Friday evening and Saturday before `02:00`.
+- Frontend Zod schemas in `frontend/src/lib/api/plan.ts` match these responses. No screen calls them.
+- `uv run pytest` passed, 229 tests. Frontend `npm test` passed, 16 tests. `npm run build` passed.
+
+### Decisions
+
+- Gemma is not asked to select, rank, or invent a place. Selection stays in `happen_api.planning.itinerary`.
+- Travel time is omitted until a source states it. The transition status is `unverified`.
+- Applying a proposal is a later `POST /api/v2/plans` with the proposed brief. That call has its own eight-request allowance. `prior_billed_requests` can carry spend from destination resolution into the same plan.
+- v1 stays until a later cleanup. The historical Indiranagar recommendation route is unchanged.
+
