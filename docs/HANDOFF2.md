@@ -12,7 +12,7 @@ The planning records, a deterministic prompt parser, and destination resolution 
 
 Local Gemma was measured and missed the planning and review gates. Model claims stay off. Find the moment still scores the captured fixture, and it does not load Gemma while claims are off. The deterministic parser remains the planning reader.
 
-Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents, reuses inline place evidence, and keeps details, reviews, and at most two web searches inside the same eight billed requests as destination resolution. `POST /api/v2/plans` uses that discovery, then Python selects one or two stops. The existing recommendation route still searches the historical Indiranagar preset. The page has not moved to these routes yet.
+Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents, reuses inline place evidence, and keeps details, reviews, and at most two web searches inside the same eight billed requests as destination resolution. `POST /api/v2/plans` uses that discovery, then Python selects one or two stops. The existing recommendation route still searches the historical Indiranagar preset. The customer page is now the landing composer. It does not call those routes yet. The earlier planner remains at `?layout=planner`, and the labeled sample remains at `?layout=sample`.
 
 `global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
 
@@ -21,9 +21,9 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. The v2 plan API is in place. The page still uses the v1 Indiranagar flow. The model quality gate failed, so claims stay off. |
-| Last finished step | Assemble source-backed evening plans |
-| Next step | Build the prompt-led screens on the v2 plan routes. Leave the v1 routes in place. |
+| Phase complete | No. The landing page is the customer view. The prompt does not yet become a brief on that page. The model quality gate failed, so claims stay off. |
+| Last finished step | Create the Happen landing experience |
+| Next step | Connect the landing composer to the v2 brief, destination, and plan routes. Leave the v1 routes in place. |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
@@ -46,7 +46,7 @@ Still open from the walking skeleton, and not the current step:
 
 ## How to run what exists today
 
-The page can be opened. The API serves health, metadata, `POST /api/v1/demo-recommendations`, and `POST /api/v1/recommendations`. It also serves `POST /api/v2/briefs/interpret`, `POST /api/v2/destinations/resolve`, `POST /api/v2/plans`, and `POST /api/v2/plans/refine`. The page does not call the v2 routes yet. Metadata reports the captured fixture as available. `model_status` is file integrity: `ready` when the pinned GGUF is present and its checksum matches, otherwise `not_loaded` or `unavailable`. `model_quality` and `model_claims_enabled` are separate. The checked-in report marks the pinned 270M artifact `failed` and leaves claims off. Overall health stays `ok` when the file and the captured fixture are both ready. **Find the moment** scores the captured Indiranagar fixture when live mode is off, without loading Gemma. When live mode is on, it calls SerpApi and does not switch to the fixture unless you choose **Use captured evidence**. A real submit currently returns three timelines and no winner. The labeled winner layout is at `http://127.0.0.1:5173/?layout=sample` while the dev server is running. That sample is not a scored visit.
+The page can be opened. The customer page is a landing composer for one evening. It does not call the API. The earlier Indiranagar planner is at `http://127.0.0.1:5173/?layout=planner`, and the labeled sample is at `http://127.0.0.1:5173/?layout=sample`. The API serves health, metadata, `POST /api/v1/demo-recommendations`, and `POST /api/v1/recommendations`. It also serves `POST /api/v2/briefs/interpret`, `POST /api/v2/destinations/resolve`, `POST /api/v2/plans`, and `POST /api/v2/plans/refine`. Metadata reports the captured fixture as available. `model_status` is file integrity: `ready` when the pinned GGUF is present and its checksum matches, otherwise `not_loaded` or `unavailable`. `model_quality` and `model_claims_enabled` are separate. The checked-in report marks the pinned 270M artifact `failed` and leaves claims off. Overall health stays `ok` when the file and the captured fixture are both ready. **Find the moment** scores the captured Indiranagar fixture when live mode is off, without loading Gemma. When live mode is on, it calls SerpApi and does not switch to the fixture unless you choose **Use captured evidence**. A real submit currently returns three timelines and no winner. The labeled winner layout is at `http://127.0.0.1:5173/?layout=sample` while the dev server is running. That sample is not a scored visit.
 
 Frontend, from the repository root:
 
@@ -56,7 +56,7 @@ npm install
 npm run dev
 ```
 
-Open the local address Vite prints, usually `http://127.0.0.1:5173`. With the API running, the page shows the Indiranagar planner and **Find the moment** scores the captured fixture. Stop it with Ctrl+C.
+Open the local address Vite prints, usually `http://127.0.0.1:5173`. The page is the evening landing. **Plan this evening** keeps the written evening on the page and does not retrieve places. Stop it with Ctrl+C.
 
 Backend, from the repository root:
 
@@ -108,13 +108,13 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | The v2 routes interpret a brief, resolve a destination, assemble one or two stops, and return an unapplied refinement. The page still uses v1. Gemma claims stay off. |
-| Last finished step | Assemble source-backed evening plans |
-| Next step | Build the prompt-led screens on the v2 plan routes. Leave the v1 routes in place. |
+| Status | The customer page is the landing composer. It does not retrieve a plan yet. The v2 routes can interpret, resolve, assemble, and propose a refinement. Gemma claims stay off. |
+| Last finished step | Create the Happen landing experience |
+| Next step | Connect the landing composer to the v2 brief, destination, and plan routes. Leave the v1 routes in place. |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | The page still shows the Indiranagar planner. Render services are still not created, and that deploy is not the current step. |
+| Biggest blocker | The landing composer does not yet send the evening to the plan API. Render services are still not created, and that deploy is not the current step. |
 
 ## How branches and commits work
 
@@ -811,4 +811,5 @@ Your side:
 | Destination resolution | Done. Not on a user-facing route. Provider calls are mocked in tests. | `Resolve destinations in their local time.` | Nothing. Do not push. |
 | Local model quality | Done. Both measured models missed a gate. Claims stay off. | `Measure local model quality for planning.` | Nothing. Do not push. Do not commit a GGUF. |
 | Global place discovery | Done in tests. Used by `POST /api/v2/plans`. Provider calls are mocked. | `Generalize live place discovery.` | Nothing. Do not push. |
-| Source-backed evening plans | Done. v2 routes are live locally. The page still uses v1. Provider calls are mocked. | `Assemble source-backed evening plans.` | Nothing. Do not push. |
+| Source-backed evening plans | Done. v2 routes are live locally. The landing does not call them yet. Provider calls are mocked. | `Assemble source-backed evening plans.` | Nothing. Do not push. |
+| Happen landing | Done. Customer page is the composer. Earlier planner remains on `?layout=planner`. | `Create the Happen landing experience.` | Nothing. Do not push. |

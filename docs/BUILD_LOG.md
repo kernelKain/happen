@@ -679,3 +679,23 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Applying a proposal is a later `POST /api/v2/plans` with the proposed brief. That call has its own eight-request allowance. `prior_billed_requests` can carry spend from destination resolution into the same plan.
 - v1 stays until a later cleanup. The historical Indiranagar recommendation route is unchanged.
 
+## Create the Happen landing experience
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: The customer page is a landing composer for one evening. It has an original mark and wordmark, example evenings, a short explanation, and a compact statement that place evidence comes from live SerpApi results and that Gemma runs locally. Submitting holds the written evening on the page. It does not retrieve places or offer a demo plan.
+- Product behavior changed: yes. `/` is the landing. The earlier planner remains at `?layout=planner`. The labeled sample remains at `?layout=sample`.
+- Cost changed: no. The landing does not call SerpApi.
+
+### Evidence
+
+- The mark is an inline SVG drawn for this page. The wordmark is text.
+- Viewports checked in Playwright: 390×844 and 1280×800. The checks cover keyboard use, an example evening, an empty submit, reduced motion, horizontal overflow, and serious accessibility violations.
+- Component tests cover the promise, the composer, example text, an empty submit, a held evening, and the absence of repository and implementation language.
+- Frontend `npm run check`, `npm test`, and `npm run build` passed.
+
+### Decisions
+
+- The landing does not call the plan API yet. Holding the evening is not a retrieved plan.
+- The earlier Indiranagar planner stays available for its existing checks. It is not the customer page.
+

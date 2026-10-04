@@ -58,7 +58,7 @@ test("scores the preset from the keyboard and can start over", async ({ page }) 
   });
 
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await expect(page.getByRole("button", { name: "Find the moment" })).toBeEnabled();
   await page.getByRole("button", { name: "Find the moment" }).focus();
   await page.keyboard.press("Enter");
@@ -104,7 +104,7 @@ test("shows three timelines and no winner when evidence is insufficient", async 
     });
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await page.getByRole("button", { name: "Find the moment" }).click();
   await expect(page.getByRole("heading", { name: "No moment selected" })).toBeVisible();
   await expect(
@@ -134,7 +134,7 @@ test("keeps the planner inputs when the fixture request fails and retry uses a n
     }
     await route.fulfill({ json: SAMPLE_RESULT });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await page.getByLabel("Arrival from").fill("19:00");
   await page.getByRole("button", { name: "Find the moment" }).click();
   const alert = page.getByRole("alert");
@@ -183,7 +183,7 @@ test("offers captured evidence only after the user chooses it", async ({ page })
       },
     });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await expect(page.getByText("Live evidence", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Find the moment" }).click();
   const alert = page.getByRole("alert");
@@ -203,7 +203,7 @@ test("shows a partial result without hiding unknown intervals", async ({ page })
       json: { ...SAMPLE_RESULT, outcome: "partial_evidence" },
     });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await page.getByRole("button", { name: "Find the moment" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Partial result." })).toBeVisible();
   await expect(page.getByRole("article", { name: "Recommended" })).toContainText(
@@ -236,7 +236,7 @@ test("keeps retry off when the search allowance is exhausted", async ({ page }) 
       },
     });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await page.getByRole("button", { name: "Find the moment" }).click();
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("Search allowance reached");
@@ -263,7 +263,7 @@ test("shows invalid fields and does not offer retry", async ({ page }) => {
       },
     });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await page.getByRole("button", { name: "Find the moment" }).click();
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("These inputs are not valid");
@@ -280,7 +280,7 @@ test("names an unavailable evidence model and retries metadata", async ({ page }
       json: { ...meta, model_status: calls === 1 ? "unavailable" : "not_loaded" },
     });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("The evidence model is unavailable.");
   await expect(alert).toContainText("Retry the connection after the model file is installed.");
@@ -310,7 +310,7 @@ test("opens the evidence methodology from the keyboard and closes it with Escape
       },
     });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await page.getByRole("button", { name: "Find the moment" }).click();
   const trigger = page.getByRole("button", { name: "Why this moment?" });
   await trigger.focus();

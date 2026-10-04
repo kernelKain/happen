@@ -100,9 +100,11 @@ test("shows the selected moment immediately when reduced motion is requested", a
   await expectNoHorizontalOverflow(page);
 });
 
-test("the planner stays empty until the layout sample is requested", async ({ page }) => {
+test("the landing does not show the layout sample", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Nothing has been recommended yet.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "One evening, held to two stops.",
+  );
   await expect(page.getByRole("heading", { name: "Courtyard Lantern" })).toHaveCount(0);
 });
 

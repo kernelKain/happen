@@ -40,7 +40,7 @@ test("shows the planner after metadata loads", async ({ page }) => {
   });
 
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await expect(page.getByRole("status")).toContainText("Checking the Happen service");
   release();
   await expect(page.getByRole("heading", { name: "Happen" })).toBeVisible();
@@ -61,7 +61,7 @@ test("keeps the planner usable at 390 pixels", async ({ page }) => {
     await route.fulfill({ json: meta });
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await expect(page.getByRole("button", { name: "Restore demo preset" })).toBeVisible();
   await page.getByLabel("Arrival from").fill("19:00");
   await page.getByRole("button", { name: "Restore demo preset" }).focus();
@@ -81,7 +81,7 @@ test("shows a service error with retry and no invented result", async ({ page })
     }
     await route.fulfill({ json: meta });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await expect(page.getByRole("alert")).toContainText("The Happen service is unavailable");
   await expect(page.getByRole("heading", { name: "Happen" })).toBeVisible();
   await expect(page.getByText("Nothing has been recommended yet.")).toBeVisible();
@@ -95,7 +95,7 @@ test("disables submission when the contract major version differs", async ({ pag
   await page.route("**/api/v1/meta", async (route) => {
     await route.fulfill({ json: { ...meta, contract_version: "2.0.0", model_status: "ready" } });
   });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await expect(page.getByRole("alert")).toContainText("A new version is available");
   await expect(page.getByRole("button", { name: "Find the moment" })).toBeDisabled();
   await expect(page.getByLabel("Neighbourhood")).toBeDisabled();
@@ -106,7 +106,7 @@ test("initial and error states have no serious accessibility violations", async 
     await route.fulfill({ json: meta });
   });
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/");
+  await page.goto("/?layout=planner");
   await expect(page.getByLabel("Neighbourhood")).toHaveValue("indiranagar");
   await expectNoSeriousViolations(page);
 

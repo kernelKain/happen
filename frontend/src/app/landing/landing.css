@@ -1,0 +1,221 @@
+.landing {
+  --ink: #101614;
+  --paper: #f3efe6;
+  --brass: #e0a45a;
+  --brass-ink: #1b140c;
+  --line: #31423b;
+  --muted: #c9d4ce;
+  --focus: #f2d48a;
+  --danger: #ffd0c8;
+  width: min(68rem, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.25rem 0 4rem;
+  display: grid;
+  gap: 3.5rem;
+  color: var(--paper);
+}
+
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  transform: translateY(-160%);
+  padding: 0.6rem 0.9rem;
+  background: var(--brass);
+  color: var(--brass-ink);
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.skip:focus {
+  transform: none;
+}
+
+.landing-bar {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--paper);
+  flex: none;
+}
+
+.wordmark {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.landing-hero,
+.examples,
+.steps,
+.trust {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.promise h1 {
+  max-width: 12ch;
+  font-size: clamp(2.5rem, 8vw, 4.75rem);
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+}
+
+.promise p,
+.steps li,
+.trust p,
+.held {
+  max-width: 38rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.composer {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #17211d;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+}
+
+.composer label,
+.examples h2,
+.steps h2,
+.trust h2 {
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 8.5rem;
+  font: inherit;
+  padding: 0.85rem 0.9rem;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--ink);
+  color: var(--paper);
+  line-height: 1.5;
+}
+
+.composer textarea::placeholder {
+  color: #8ea099;
+}
+
+.composer button,
+.examples button {
+  min-height: 44px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.composer button {
+  justify-self: start;
+  padding: 0.7rem 1.15rem;
+  border: 0;
+  background: var(--brass);
+  color: var(--brass-ink);
+  font-weight: 600;
+}
+
+.composer-error {
+  margin: 0;
+  color: var(--danger);
+}
+
+.held {
+  margin: 0;
+}
+
+.examples ul,
+.steps ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.examples button {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--paper);
+  line-height: 1.45;
+}
+
+.steps ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.trust {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 1280px) {
+  .landing {
+    width: min(72rem, calc(100% - 4rem));
+    padding-top: 2rem;
+    gap: 5rem;
+  }
+
+  .landing-hero {
+    grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+    gap: 4rem;
+    align-items: end;
+  }
+
+  .composer {
+    padding: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-hero {
+    animation: landing-rise 320ms ease;
+  }
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero {
+    animation: none;
+  }
+
+  .composer button,
+  .examples button {
+    transition: none;
+  }
+}
