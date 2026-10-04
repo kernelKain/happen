@@ -1,0 +1,59 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M449YNASA9XRK6WK415A0SS4",
+  "session_id": "8139fa1d-a298-4685-87a0-02a5b1e7be94",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T20:33:43.093173954Z",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "backend/src/happen_api/planning/itinerary.py",
+    "backend/tests/unit/test_itinerary.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/src/app/App.tsx",
+    "frontend/src/app/landing/Landing.test.tsx",
+    "frontend/src/app/landing/Landing.tsx",
+    "frontend/src/app/landing/flow.test.ts",
+    "frontend/src/app/landing/flow.ts",
+    "frontend/src/app/landing/landing.css",
+    "frontend/src/app/landing/timeline.test.tsx",
+    "frontend/src/app/landing/timeline.tsx",
+    "frontend/src/lib/api/plan.ts",
+    "frontend/src/main.tsx",
+    "frontend/tests/landing.spec.ts",
+    "frontend/tests/result.spec.ts"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high-fast",
+  "turn_id": "2dcbc06fb474",
+  "checkpoint_transcript_start": 408,
+  "transcript_lines_at_start": 408,
+  "compact_transcript_start": 33,
+  "session_metrics": {
+    "turn_count": 8,
+    "context_tokens": 248214,
+    "context_window_size": 256000
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T20:33:42.90701975Z",
+    "agent_lines": 1084,
+    "agent_removed": 162,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1084,
+    "total_lines_changed": 1246,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
