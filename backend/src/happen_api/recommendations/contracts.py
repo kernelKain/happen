@@ -101,7 +101,7 @@ class Provenance(BaseModel):
     fixture_version: str
     contract_version: str
     stale: bool
-    data_label: Literal["synthetic_development", "live"]
+    data_label: Literal["synthetic_development", "captured_fixture", "live"]
 
 
 class PublicWindow(BaseModel):

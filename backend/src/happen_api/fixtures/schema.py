@@ -49,7 +49,7 @@ class ExpectedStructure(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     candidate_count: int = Field(ge=1, le=3)
-    labeled_synthetic: Literal[True]
+    labeled_synthetic: bool
 
 
 class FixtureScenario(BaseModel):
@@ -57,14 +57,14 @@ class FixtureScenario(BaseModel):
 
     fixture_id: str = Field(min_length=1, max_length=80)
     schema_version: Literal["1.0.0"]
-    data_label: Literal["synthetic_development"]
+    data_label: Literal["synthetic_development", "captured_fixture"]
     visit_date: date
     timezone: Literal["Asia/Kolkata"]
     captured_at: datetime
     request: FixtureRequest
     places: list[NormalizedPlace] = Field(min_length=1, max_length=3)
     source_urls: list[str] = Field(min_length=1, max_length=6)
-    safe_request_ids: list[str] = Field(min_length=1, max_length=4)
+    safe_request_ids: list[str] = Field(min_length=1, max_length=8)
     attribution: str = Field(min_length=1, max_length=400)
     disclaimer: str = Field(min_length=1, max_length=400)
     expected_structure: ExpectedStructure
@@ -77,13 +77,23 @@ class FixtureScenario(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _synthetic_contract(self) -> FixtureScenario:
+    def _label_contract(self) -> FixtureScenario:
         if self.expected_structure.candidate_count != len(self.places):
             raise ValueError("candidate_count must match the places in the fixture")
-        if "Synthetic" not in self.attribution or "not a SerpApi capture" not in self.attribution:
-            raise ValueError("synthetic fixtures must say they are fictional")
+        if self.expected_structure.labeled_synthetic != (self.data_label == SYNTHETIC_LABEL):
+            raise ValueError("labeled_synthetic must match the fixture data label")
         if LOCKED_DISCLAIMER not in self.disclaimer:
             raise ValueError("disclaimer must include the locked planning sentence")
+        if self.data_label == SYNTHETIC_LABEL:
+            if (
+                "Synthetic" not in self.attribution
+                or "not a SerpApi capture" not in self.attribution
+            ):
+                raise ValueError("synthetic fixtures must say they are fictional")
+        elif "SerpApi" not in self.attribution or "Synthetic" in self.attribution:
+            raise ValueError(
+                "captured fixtures must name SerpApi and must not say they are synthetic"
+            )
         texts = [self.attribution, self.disclaimer]
         for place in self.places:
             texts.append(place.name)
@@ -91,8 +101,14 @@ class FixtureScenario(BaseModel):
                 texts.append(excerpt.text)
                 if excerpt.candidate_id != place.candidate_id:
                     raise ValueError("review excerpts must belong to their candidate")
-                if not excerpt.text.startswith("Synthetic note:"):
+                if self.data_label == SYNTHETIC_LABEL and not excerpt.text.startswith(
+                    "Synthetic note:"
+                ):
                     raise ValueError("synthetic excerpts must be visibly labeled")
+                if self.data_label != SYNTHETIC_LABEL and excerpt.text.startswith(
+                    "Synthetic note:"
+                ):
+                    raise ValueError("captured excerpts must not use the synthetic label")
         lowered = "\n".join(texts).casefold()
         if any(phrase in lowered for phrase in _FORBIDDEN_PHRASES):
             raise ValueError("fixture copy must not claim live conditions")
@@ -137,7 +153,7 @@ class LoadedFixture(BaseModel):
     fixture_id: str
     fixture_version: str
     schema_version: str
-    data_label: Literal["synthetic_development"]
+    data_label: Literal["synthetic_development", "captured_fixture"]
     checksum: str
     stale: bool
     captured_at: datetime

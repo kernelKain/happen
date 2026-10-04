@@ -415,3 +415,26 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The snapshot cache stores normalized evidence for 15 minutes. Raw provider documents are not cached.
 - `fixture_available` stays false. The demo route remains the only fixture path.
 
+## Canonical fixture capture
+
+- Date: 2026-10-04
+- Queue step: P3.4
+- Result: One live Indiranagar retrieval was sanitized into a checksummed fixture. Replay matched the live decision. The page still uses the synthetic fixture.
+- Product behavior changed: no. Find the moment still scores the synthetic fixture.
+- Cost changed: yes, 4 SerpApi searches
+
+### Evidence
+
+- Places: Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar. Visit date 2026-10-04.
+- Bombay Brasserie has hours, popular times, and three excerpts. Truffles and Chianti have hours and three excerpts, with popular times missing.
+- Outcome of both the live score and the fixture replay: `insufficient_evidence`, no winner. The installed model kept no review spans.
+- Searches recorded: 4. The allowance for this capture was 14. No second live request was sent.
+- `uv run pytest` passed, 115 tests. Ruff passed. The secret scan reported nothing for the fixture.
+- The fixture file does not contain `api_key`, a `username` field, or a `phone` field. The attribution states that reviewer identities and phone numbers are omitted.
+
+### Decisions
+
+- The captured snapshot lives in `backend/data/fixtures/captured/v1/` so the synthetic demo fixture stays the page's source until a later wiring step.
+- Excerpts that contained a phone-number pattern would have been dropped. None of the kept excerpts matched that pattern.
+- Review-source links that point at a contributor profile are replaced with the restaurant's Maps URL. This capture did not need that replacement.
+

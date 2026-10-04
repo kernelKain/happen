@@ -6,7 +6,7 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. `POST /api/v1/recommendations` can score live evidence, and a provider failure stays an error instead of loading the fixture. The page still calls the demo endpoint. No live search was spent. The public Render URL is still missing.
+Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. A sanitized SerpApi snapshot for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar is saved separately and is not wired to the page. Replay of that snapshot matched the live decision: insufficient evidence and no winner. The public Render URL is still missing.
 
 `docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
 
@@ -14,11 +14,11 @@ Find the moment still scores the synthetic fixture. A real submit returns three 
 |---|---|
 | Current phase | Live sponsor Hook |
 | Phase complete | No |
-| Last finished step | Assemble live orchestration and protections |
-| Next step | Capture and verify canonical fixture |
+| Last finished step | Capture and verify canonical fixture |
+| Next step | Evaluate and optionally tune Gemma |
 | Branch | `live-sponsor` |
 | Pull request | https://github.com/kernelKain/happen/pull/5 merged the fixture Hook into `main` at `b5cf7da`. This branch has no pull request yet. |
-| Remote | `origin/main` is at `b5cf7da`. This branch adds the SerpApi client, the candidate normalizer, and the live recommendation route. |
+| Remote | `origin/main` is at `b5cf7da`. This branch adds the SerpApi client, the candidate normalizer, the live recommendation route, and the sanitized Indiranagar fixture. |
 | Live URL | Not deployed |
 
 Still open from the walking skeleton, and not a blocker for local scoring:
@@ -100,9 +100,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the synthetic fixture. The live recommendation route is tested with a fake provider and is not wired to the page. The public URL is still not deployed. |
-| Last finished step | Assemble live orchestration and protections |
-| Next step | Capture and verify canonical fixture |
+| Status | Find the moment scores the synthetic fixture. A sanitized SerpApi snapshot is saved and is not wired to the page. The public URL is still not deployed. |
+| Last finished step | Capture and verify canonical fixture |
+| Next step | Evaluate and optionally tune Gemma |
 | Branch | `live-sponsor` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -457,17 +457,17 @@ Your side after this step: nothing until the live capture. Reply `ok` before any
 
 ### Capture and verify canonical fixture
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor runs one bounded live Indiranagar request, removes reviewer identities, writes the sanitized fixture, and checks that replay matches the live decision.
+One bounded live retrieval saved three restaurants: Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar. The visit date is 2026-10-04. The file is `backend/data/fixtures/captured/v1/scenarios/indiranagar-dinner.json`, with its checksum in that directory's manifest. Reviewer identities and phone numbers are omitted. Raw provider documents were not saved. Scoring the snapshot and scoring the reloaded fixture produced the same decision: `insufficient_evidence` and no winner. The installed model still kept no review spans. The page still scores the synthetic fixture. This capture is not wired to Find the moment.
 
-Your side before Cursor spends credits:
+The provider recorded 4 searches. The plan for this capture and the canonical run allowed 14. No second live request was sent.
 
-1. Reply `ok` to the single live capture. The plan allows up to 14 searches for this capture and the canonical run.
+`uv run pytest` passed, 115 tests. Ruff format and lint passed. The secret scan reported nothing for the fixture and the capture module.
 
-Your side after Cursor finishes:
+Your side after this step:
 
-1. Skim the sanitized fixture for names, keys, or reviewer identities.
+1. Skim `backend/data/fixtures/captured/v1/scenarios/indiranagar-dinner.json` for names, keys, or reviewer identities.
 2. Say if anything private must be removed before it is committed.
 
 ### Evaluate and optionally tune Gemma
@@ -748,8 +748,8 @@ Your side:
 | Matrix UI and fixture Hook proof | Done | `Show the synthetic fixture result from Find the moment.` | Same local check as the fixture Hook proof. |
 | Bounded SerpApi client | Done | `Add a bounded SerpApi client with retries and key redaction.` | Nothing. |
 | Normalize and select candidates | Done | `Normalize provider places into three candidates or an insufficiency result.` | Nothing. |
-| Live orchestration | Done | `Serve live recommendations without substituting fixture evidence.` | Nothing until the live capture. Reply `ok` before any credit is spent. |
-| Capture and verify canonical fixture | Not started | — | Approve the live capture, then skim the fixture. |
+| Live orchestration | Done | `Serve live recommendations without substituting fixture evidence.` | Nothing. |
+| Capture and verify canonical fixture | Done | `Save the sanitized Indiranagar capture and verify its replay matches the live decision.` | Skim the sanitized fixture and say if anything private must be removed. |
 | Evaluate and optionally tune Gemma | Not started | — | Colab T4, then read the scores. |
 | Deploy and smoke the sponsor slice | Not started | — | Deploy and open the public URL. |
 | Result states, evidence, and responsive reveal | Not started | — | Look at the states and the 1280px screen. |

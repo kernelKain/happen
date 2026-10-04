@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Callable
 from datetime import date, datetime
 
@@ -138,6 +139,47 @@ def recommend_live(
         started=started,
         monotonic=monotonic,
     )
+
+
+def fetch_live_evidence(
+    *,
+    settings: Settings,
+    now: datetime,
+    guard: LiveGuard,
+    monotonic: Callable[[], float] | None = None,
+) -> CachedEvidence:
+    """Retrieve one bounded live snapshot. Scoring and storage stay with the caller."""
+
+    if not settings.live_configured:
+        raise _public_failure("LIVE_MODE_DISABLED")
+    clock = monotonic or time.monotonic
+    started = clock()
+    _check_deadline(started, clock)
+    blocked = guard.blocked(started)
+    if blocked is not None:
+        raise _public_failure(blocked)
+    provider_budget = min(_PROVIDER_DEADLINE_SECONDS, _time_left(started, clock))
+    if provider_budget <= 0:
+        raise _public_failure("PROCESSING_TIMEOUT")
+    provider = _provider(settings, guard, provider_budget, None)
+    charged_before = provider.credits_charged
+    try:
+        evidence = _retrieve(
+            provider,
+            visit_date=now.astimezone(KOLKATA).date(),
+            captured_at=now,
+        )
+    except SerpApiFailure as exc:
+        guard.note_failure(exc.code, clock())
+        raise _public_failure(_PROVIDER_CODES.get(exc.code, "SERPAPI_UNAVAILABLE")) from None
+    except RecommendationFailure:
+        raise
+    else:
+        guard.note_success()
+    finally:
+        guard.spend(provider.credits_charged - charged_before)
+        provider.close()
+    return evidence
 
 
 def _retrieve(
