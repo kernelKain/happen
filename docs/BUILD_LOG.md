@@ -71,12 +71,12 @@ The active execution harness is Cursor. When Entire is enabled, select the agent
 
 ### Blockers carried forward
 
-1. `SERPAPI_API_KEY` is now set locally. Resolved on October 4, 2026.
-2. Configure `HF_TOKEN` locally, after Gemma terms are accepted, before a gated download in P0.3.
-3. Read the Render credit balance and current plan price from the Render dashboard before the P0.3 cost decision.
-4. Phase branches replace `build/happen-mvp`. `phase/p0-prove-access` exists.
-5. Run `entire enable` when ready. Runtime proofs take priority over this setup.
-6. Confirm the CodeRabbit GitHub App is installed on this repository. This does not block the runtime proofs.
+1. `SERPAPI_API_KEY` is set locally. Resolved on October 4, 2026.
+2. No `HF_TOKEN` is required for the public GGUF. A free read token is needed only if a later download of official `google/gemma-3-270m-it` weights is rejected as restricted.
+3. Render balance is $50.00. Backend list prices are $25/month for `1c-2g` and $85/month for `2c-4g`, drawn from those credits while a service is running. The free 512 MB web service is too small for the measured model.
+4. Phase branch `phase/p0-prove-access` exists. The next phase branch is created at P1.1.
+5. Run `entire enable` when ready. This does not block the scaffold.
+6. CodeRabbit installation is still unverified. This does not block the scaffold.
 
 ## P0.2 — Prove SerpApi evidence shape
 
@@ -99,3 +99,27 @@ The active execution harness is Cursor. When Entire is enabled, select the agent
 ### Decision
 
 Keep `restaurants in Indiranagar, Bengaluru` as the canonical discovery query. Do not add a cuisine filter. Treat missing popular times as unknown evidence.
+
+## P0.3 — Prove Gemma and Render feasibility
+
+- Date: 2026-10-04
+- Result: local untuned Gemma runs with no token and no model-API fee
+- Product behavior changed: no
+- Cost changed: no money spent. Render prices were checked against the existing $50 credits.
+
+### Evidence
+
+- `google/gemma-3-270m-it` is gated. An anonymous download returned HTTP 401. The user accepted the terms in the browser. That acceptance does not authorize this machine without a token.
+- `bartowski/google_gemma-3-270m-it-GGUF` is public. `google_gemma-3-270m-it-Q4_K_M.gguf` downloaded with no token.
+- Size: 253,115,168 bytes. SHA-256: `c866c9f113f2e9aa2225c5997ede437392b8fa844ba5db9e4c77e315ffe20800`.
+- The file is in `/tmp/happen-models/` and is not in git.
+- Python 3.13.15 and `llama-cpp-python==0.3.36` imported after a source build. PyPI published no wheel for 0.3.36. Native build is the selected path. Docker remains the fallback if Render cannot compile it.
+- Load time: 0.525 seconds. RSS after load: 356.7 MB. RSS after generation: 371.8 MB.
+- Two temperature-0 prompts returned JSON in 2.337 and 2.923 seconds. Exact-span validation rejected every quoted span. The untuned model is usable only behind that validator.
+- Render static sites are free. Free web services have 512 MB and spin down after 15 idle minutes. The model does not fit that plan safely.
+- Web service list prices checked on October 4, 2026: `1c-2g` is $25/month and `2c-4g` is $85/month. $50 of credits covers roughly 60 days or 18 days of continuous uptime. Suspend after judging.
+
+### Decision
+
+Operate on the local quantized 270M model. Do not call a hosted model API. Do not generate a Hugging Face token unless an official-weight download is rejected as restricted. Keep the backend off the free 512 MB plan. Prefer `1c-2g` at deploy time because the measured memory fits, and move to `2c-4g` only if a live timing run misses the 30-second limit.
+
