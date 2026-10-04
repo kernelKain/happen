@@ -1,0 +1,54 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Node and frontend build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+playwright-report/
+test-results/
+blob-report/
+
+# Local Render state
+.render/
+
+# Model binaries, training checkpoints, and local model caches
+*.gguf
+*.safetensors
+ml/checkpoints/
+ml/merged/
+ml/output/
+**/.cache/huggingface/
+
+# Entire local-only settings. Shared settings.json is committed when generated.
+.entire/settings.local.json
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Temporary provider payloads and logs that may contain request data
+tmp/
+.tmp/
+logs/
+*.log
+serpapi-responses/
+backend/data/raw/
