@@ -38,6 +38,7 @@ export const LOCAL_PRESET: CanonicalPreset = {
   priorities: ["conversation", "short_wait", "seating"],
 };
 
+/** Return the numeric first version component, or null when it contains nondigits. */
 export function contractMajor(version: string): number | null {
   const major = version.split(".")[0] ?? "";
   if (!/^\d+$/.test(major)) {
@@ -46,6 +47,7 @@ export function contractMajor(version: string): number | null {
   return Number(major);
 }
 
+/** Return the configured HTTP(S) origin or an empty same-origin prefix; reject invalid URLs. */
 export function apiOrigin(configured = import.meta.env.VITE_API_BASE_URL): string {
   const value = configured?.trim() ?? "";
   if (!value) {
@@ -58,17 +60,20 @@ export function apiOrigin(configured = import.meta.env.VITE_API_BASE_URL): strin
   return url.origin;
 }
 
+/** Build the metadata endpoint URL from the supplied or configured API origin. */
 export function metaUrl(origin = apiOrigin()): string {
   return `${origin}/api/v1/meta`;
 }
 
 type Sleep = (milliseconds: number) => Promise<void>;
 
+/** Resolve after the requested delay without blocking the event loop. */
 const defaultSleep: Sleep = (milliseconds) =>
   new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
   });
 
+/** Fetch and validate metadata with a three-second timeout per attempt and one delayed retry. */
 export async function loadMetadata(
   fetchImpl: typeof fetch = fetch,
   options: { origin?: string; retryDelayMs?: number; sleep?: Sleep } = {},

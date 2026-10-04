@@ -23,6 +23,8 @@ _MANIFEST_PATH = _REPO_ROOT / "ml" / "model-manifest.json"
 
 
 def _model_defaults() -> dict[str, str]:
+    """Read model identity from the manifest, using empty defaults if it is absent."""
+
     if not _MANIFEST_PATH.is_file():
         return {"repo": "", "revision": "", "filename": "", "sha256": ""}
     manifest = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -41,6 +43,8 @@ LogLevel = Literal["debug", "info", "warning", "error"]
 
 
 def _origin(value: str, *, app_env: AppEnv) -> str:
+    """Normalize an exact CORS origin or raise ValueError if the environment forbids it."""
+
     parsed = urlsplit(value.strip())
     if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
         raise ValueError("CORS origin must be an absolute http or https origin")
@@ -95,6 +99,8 @@ class Settings(BaseSettings):
     @field_validator("log_level", mode="before")
     @classmethod
     def lowercase_level(cls, value: object) -> object:
+        """Normalize string log levels before validating the supported values."""
+
         if isinstance(value, str):
             return value.lower()
         return value
@@ -102,6 +108,8 @@ class Settings(BaseSettings):
     @field_validator("model_sha256", mode="before")
     @classmethod
     def lowercase_checksum(cls, value: object) -> object:
+        """Normalize string checksums before validating their hexadecimal format."""
+
         if isinstance(value, str):
             return value.lower()
         return value
@@ -109,6 +117,8 @@ class Settings(BaseSettings):
     @field_validator("cors_allowed_origins")
     @classmethod
     def parse_origins(cls, value: str, info: ValidationInfo) -> str:
+        """Validate and normalize a nonempty comma-separated list of unique origins."""
+
         app_env = info.data.get("app_env")
         if app_env not in {"development", "production"}:
             raise ValueError("APP_ENV must be development or production")
@@ -122,16 +132,22 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def live_mode_requires_key(self) -> Settings:
+        """Reject enabled live mode when the provider key is empty or whitespace."""
+
         if self.happen_live_enabled and not self.serpapi_api_key.get_secret_value().strip():
             raise ValueError("Live mode requires SERPAPI_API_KEY to be configured")
         return self
 
     @property
     def allowed_origins(self) -> tuple[str, ...]:
+        """Return the validated CORS origins as a tuple for middleware configuration."""
+
         return tuple(self.cors_allowed_origins.split(","))
 
     @property
     def live_configured(self) -> bool:
+        """Report whether live mode is enabled with a nonblank provider key."""
+
         return self.happen_live_enabled and bool(self.serpapi_api_key.get_secret_value().strip())
 
 
@@ -140,6 +156,8 @@ class ConfigError(RuntimeError):
 
 
 def safe_config_message(exc: ValidationError) -> str:
+    """Summarize validation locations and messages without including input values."""
+
     parts: list[str] = []
     for error in exc.errors():
         location = ".".join(str(part) for part in error.get("loc", ())) or "configuration"

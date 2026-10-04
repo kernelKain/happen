@@ -9,6 +9,8 @@ SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "scan-secrets.py"
 
 
 def load_scanner():
+    """Import the secret scanner by path so its rules can be exercised without its CLI."""
+
     spec = importlib.util.spec_from_file_location("scan_secrets", SCRIPT)
     assert spec is not None
     assert spec.loader is not None
@@ -18,11 +20,15 @@ def load_scanner():
 
 
 def test_short_test_assignment_is_allowed() -> None:
+    """Verify the scanner permits short synthetic credential assignments used in tests."""
+
     scanner = load_scanner()
     assert scanner.scan_text(Path("tests.py"), 'SERPAPI_API_KEY="live-key-value"') == []
 
 
 def test_long_assignment_is_flagged_without_echoing_the_value() -> None:
+    """Verify long credential assignments produce only a path and rule name."""
+
     scanner = load_scanner()
     secret = "c" * scanner.MIN_ASSIGNMENT_LENGTH
     found = scanner.scan_text(Path("config.env"), f"HF_TOKEN={secret}")

@@ -18,6 +18,8 @@ from happen_api.middleware import BodyLimitMiddleware, RequestContextMiddleware,
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
+    """Build the API with validated settings, request limits, CORS, and error handlers."""
+
     resolved = settings if settings is not None else get_settings()
     configure_logging(resolved.log_level)
     application = FastAPI(
@@ -49,6 +51,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> object:
+    """Translate an HTTP exception into the public error envelope."""
+
     code, message, next_action, retryable = message_for(exc.status_code)
     return error_response(
         status_code=exc.status_code,
@@ -62,6 +66,8 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> object:
+    """Return validation errors with field locations and no submitted values."""
+
     code, message, next_action, retryable = message_for(422)
     return error_response(
         status_code=422,
@@ -76,6 +82,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> object:
+    """Log the exception type and return a generic retryable error response."""
+
     get_logger().error(
         "request failed",
         extra={

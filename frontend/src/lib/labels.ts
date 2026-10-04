@@ -7,10 +7,12 @@ const LABELS: Record<string, string> = {
   seating: "Better seating",
 };
 
+/** Return a display label for a known identifier, preserving unknown identifiers. */
 export function labelFor(value: string): string {
   return LABELS[value] ?? value;
 }
 
+/** Copy and move an item one position; return the original array if the move is invalid. */
 export function moveItem(values: string[], index: number, direction: -1 | 1): string[] {
   const target = index + direction;
   if (target < 0 || target >= values.length) {

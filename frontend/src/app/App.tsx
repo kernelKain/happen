@@ -17,6 +17,7 @@ type ShellState =
 
 const REPOSITORY_URL = "https://github.com/kernelKain/happen";
 
+/** Render the planner and gate editing and submission on service metadata readiness. */
 export function App() {
   const [reloadKey, setReloadKey] = useState(0);
   const [shell, setShell] = useState<ShellState>({ status: "loading" });
@@ -259,6 +260,7 @@ export function App() {
   );
 }
 
+/** Render loading, retry, or refresh guidance for the current service state. */
 function ShellNotice({ shell, onRetry }: { shell: ShellState; onRetry: () => void }) {
   if (shell.status === "loading") {
     return (
@@ -292,6 +294,7 @@ function ShellNotice({ shell, onRetry }: { shell: ShellState; onRetry: () => voi
   return null;
 }
 
+/** Wrap a form control in a label associated with its element ID. */
 function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return (
     <label className="field" htmlFor={id}>
@@ -301,6 +304,7 @@ function Field({ id, label, children }: { id: string; label: string; children: R
   );
 }
 
+/** Describe service readiness and prefer live evidence when both sources are available. */
 function modeLabel(shell: ShellState): string {
   if (shell.status === "loading") {
     return "Checking service";
@@ -320,6 +324,7 @@ function modeLabel(shell: ShellState): string {
   return "Evidence not ready";
 }
 
+/** Explain which evidence sources the ready service reports as available. */
 function evidenceCopy(shell: ShellState): string {
   if (shell.status !== "ready") {
     return "Live and captured evidence can be used only after the service responds.";
@@ -336,6 +341,7 @@ function evidenceCopy(shell: ShellState): string {
   return "Live evidence is off, and captured evidence is not installed.";
 }
 
+/** Explain submission availability from the service contract and model readiness. */
 function submitReason(shell: ShellState): string {
   if (shell.status === "loading") {
     return "Find the moment stays off until the service responds.";
@@ -355,10 +361,12 @@ function submitReason(shell: ShellState): string {
   return "Find the moment uses the service. It does not run until you choose it.";
 }
 
+/** Format the preset arrival window as two display times separated by an en dash. */
 function formatRange(preset: CanonicalPreset): string {
   return `${formatTime(preset.arrival_start)}–${formatTime(preset.arrival_end)}`;
 }
 
+/** Format an HH:mm time using AM or PM, preserving inputs with noninteger parts. */
 function formatTime(value: string): string {
   const [hourText, minuteText] = value.split(":");
   const hour = Number(hourText);

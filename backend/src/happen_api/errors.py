@@ -50,6 +50,8 @@ def error_response(
     fields: list[dict[str, str]] | None = None,
     retry_after_seconds: int | None = None,
 ) -> JSONResponse:
+    """Build a JSON error envelope, omitting absent optional fields and disabling sniffing."""
+
     envelope = ErrorEnvelope(
         request_id=request_id,
         error=ErrorBody(
@@ -120,4 +122,6 @@ MESSAGES: dict[int, tuple[str, str, str, bool]] = {
 
 
 def message_for(status_code: int) -> tuple[str, str, str, bool]:
+    """Return public error details for a status, defaulting to the internal-error details."""
+
     return MESSAGES.get(status_code, MESSAGES[500])

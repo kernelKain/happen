@@ -16,6 +16,8 @@ class SecretRedactionFilter(logging.Filter):
     """Replace values whose field names look like credentials."""
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Redact credential-named fields and nested mappings in place, then retain the record."""
+
         for name, value in list(record.__dict__.items()):
             if _SECRET_FIELD.search(name):
                 setattr(record, name, "[redacted]")
@@ -26,6 +28,8 @@ class SecretRedactionFilter(logging.Filter):
 
 
 def _redact_mapping(value: dict[str, object]) -> dict[str, object]:
+    """Copy a mapping while recursively masking values under credential-like keys."""
+
     redacted: dict[str, object] = {}
     for key, item in value.items():
         if _SECRET_FIELD.search(str(key)):
@@ -51,6 +55,8 @@ class JsonFormatter(logging.Formatter):
     )
 
     def format(self, record: logging.LogRecord) -> str:
+        """Serialize a log record with a UTC timestamp and only allowed operational fields."""
+
         payload: dict[str, object] = {
             "time": datetime.now(UTC).isoformat(),
             "level": record.levelname.lower(),
@@ -63,6 +69,8 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(level: str) -> logging.Logger:
+    """Set the application log level and install a redacting JSON handler if needed."""
+
     logger = logging.getLogger(_LOGGER_NAME)
     logger.setLevel(level.upper())
     if not any(isinstance(item, JsonFormatter) for item in _formatters(logger)):
@@ -75,8 +83,12 @@ def configure_logging(level: str) -> logging.Logger:
 
 
 def _formatters(logger: logging.Logger) -> list[logging.Formatter]:
+    """Return the nonempty formatters attached to the logger’s handlers."""
+
     return [handler.formatter for handler in logger.handlers if handler.formatter is not None]
 
 
 def get_logger() -> logging.Logger:
+    """Return the named application logger without changing its configuration."""
+
     return logging.getLogger(_LOGGER_NAME)

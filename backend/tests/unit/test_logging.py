@@ -9,6 +9,8 @@ from happen_api.logging import JsonFormatter, SecretRedactionFilter
 
 
 def test_redaction_filter_replaces_credential_fields() -> None:
+    """Verify direct and nested credentials are masked while operational log fields survive."""
+
     record = logging.LogRecord(
         name="happen",
         level=logging.INFO,
