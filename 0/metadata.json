@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M42BBJ5T4MF2S8H5000QV5VC",
+  "session_id": "e4b23d82-2415-4eb2-b82b-49355e601a90",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T02:19:45.378517672Z",
+  "branch": "walking-skeleton",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Cursor",
+  "model": "grok-4.7-high",
+  "turn_id": "fee816ad7dce",
+  "compact_transcript_start": 0,
+  "session_metrics": {
+    "context_tokens": 237318,
+    "context_window_size": 256000
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 156,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".agents/hooks.json": 28,
+        ".codex/hooks.json": 88,
+        ".cursor/hooks.json": 40
+      }
+    }
+  ]
+}
