@@ -6,14 +6,14 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-The fixture recommendation API is on `fixture-hook`. Scoring, the synthetic fixture, and extraction are in the same commit. The public Render URL is still missing, and that remains your step.
+Find the moment is connected to the synthetic fixture endpoint on `fixture-hook`. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. Scoring, the synthetic fixture, extraction, and the demo recommendation API are already committed. The public Render URL is still missing, and that remains your step.
 
 | | |
 |---|---|
 | Current phase | Fixture vertical slice |
-| Phase complete | No |
-| Last finished step | Fixture recommendation API |
-| Next step | Planner, matrix, and evidence UI |
+| Phase complete | No. The local steps are done. This phase stays open until you check the page. |
+| Last finished step | Prove the fixture Hook end to end |
+| Next step | Your local check, then the bounded SerpApi client |
 | Branch | `fixture-hook` |
 | Pull request | https://github.com/kernelKain/happen/pull/4 merged the walking skeleton into `main` at `6b0f3c5`. This branch has no pull request yet. |
 | Remote | `origin/main` is still at `6b0f3c5`. This branch adds scoring, the synthetic fixture, extraction, and the demo recommendation API. |
@@ -36,7 +36,7 @@ Still open from the walking skeleton, and not a blocker for local scoring:
 
 ## How to run what exists today
 
-The page can be opened. The API serves health, metadata, and `POST /api/v1/demo-recommendations`. Metadata still reports the fixture as unavailable and the model as not loaded, so **Find the moment** stays off.
+The page can be opened. The API serves health, metadata, and `POST /api/v1/demo-recommendations`. Metadata still reports the fixture as unavailable and the model as not loaded. **Find the moment** is still available: it scores the labeled synthetic fixture, and the model loads on the first request. A real submit currently returns three timelines and no winner. The labeled winner layout is at `http://127.0.0.1:5173/?layout=sample` while the dev server is running. That sample is not a scored visit.
 
 Frontend, from the repository root:
 
@@ -46,7 +46,7 @@ npm install
 npm run dev
 ```
 
-Open the local address Vite prints, usually `http://127.0.0.1:5173`. With the API running, the page shows the Indiranagar planner and leaves **Find the moment** off because the model is not loaded. Stop it with Ctrl+C.
+Open the local address Vite prints, usually `http://127.0.0.1:5173`. With the API running, the page shows the Indiranagar planner and **Find the moment** scores the synthetic fixture. Stop it with Ctrl+C.
 
 Backend, from the repository root:
 
@@ -98,9 +98,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | The fixture endpoint can return three timelines and an honest insufficient result. The public URL is still not deployed. |
-| Last finished step | Fixture recommendation API |
-| Next step | Planner, matrix, and evidence UI |
+| Status | Find the moment scores the synthetic fixture. A real submit shows three timelines and no winner. The public URL is still not deployed. |
+| Last finished step | Prove the fixture Hook end to end |
+| Next step | Your local check, then the bounded SerpApi client |
 | Branch | `fixture-hook` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -387,25 +387,33 @@ Your side after this step: nothing. The public Render URL is still separate.
 
 ### Build planner, matrix, and evidence UI
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor builds the form, three timelines, the selected moment, the fallback, fit and confidence as separate labels, and the evidence panel.
+The result screen shows three restaurant timelines, a recommended moment, a fallback at another restaurant, separate fit and confidence labels, provenance, and an evidence panel. The ordinary page stays empty. The sample layout is labeled and does not claim that Find the moment has scored the visit.
 
-Your side after Cursor finishes:
+`npm test` passed, 4 tests. `npm run test:shell` passed, 8 tests, including the 1280px and 390px result checks.
 
-1. Open the local success screen at a 1280px-wide window.
+Your side after this step:
+
+1. Open `http://127.0.0.1:5173/?layout=sample` at a 1280px-wide window. Start the frontend with `npm run dev` from `frontend/` if it is not already running.
 2. Say whether you can tell the primary moment from the fallback without extra explanation.
 
 ### Prove the fixture Hook end to end
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor connects the page to the fixture endpoint and runs the keyboard path plus the Hook characterization test.
+Find the moment posts the planner draft to `POST /api/v1/demo-recommendations` with a new idempotency key. The page shows Gathering evidence, then the returned timelines. Start over clears the result. A failed request keeps the inputs and Retry sends a new key. The badge says Synthetic fixture. Metadata still reports the fixture as unavailable, so the page does not call this file a SerpApi capture.
 
-Your side after Cursor finishes:
+The automated winner proof uses a mocked contract response: Courtyard Lantern recommended, North Gallery Supper as fallback, Platform Seats as the third timeline. A real local submit on October 4 returned `insufficient_evidence` in 13.9 seconds: three timelines, no winner, no accepted evidence, and six rejected signals. That is the honest result of the installed model.
 
-1. Load the local page fresh, submit the Bengaluru dinner preset, and confirm you see three timelines, one highlighted moment, and a fallback at another restaurant.
-2. If that path fails, say what you saw. Do not continue to live SerpApi until this passes.
+`npm test` passed, 6 tests. `npm run test:shell` passed, 11 tests. A Chromium pass against the local API and dev server submitted the preset, showed the three restaurants and “No moment selected,” opened evidence with no accepted quotes, and Start over restored the empty matrix.
+
+Your side after this step:
+
+1. The API is on `http://127.0.0.1:8000` and the page is on `http://127.0.0.1:5173`. If either has stopped, start them with the commands above.
+2. Load `http://127.0.0.1:5173/` fresh, submit the Indiranagar dinner preset, and confirm three timelines and “No moment selected.” This path does not show a recommended winner.
+3. The winner layout is still the labeled sample at `http://127.0.0.1:5173/?layout=sample`.
+4. Say what you saw. Do not continue to live SerpApi until this check is done.
 
 ---
 
@@ -726,8 +734,10 @@ Your side:
 | Fixture schema and adapter | Done | `Score synthetic fixture evidence through validated extraction.` | Nothing. |
 | Gemma extraction and validation | Done | `Score synthetic fixture evidence through validated extraction.` | Nothing. No accepted quote to review. |
 | Fixture recommendation API | Done | `Score synthetic fixture evidence through validated extraction.` | Nothing. |
-| Scoring, fixtures, extraction, and fixture API | Planner, matrix, and evidence UI is next | — | Nothing unless a note asks. |
-| Matrix UI and fixture Hook proof | Not started | — | Look at the local Hook once. |
+| Planner, matrix, and evidence UI | Done | `Show the synthetic fixture result from Find the moment.` | Nothing unless the sample looks wrong. |
+| Prove the fixture Hook end to end | Done | `Show the synthetic fixture result from Find the moment.` | Load the local page and confirm three timelines and no winner. |
+| Scoring, fixtures, extraction, and fixture API | Local fixture steps are done | — | Nothing unless a note asks. |
+| Matrix UI and fixture Hook proof | Done | `Show the synthetic fixture result from Find the moment.` | Same local check as the fixture Hook proof. |
 | SerpApi client, normalization, and live orchestration | Not started | — | Nothing unless the key is missing. |
 | Capture and verify canonical fixture | Not started | — | Approve the live capture, then skim the fixture. |
 | Evaluate and optionally tune Gemma | Not started | — | Colab T4, then read the scores. |

@@ -299,6 +299,144 @@ select {
   border-radius: 16px;
 }
 
+.sample-banner,
+.disclaimer,
+.notice-inline {
+  margin: 0;
+}
+
+.sample-banner {
+  padding: calc(var(--space) * 2);
+  border: 1px solid var(--amber);
+  border-radius: 12px;
+  background: #2a2418;
+}
+
+.decision {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: calc(var(--space) * 2);
+}
+
+.moment-card,
+.fallback-card,
+.evidence-panel,
+.band {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-raised);
+}
+
+.moment-card,
+.fallback-card,
+.evidence-panel {
+  display: grid;
+  gap: var(--space);
+  padding: calc(var(--space) * 2);
+}
+
+.moment-card {
+  border-color: var(--amber);
+  box-shadow: inset 0 0 0 1px rgb(224 164 90 / 35%);
+}
+
+.fallback-card {
+  background: transparent;
+}
+
+.moment-card h3,
+.fallback-card h3,
+.timeline h3,
+.evidence-group h4 {
+  margin: 0;
+}
+
+.label-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space) * 2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.875rem;
+}
+
+.timelines {
+  display: grid;
+  gap: calc(var(--space) * 2);
+}
+
+.timeline ol {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space);
+  margin: calc(var(--space) * 2) 0 0;
+  padding: 0;
+}
+
+.band {
+  width: 100%;
+  min-height: 5.5rem;
+  padding: var(--space);
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.band-strong {
+  border-color: var(--teal);
+}
+
+.band-possible {
+  border-color: var(--amber);
+}
+
+.band-weak {
+  border-color: var(--coral);
+}
+
+.band-unknown {
+  color: var(--muted);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 8px,
+    rgb(154 168 181 / 18%) 8px 9px
+  );
+}
+
+.band-selected {
+  border-width: 2px;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgb(224 164 90 / 25%);
+}
+
+.selected-mark {
+  font-family: "JetBrains Mono", monospace;
+  color: var(--amber);
+}
+
+.evidence-panel {
+  border-color: var(--line);
+}
+
+.evidence-group {
+  display: grid;
+  gap: var(--space);
+}
+
+.evidence-panel blockquote {
+  margin: 0;
+  padding-left: calc(var(--space) * 2);
+  border-left: 3px solid var(--amber);
+}
+
+.evidence-panel button,
+.result .actions button {
+  min-height: 44px;
+}
+
 .colophon {
   font-size: 0.95rem;
 }
@@ -318,7 +456,9 @@ select {
     text-align: left;
   }
 
-  .fields {
+  .fields,
+  .decision,
+  .timeline ol {
     grid-template-columns: 1fr;
   }
 

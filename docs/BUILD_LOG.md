@@ -308,3 +308,45 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The rolling recommendation limit defaults to 30 requests per 60 seconds, with at most three active recommendations. Health checks are not counted.
 - The model still loads only when an extraction has no scripted substitute. A missing model file returns `MODEL_UNAVAILABLE` without importing the runtime.
 
+## Planner, matrix, and evidence UI
+
+- Date: 2026-10-04
+- Queue step: P2.5
+- Result: the result screen renders three timelines, one recommended moment, a fallback at another restaurant, separate fit and confidence labels, provenance, and accepted evidence.
+- Product behavior changed: `/?layout=sample` shows that labeled screen. The normal page still has an empty matrix, and Find the moment stays off.
+- Cost changed: no
+
+### Evidence
+
+- `npm run check` passed.
+- `npm test` passed, 4 tests.
+- `npm run test:shell` passed, 8 tests. The result check covers 1280×720 and 390×844, opens the evidence panel, and confirms the ordinary page does not show the sample restaurants.
+- The local preview at `http://127.0.0.1:4173/?layout=sample` showed Courtyard Lantern as Recommended with fit Strong and confidence High, North Gallery Supper as Fallback, and Platform Seats as the third timeline. Why this moment opened the quoted spans and source links.
+
+### Decisions
+
+- The sample is explicitly labeled as a layout. It uses the synthetic fixture names and quoted notes. It is not stored as a scored winner.
+- Find the moment is still not connected to the fixture endpoint. That connection is the next step.
+- The reveal is immediate. No staggered motion was added.
+
+## Fixture Hook proof
+
+- Date: 2026-10-04
+- Queue step: P2.6
+- Result: Find the moment scores the synthetic fixture. A mocked contract response shows one recommended moment and a different-restaurant fallback. A real local submit returns three timelines and no winner.
+- Product behavior changed: the button works while the model status is not loaded. The badge says Synthetic fixture. `fixture_available` stays false.
+- Cost changed: no
+
+### Evidence
+
+- `npm run check` passed through Biome. `npm test` passed, 6 tests. `npm run build` passed.
+- `npm run test:shell` passed, 11 tests. The new journey covers keyboard submit, gathering, the mocked winner, insufficient evidence, a 503 with preserved inputs, and a retry that uses a new idempotency key.
+- One uncached `POST /api/v1/demo-recommendations` for the Indiranagar preset returned HTTP 200 in 13.9 seconds with `outcome=insufficient_evidence`, three candidates, `recommendation=null`, `evidence=0`, and `rejected_evidence_count=6`.
+- Chromium against `http://127.0.0.1:5173/` submitted that preset, showed North Gallery Supper, Courtyard Lantern, and Platform Seats, showed “No moment selected,” opened evidence with no accepted quotes, and Start over restored the empty matrix. The request went to `/api/v1/demo-recommendations`.
+
+### Decisions
+
+- The page enables submission when the service contract matches. The model loads on the first extraction, so a not-loaded status does not keep the button off.
+- The winner characterization is a mocked response. The installed model is not replaced with precomputed spans.
+- The client timeout is 30 seconds. The measured cold request finished in 13.9 seconds.
+

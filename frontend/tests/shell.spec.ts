@@ -45,8 +45,13 @@ test("shows the planner after metadata loads", async ({ page }) => {
   release();
   await expect(page.getByRole("heading", { name: "Happen" })).toBeVisible();
   await expect(page.getByLabel("Neighbourhood")).toHaveValue("indiranagar");
-  await expect(page.getByRole("button", { name: "Find the moment" })).toBeDisabled();
-  await expect(page.getByText("The evidence model is not ready")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Find the moment" })).toBeEnabled();
+  await expect(page.getByText("Synthetic fixture", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Find the moment scores the synthetic fixture. It does not run until you choose it.",
+    ),
+  ).toBeVisible();
   await expect(page.getByText("Planning evidence—not live occupancy.")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
