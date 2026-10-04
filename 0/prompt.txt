@@ -1,0 +1,41 @@
+Read AGENTS.md, docs/HANDOFF.md section 30, docs/HANDOFF2.md, and the audit findings before editing.
+
+Confirm the current branch is global-live-experience and the working tree is clean. Stop if either is false. Do not push, merge, deploy, or publish. Preserve unrelated changes and never print secrets.
+
+Fix the critical problem where SerpAPI result ordering chooses the recommendation.
+
+Requirements:
+
+- In global planning discovery, stop retaining only `_first_place()` for each intent.
+- Normalize a bounded candidate pool of up to five valid places per intent from Maps results.
+- Deduplicate candidates using place_id first, data_id second, and a conservative normalized name/address fallback.
+- Reject candidates that are clearly outside the resolved destination.
+- Keep candidates with missing optional fields, but represent those fields as unknown.
+- Perform deterministic preliminary ranking using only provider evidence already present in the search response.
+- Keep at least two viable candidates per intent when available so Python can compare alternatives.
+- Enrich candidates in rank order and remain inside the eight-request allowance:
+  - At most two intent searches.
+  - Details only when required for feasibility or final comparison.
+  - Reviews only when they can affect an explicitly requested constraint.
+  - Supporting web search only for critical missing evidence.
+- If a provisional finalist is definitely closed, continue to the next candidate while budget remains.
+- Final selection must be made in Python after comparing eligible candidates. Provider ordering must only be a stable final tie-breaker, never the main score.
+- Preserve deterministic behavior and stable tie handling.
+- Update cache types so the normalized candidate pool, not only already-selected places, can be reused.
+- Do not introduce another provider, model API, database, or paid service.
+
+Add regression tests proving:
+
+- The first provider result is not selected when a later candidate has stronger verified fit.
+- A definitely closed first result is skipped.
+- Two candidates with equal evidence use a documented stable tie-breaker.
+- Up to two intents still produce at most two stops.
+- Discovery cannot exceed eight billed calls.
+
+Update docs/HANDOFF2.md and docs/BUILD_LOG.md with factual results. Run backend formatting, lint, tests, and the secret scanner.
+
+Commit exactly:
+
+Rank a bounded set of live candidates.
+
+Stop after the commit and report the hash, changed files, test totals, and git status.
