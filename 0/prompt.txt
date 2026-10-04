@@ -1,0 +1,50 @@
+Read the project instructions and current progress first. Confirm the branch is global-live-experience and the tree is clean. Do not push or deploy.
+
+Connect the editable planning brief to deterministic eligibility and scoring. The current application collects constraints but discards most of them.
+
+Requirements:
+
+- Extend the v2 plan request and matching frontend Zod/TypeScript contracts to carry:
+  - party size
+  - budget
+  - preferences
+  - accessibility needs
+- Pass the complete validated constraint set through discovery and itinerary assembly.
+- Introduce a typed constraint assessment for every selected stop:
+  - met
+  - unmet
+  - unknown
+  - not_applicable
+- Every assessment must name the constraint and point to supporting evidence when status is met or unmet.
+- Unknown evidence must never become a positive score.
+- Accessibility requirements are safety-sensitive:
+  - Recommend a place as verified accessible only when provider evidence supports it.
+  - If accessibility is requested but unknown for every candidate, return an explicit insufficient-evidence or partial result rather than claiming fit.
+- Dietary requirements such as vegetarian or vegan must follow the same evidence rule.
+- Budget amount must not be compared with nonnumeric price symbols as though they were equivalent.
+- A provider price tier may be compared only with a requested budget tier.
+- A numeric amount may be evaluated only against a compatible numeric price with the same currency.
+- Party size should be retained and shown. If no capacity/reservation evidence exists, mark suitability unknown.
+- Preferences such as quiet, romantic, outdoor seating, casual, and live music may influence scoring only through deterministic, source-backed signals.
+- Add transparent deterministic scoring components. Do not expose a raw internal score to the customer.
+- Hours feasibility must remain more important than soft preference fit.
+- Python remains the sole selector. Gemma remains disabled because its quality gate failed.
+
+Update the result contracts and UI to explain which important constraints were verified and which remain unknown.
+
+Add tests proving:
+
+- A verified quiet candidate can outrank a louder or unknown candidate.
+- Unknown quietness does not receive a positive score.
+- An unmet accessibility requirement cannot be presented as a fit.
+- Budget, party size, accessibility, and preferences survive frontend-to-backend serialization.
+- Changing a constraint can change the selected candidate without changing the raw provider evidence.
+- Unsupported constraints produce honest unknown states.
+
+Run backend and frontend unit checks, type/build checks, and the secret scanner.
+
+Commit exactly:
+
+Apply planning constraints to deterministic scoring.
+
+Stop and report the commit, scoring rules, test totals, and git status.
