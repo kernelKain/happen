@@ -432,6 +432,11 @@ select {
   border-left: 3px solid var(--amber);
 }
 
+.evidence-panel a {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 .evidence-panel button,
 .result .actions button {
   min-height: 44px;

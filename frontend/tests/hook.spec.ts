@@ -290,6 +290,52 @@ test("names an unavailable evidence model and retries metadata", async ({ page }
   expect(calls).toBe(2);
 });
 
+test("opens the evidence methodology from the keyboard and closes it with Escape", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/demo-recommendations", async (route) => {
+    await route.fulfill({
+      json: {
+        ...SAMPLE_RESULT,
+        rejected_evidence_count: 2,
+        evidence: [
+          ...SAMPLE_RESULT.evidence,
+          {
+            ...SAMPLE_RESULT.evidence[1],
+            evidence_id: "north-gallery-conflict",
+            polarity: "negative",
+            quoted_span: "the room was too loud to talk",
+          },
+        ],
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Find the moment" }).click();
+  const trigger = page.getByRole("button", { name: "Why this moment?" });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("region", { name: "Why this moment?" });
+  await expect(panel).toContainText("Python scoring chooses the moment");
+  await expect(panel).toContainText("bartowski/google_gemma-3-270m-it-GGUF");
+  await expect(panel).toContainText("Adapter none");
+  await expect(panel).toContainText(
+    "Rejected signals: 2. Rejected quotes are not shown and do not affect the score.",
+  );
+  await expect(panel).toContainText("Planning evidence—not live occupancy.");
+  await expect(panel).toContainText(
+    "This priority has conflicting evidence. Both quotes stay visible.",
+  );
+  await expect(panel.getByRole("link", { name: "Open source" }).first()).toHaveAttribute(
+    "rel",
+    "noopener noreferrer",
+  );
+  await expectNoSeriousViolations(page);
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect(panel).toHaveCount(0);
+});
+
 /** Assert that an axe audit reports no serious or critical accessibility violations. */
 async function expectNoSeriousViolations(page: import("@playwright/test").Page) {
   const results = await new AxeBuilder({ page }).analyze();

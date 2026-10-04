@@ -14,9 +14,9 @@ Find the moment scores the captured Indiranagar fixture for Bombay Brasserie, Tr
 |---|---|
 | Current phase | Complete demo experience |
 | Phase complete | No. Result states are in the working tree. The public smoke is still not done. |
-| Last finished step | Complete all visible result states |
-| Next step | Finish evidence and methodology experience. Deploy and smoke stays open until the Render URLs exist. |
-| Branch | `demo-experience`. `1a9803b` records the deploy check. Result-state edits are uncommitted. |
+| Last finished step | Finish evidence and methodology experience |
+| Next step | Finish reveal, responsive, and reduced motion. Deploy and smoke stays open until the Render URLs exist. |
+| Branch | `demo-experience`. `88e080f` records the result states. Evidence-panel edits are uncommitted. |
 | Pull request | https://github.com/kernelKain/happen/pull/7 merged `live-sponsor` into `main`. https://github.com/kernelKain/happen/pull/5 merged the fixture Hook. |
 | Remote | `origin/main` is at `91b7b94`. `live-sponsor` is at `d05d024`. Those two commits contain the same files. |
 | Live URL | Not deployed |
@@ -100,10 +100,10 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the captured Indiranagar fixture. Result states now name partial evidence, insufficient evidence, timeout, quota, model failure, invalid input, and the captured fixture. Render services are still not created. |
-| Last finished step | Complete all visible result states |
-| Next step | Finish evidence and methodology experience |
-| Branch | `demo-experience`. Latest commit is `1a9803b`. Result-state edits are uncommitted. |
+| Status | Find the moment scores the captured Indiranagar fixture. Why this moment explains the quotes, conflicts, rejected spans, model version, and scoring method. Render services are still not created. |
+| Last finished step | Finish evidence and methodology experience |
+| Next step | Finish reveal, responsive, and reduced motion |
+| Branch | `demo-experience`. Latest commit is `88e080f`. Evidence-panel edits are uncommitted. |
 | Live URL | Not deployed |
 | Spend | $0 |
 | Biggest blocker | Render services are still not created. Local result states continued after the deploy step stayed blocked. |
@@ -535,11 +535,17 @@ Your side after this step: optional. If a local page is running, trigger one err
 
 ### Finish evidence and methodology experience
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. Not committed.
 
-Cursor finishes the evidence drawer or an inline panel: exact quotes, source links, conflicts, rejected-span count, and model version.
+Why this moment stays an inline panel. It shows exact quotes, underlined source links, a conflict note when one priority both supports and conflicts, the rejected-span count, the model and adapter, the scoring policy, and the planning disclaimer. Escape closes it and returns focus to Why this moment. Unsafe source addresses are not linked.
 
-Your side after Cursor finishes: open evidence from the keyboard only, if the notes say the browser check could not be completed here.
+Checks that passed:
+
+- `npm test` — 11 tests.
+- `npm run check` and `npm run build`.
+- `npx playwright test` — 17 tests. The new one opens the panel from the keyboard, checks the methodology, and closes it with Escape. The open panel had no serious accessibility violations.
+
+Your side after this step: optional. Open Why this moment with the keyboard and say if the explanation is unclear.
 
 ### Finish reveal, responsive, and reduced motion
 
@@ -777,7 +783,8 @@ Your side:
 | Evaluate and optionally tune Gemma | Done. Baseline and Colab estimate both miss the gate. No adapter selected. | `Keep the untuned model after the adapter estimate missed the baseline.` | Disconnect the Colab runtime. |
 | Deploy and smoke the sponsor slice | Blocked on Render. Code is on `main` at `91b7b94`. Local tests passed. | `91b7b94` | Create the Blueprint, paste both public URLs, then allow one live run. |
 | Result states | Done locally. Not committed. | — | Optional: say if one error's next action is unclear. |
-| Evidence and responsive reveal | Not started | — | Look at the states and the 1280px screen. |
+| Evidence methodology | Done locally. Not committed. | — | Optional: open Why this moment from the keyboard. |
+| Responsive reveal | Not started | — | Look at the 1280px screen. |
 | Friend walkthrough | Not started | — | Friend walkthrough. You send the paraphrase. |
 | Security, performance, and pre-freeze verification | Not started | — | Read the verification list. Rotate a secret if one is found. |
 | Review and freeze the MVP | Not started | — | Review and merge. That is feature freeze. |

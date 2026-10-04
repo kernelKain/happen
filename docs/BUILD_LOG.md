@@ -515,3 +515,10 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Evidence: `npm test` passed, 9 tests. `npm run build` passed. Playwright passed, 16 tests.
 - Decision: hide Retry when the server marks the error as not retryable. Keep the captured-fixture action explicit. Do not invent a recommendation when the model is unavailable.
 
+## Evidence methodology
+
+- Date: 2026-10-04
+- Result: Why this moment now explains quotes, conflicts, rejected spans, the model, and the scoring method. Product behavior changed for that panel only. Cost did not change.
+- Evidence: `npm test` passed, 11 tests. `npm run build` passed. Playwright passed, 17 tests, including a keyboard open and Escape close.
+- Decision: keep the inline panel. Omit a source link that is not a normal http or https address.
+

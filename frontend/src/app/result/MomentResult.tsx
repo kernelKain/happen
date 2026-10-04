@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from "react";
 import type { RecommendationResult } from "../../lib/api/recommendation";
+import { hasConflict, safeSourceUrl } from "../../lib/evidenceView";
 import { formatClock, labelFor } from "../../lib/labels";
 
 const DIMENSIONS = ["conversation", "short_wait", "seating"] as const;
@@ -178,14 +179,41 @@ export function MomentResult({
       </div>
 
       {evidenceOpen ? (
-        <section className="evidence-panel" aria-labelledby={evidenceTitleId}>
+        <section
+          className="evidence-panel"
+          aria-labelledby={evidenceTitleId}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              closeEvidence();
+            }
+          }}
+        >
           <div className="matrix-heading">
             <h3 id={evidenceTitleId}>Why this moment?</h3>
             <button type="button" ref={closeRef} onClick={closeEvidence}>
               Close evidence
             </button>
           </div>
-          <p className="technical">Rejected signals: {result.rejected_evidence_count}</p>
+          <div className="evidence-group">
+            <h4>How this was chosen</h4>
+            <p>
+              Gemma extracts review quotes. Python scoring chooses the moment. The model does not
+              pick the restaurant.
+            </p>
+            <p className="technical">
+              Model {provenance.model_id}. Adapter {provenance.adapter_id}. Scoring policy{" "}
+              {provenance.scoring_policy_version}. Extraction schema{" "}
+              {provenance.extraction_schema_version}.
+            </p>
+            <p>Planning evidence—not live occupancy.</p>
+          </div>
+          <p className="technical">
+            Rejected signals: {result.rejected_evidence_count}.{" "}
+            {result.rejected_evidence_count === 0
+              ? "No extracted quote was rejected."
+              : "Rejected quotes are not shown and do not affect the score."}
+          </p>
           {DIMENSIONS.map((dimension) => {
             const items = result.evidence.filter((item) => item.dimension === dimension);
             return (
@@ -194,20 +222,37 @@ export function MomentResult({
                 {items.length === 0 ? (
                   <p>No accepted evidence for this priority.</p>
                 ) : (
-                  items.map((item) => (
-                    <article key={item.evidence_id}>
-                      <blockquote>{item.quoted_span}</blockquote>
-                      <p className="technical">
-                        {labelFor(item.polarity)} · {labelFor(item.temporal_hint)} · Confidence{" "}
-                        {labelFor(item.extraction_confidence)}
-                      </p>
-                      <p>
-                        <a href={item.source_url} rel="noopener noreferrer">
-                          Open source
-                        </a>
-                      </p>
-                    </article>
-                  ))
+                  <>
+                    {hasConflict(items.map((item) => item.polarity)) ? (
+                      <p>This priority has conflicting evidence. Both quotes stay visible.</p>
+                    ) : null}
+                    {items.map((item) => {
+                      const source = safeSourceUrl(item.source_url);
+                      return (
+                        <article key={item.evidence_id}>
+                          <blockquote>{item.quoted_span}</blockquote>
+                          <p className="technical">
+                            {labelFor(item.polarity)} · {labelFor(item.temporal_hint)} · Confidence{" "}
+                            {labelFor(item.extraction_confidence)}
+                            {item.validation_status === "partially_accepted"
+                              ? " · Partially accepted"
+                              : ""}
+                          </p>
+                          {source ? (
+                            <p>
+                              <a href={source} target="_blank" rel="noopener noreferrer">
+                                Open source
+                              </a>
+                            </p>
+                          ) : (
+                            <p>
+                              The source link was omitted because it is not a normal web address.
+                            </p>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             );
