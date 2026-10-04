@@ -20,11 +20,14 @@ from happen_api.catalog import (
     TIMEZONE,
 )
 from happen_api.config import Settings
+from happen_api.readiness import (
+    FixtureStatus,
+    ModelStatus,
+    captured_fixture_status,
+    model_artifact_status,
+)
 
 router = APIRouter()
-
-ModelStatus = Literal["not_loaded", "loading", "ready", "unavailable"]
-FixtureStatus = Literal["ready", "unavailable", "invalid"]
 
 
 class HealthResponse(BaseModel):
@@ -66,22 +69,25 @@ class MetaResponse(BaseModel):
     timezone: str
 
 
-def dependency_status() -> tuple[Literal["ok", "degraded"], ModelStatus, FixtureStatus]:
-    """Report readiness without opening the model artifact."""
+def dependency_status(
+    settings: Settings,
+) -> tuple[Literal["ok", "degraded"], ModelStatus, FixtureStatus, bool]:
+    """Report file readiness without loading the Gemma runtime."""
 
-    model_status: ModelStatus = "not_loaded"
-    fixture_status: FixtureStatus = "unavailable"
+    model_status = model_artifact_status(settings)
+    fixture_status, fixture_available = captured_fixture_status()
     status: Literal["ok", "degraded"] = (
         "ok" if model_status == "ready" and fixture_status == "ready" else "degraded"
     )
-    return status, model_status, fixture_status
+    return status, model_status, fixture_status, fixture_available
 
 
 @router.get("/healthz", response_model=HealthResponse)
 def health(request: Request) -> HealthResponse:
-    """Return process health and uptime without loading model or fixture artifacts."""
+    """Return process health and uptime without loading the Gemma runtime."""
 
-    status, model_status, fixture_status = dependency_status()
+    settings: Settings = request.app.state.settings
+    status, model_status, fixture_status, _fixture_available = dependency_status(settings)
     uptime = time.monotonic() - request.app.state.started_at
     return HealthResponse(
         status=status,
@@ -98,7 +104,7 @@ def meta(request: Request) -> MetaResponse:
     """Return supported planner choices, the preset, and configured service availability."""
 
     settings: Settings = request.app.state.settings
-    _, model_status, _ = dependency_status()
+    _, model_status, _, fixture_available = dependency_status(settings)
     return MetaResponse(
         contract_version=CONTRACT_VERSION,
         service_version=__version__,
@@ -107,7 +113,7 @@ def meta(request: Request) -> MetaResponse:
         supported_experiences=list(EXPERIENCES),
         priority_dimensions=list(PRIORITIES),
         canonical_preset=CanonicalPreset.model_validate(CANONICAL_PRESET),
-        fixture_available=False,
+        fixture_available=fixture_available,
         live_available=settings.live_configured,
         model_status=model_status,
         scoring_policy_version=SCORING_POLICY_VERSION,

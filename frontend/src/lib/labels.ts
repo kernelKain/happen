@@ -18,6 +18,7 @@ const LABELS: Record<string, string> = {
   mixed: "Mixed",
   synthetic_development: "Synthetic development",
   captured_fixture: "Captured fixture",
+  live: "Live",
   mid_evening: "Mid evening",
 };
 

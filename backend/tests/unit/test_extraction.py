@@ -95,6 +95,8 @@ def test_invalid_schema_prompt_injection_and_unparseable_time_do_not_score() -> 
     assert validate_extraction(prose, excerpt, attempt=1).malformed is True
     fenced = "```json\n" + json.dumps(_payload()) + "\n```"
     assert validate_extraction(fenced, _excerpt(TEXT), attempt=1).validation_status == "accepted"
+    trailing = f"{fenced}\nThe room was quiet."
+    assert validate_extraction(trailing, _excerpt(TEXT), attempt=1).validation_status == "accepted"
 
     vague_time = _payload(
         quoted_span="comfortable",

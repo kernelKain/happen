@@ -11,6 +11,7 @@ import {
   RecommendationRequestError,
   type RecommendationResult,
   requestDemoRecommendation,
+  requestLiveRecommendation,
 } from "../lib/api/recommendation";
 import { formatClock, labelFor, moveItem } from "../lib/labels";
 import { MomentResult } from "./result/MomentResult";
@@ -22,11 +23,19 @@ type ShellState =
   | { status: "mismatch"; meta: ServiceMeta }
   | { status: "ready"; meta: ServiceMeta };
 
+type EvidenceSource = "live" | "fixture";
+
 type JourneyState =
   | { status: "idle" }
   | { status: "gathering" }
   | { status: "result"; result: RecommendationResult }
-  | { status: "error"; message: string; nextAction: string };
+  | {
+      status: "error";
+      message: string;
+      nextAction: string;
+      source: EvidenceSource;
+      offerCaptured: boolean;
+    };
 
 const REPOSITORY_URL = "https://github.com/kernelKain/happen";
 
@@ -74,25 +83,43 @@ export function App() {
   };
   const timezone = meta?.timezone ?? "Asia/Kolkata";
   const gathering = journey.status === "gathering";
+  const modelBlocked =
+    shell.status === "ready" &&
+    (shell.meta.model_status === "unavailable" || shell.meta.model_status === "loading");
   const canEdit = shell.status === "ready" && !gathering;
-  const submitEnabled = canEdit;
+  const submitEnabled = canEdit && !modelBlocked;
   const inFlight = useRef(false);
 
-  async function submitPlanner() {
+  async function submitPlanner(source?: EvidenceSource) {
     if (shell.status !== "ready" || inFlight.current) {
       return;
     }
+    const chosen: EvidenceSource = source ?? (shell.meta.live_available ? "live" : "fixture");
     inFlight.current = true;
     setJourney({ status: "gathering" });
     try {
-      const result = await requestDemoRecommendation(draft);
+      const result =
+        chosen === "live"
+          ? await requestLiveRecommendation(draft)
+          : await requestDemoRecommendation(draft);
       setJourney({ status: "result", result });
     } catch (error) {
       const known = error instanceof RecommendationRequestError;
+      const timedOut = error instanceof DOMException && error.name === "TimeoutError";
       setJourney({
         status: "error",
-        message: known ? error.message : "Happen could not complete that request.",
-        nextAction: known ? error.nextAction : "Try again in a moment.",
+        message: known
+          ? error.message
+          : timedOut
+            ? "Gathering evidence took too long."
+            : "Happen could not complete that request.",
+        nextAction: known
+          ? error.nextAction
+          : timedOut
+            ? "Try again. The next request is faster once the model is loaded."
+            : "Try again in a moment.",
+        source: chosen,
+        offerCaptured: known && chosen === "live" && error.fixtureAvailable,
       });
     } finally {
       inFlight.current = false;
@@ -109,7 +136,9 @@ export function App() {
         </div>
         <div className="mode-block">
           <p className="badge">{modeLabel(shell)}</p>
-          <p className="technical">No snapshot yet · {timezone}</p>
+          <p className="technical">
+            {snapshotLine(shell)} · {timezone}
+          </p>
         </div>
       </header>
 
@@ -257,9 +286,14 @@ export function App() {
         <div className="notice notice-error" role="alert">
           <p>{journey.message}</p>
           <p>{journey.nextAction}</p>
-          <button type="button" onClick={() => void submitPlanner()}>
+          <button type="button" onClick={() => void submitPlanner(journey.source)}>
             Retry
           </button>
+          {journey.offerCaptured ? (
+            <button type="button" onClick={() => void submitPlanner("fixture")}>
+              Use captured evidence
+            </button>
+          ) : null}
         </div>
       ) : null}
       {journey.status === "result" ? (
@@ -419,7 +453,42 @@ function submitReason(shell: ShellState): string {
   if (shell.status === "mismatch") {
     return "Find the moment stays off until this page matches the service.";
   }
+  if (shell.meta.model_status === "loading") {
+    return "The evidence model is still loading, so Find the moment stays off.";
+  }
+  if (shell.meta.model_status === "unavailable") {
+    return "The evidence model is unavailable, so Find the moment stays off.";
+  }
+  if (shell.meta.live_available) {
+    return (
+      "Find the moment asks SerpApi for current place evidence. " +
+      "It does not run until you choose it."
+    );
+  }
+  if (shell.meta.fixture_available) {
+    return (
+      "Find the moment scores the captured Indiranagar fixture. " +
+      "It does not run until you choose it."
+    );
+  }
   return "Find the moment scores the synthetic fixture. It does not run until you choose it.";
+}
+
+/** Name the evidence snapshot the ready service can use. */
+function snapshotLine(shell: ShellState): string {
+  if (shell.status !== "ready") {
+    return "No snapshot yet";
+  }
+  if (shell.meta.live_available && shell.meta.fixture_available) {
+    return "Live evidence, with a captured snapshot";
+  }
+  if (shell.meta.live_available) {
+    return "Live evidence";
+  }
+  if (shell.meta.fixture_available) {
+    return "Captured snapshot installed";
+  }
+  return "No snapshot yet";
 }
 
 /** Format the preset arrival window as two display times separated by an en dash. */

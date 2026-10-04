@@ -148,6 +148,49 @@ test("keeps the planner inputs when the fixture request fails and retry uses a n
   expect(keys[0]).not.toBe(keys[1]);
 });
 
+test("offers captured evidence only after the user chooses it", async ({ page }) => {
+  await page.unroute("**/api/v1/recommendations");
+  await page.route("**/api/v1/meta", async (route) => {
+    await route.fulfill({
+      json: { ...meta, fixture_available: true, live_available: true, model_status: "ready" },
+    });
+  });
+  let demoCalls = 0;
+  await page.route("**/api/v1/recommendations", async (route) => {
+    await route.fulfill({
+      status: 503,
+      json: {
+        ...unavailable,
+        error: {
+          ...unavailable.error,
+          code: "SERPAPI_UNAVAILABLE",
+          message: "Live place evidence is temporarily unavailable.",
+          next_action: "Retry, or use the captured snapshot.",
+          fixture_available: true,
+        },
+      },
+    });
+  });
+  await page.route("**/api/v1/demo-recommendations", async (route) => {
+    demoCalls += 1;
+    await route.fulfill({
+      json: {
+        ...SAMPLE_RESULT,
+        provenance: { ...SAMPLE_RESULT.provenance, data_label: "captured_fixture" },
+      },
+    });
+  });
+  await page.goto("/");
+  await expect(page.getByText("Live evidence", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Find the moment" }).click();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Live place evidence is temporarily unavailable.");
+  expect(demoCalls).toBe(0);
+  await page.getByRole("button", { name: "Use captured evidence" }).click();
+  await expect(page.getByText("Captured fixture ·")).toBeVisible();
+  expect(demoCalls).toBe(1);
+});
+
 /** Assert that an axe audit reports no serious or critical accessibility violations. */
 async function expectNoSeriousViolations(page: import("@playwright/test").Page) {
   const results = await new AxeBuilder({ page }).analyze();

@@ -153,11 +153,16 @@ def _parse(raw_text: str) -> tuple[_RawExtraction, int] | None:
 
 
 def _strip_fence(text: str) -> str:
+    """Drop a leading Markdown fence and any explanation after the closing fence."""
+
     if not text.startswith("```"):
         return text
     lines = text.splitlines()
-    if len(lines) >= 2 and lines[-1].strip() == "```":
-        return "\n".join(lines[1:-1]).strip()
+    if len(lines) < 2:
+        return text
+    for index, line in enumerate(lines[1:], start=1):
+        if line.strip() == "```":
+            return "\n".join(lines[1:index]).strip()
     return text
 
 

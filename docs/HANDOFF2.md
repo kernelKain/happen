@@ -6,7 +6,7 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. A sanitized SerpApi snapshot for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar is saved separately and is not wired to the page. Replay of that snapshot matched the live decision: insufficient evidence and no winner. The untuned Gemma baseline parsed 2 of 30 held-out excerpts and scored 4.4% dimension-plus-polarity accuracy, so it does not meet the extraction gate. A free Colab T4 estimate of the short adapter printed parse rate 6.7% and dimension-plus-polarity accuracy 3.3%. That estimate does not improve on the baseline, so no adapter was selected and the shipping model stays the untuned 270M file. The public Render URL is still missing.
+Find the moment scores the captured Indiranagar fixture for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar. When live mode is on, Find the moment asks SerpApi first and offers the captured fixture only as a separate action after a live failure. A real submit still returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. Replay of the captured snapshot matched the live decision: insufficient evidence and no winner. The untuned Gemma baseline parsed 2 of 30 held-out excerpts and scored 4.4% dimension-plus-polarity accuracy, so it does not meet the extraction gate. A free Colab T4 estimate of the short adapter printed parse rate 6.7% and dimension-plus-polarity accuracy 3.3%. That estimate does not improve on the baseline, so no adapter was selected and the shipping model stays the untuned 270M file. Health and metadata now report the captured fixture and the model file that is actually installed. `render.yaml` points both services at `live-sponsor` and the backend build downloads the public GGUF. The public Render URL is still the older walking-skeleton deploy until those services are updated.
 
 `docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
 
@@ -17,7 +17,7 @@ Find the moment still scores the synthetic fixture. A real submit returns three 
 | Last finished step | Evaluate and optionally tune Gemma |
 | Next step | Deploy and smoke the sponsor vertical slice |
 | Branch | `live-sponsor` |
-| Pull request | https://github.com/kernelKain/happen/pull/5 merged the fixture Hook into `main` at `b5cf7da`. This branch has no pull request yet. |
+| Pull request | https://github.com/kernelKain/happen/pull/6 is open for `live-sponsor`. https://github.com/kernelKain/happen/pull/5 merged the fixture Hook into `main` at `b5cf7da`. |
 | Remote | `origin/main` is at `b5cf7da`. This branch adds the SerpApi client, the candidate normalizer, the live recommendation route, and the sanitized Indiranagar fixture. |
 | Live URL | Not deployed |
 
@@ -38,7 +38,7 @@ Still open from the walking skeleton, and not a blocker for local scoring:
 
 ## How to run what exists today
 
-The page can be opened. The API serves health, metadata, and `POST /api/v1/demo-recommendations`. Metadata still reports the fixture as unavailable and the model as not loaded. **Find the moment** is still available: it scores the labeled synthetic fixture, and the model loads on the first request. A real submit currently returns three timelines and no winner. The labeled winner layout is at `http://127.0.0.1:5173/?layout=sample` while the dev server is running. That sample is not a scored visit.
+The page can be opened. The API serves health, metadata, `POST /api/v1/demo-recommendations`, and `POST /api/v1/recommendations`. Metadata reports the captured fixture as available. The model status is `ready` only when the pinned GGUF is present and its checksum matches; otherwise it is `not_loaded` or `unavailable`, and health stays `degraded`. **Find the moment** scores the captured Indiranagar fixture when live mode is off. When live mode is on, it calls SerpApi and does not switch to the fixture unless you choose **Use captured evidence**. The model loads on the first request. That first captured request can take about half a minute, so the page waits up to 90 seconds for it. A real submit currently returns three timelines and no winner. The labeled winner layout is at `http://127.0.0.1:5173/?layout=sample` while the dev server is running. That sample is not a scored visit.
 
 Frontend, from the repository root:
 
@@ -48,7 +48,7 @@ npm install
 npm run dev
 ```
 
-Open the local address Vite prints, usually `http://127.0.0.1:5173`. With the API running, the page shows the Indiranagar planner and **Find the moment** scores the synthetic fixture. Stop it with Ctrl+C.
+Open the local address Vite prints, usually `http://127.0.0.1:5173`. With the API running, the page shows the Indiranagar planner and **Find the moment** scores the captured fixture. Stop it with Ctrl+C.
 
 Backend, from the repository root:
 
@@ -58,7 +58,7 @@ uv sync
 uv run uvicorn happen_api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000/healthz` and `http://127.0.0.1:8000/api/v1/meta`. Health returns HTTP 200 with `status` `degraded` because the model is not loaded and no fixture is installed. Metadata lists the Indiranagar preset. Neither response includes a secret. Stop the server with Ctrl+C.
+Open `http://127.0.0.1:8000/healthz` and `http://127.0.0.1:8000/api/v1/meta`. Health returns HTTP 200. `fixture_status` is `ready` and `fixture_available` is true when the captured Indiranagar fixture verifies. `model_status` is `ready` when `ml/.cache/google_gemma-3-270m-it-Q4_K_M.gguf` matches the manifest checksum, and `not_loaded` when that file is absent. Overall `status` is `ok` only when both are ready. Neither response includes a secret. Stop the server with Ctrl+C.
 
 Checks:
 
@@ -100,7 +100,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the synthetic fixture. The Gemma baseline and the Colab adapter estimate both missed the extraction gate. No adapter was selected. The public URL is still not deployed. |
+| Status | Find the moment scores the captured Indiranagar fixture. Live mode stays explicit. The Gemma baseline and the Colab adapter estimate both missed the extraction gate. No adapter was selected. Render config points at this branch, and the public URL is still the older deploy until it is updated. |
 | Last finished step | Evaluate and optionally tune Gemma |
 | Next step | Deploy and smoke the sponsor vertical slice |
 | Branch | `live-sponsor` |

@@ -26,7 +26,16 @@ from happen_api.fixtures.schema import (
 )
 
 _FIXTURE_ROOT = Path(__file__).resolve().parents[3] / "data" / "fixtures" / "v1"
+_CAPTURED_FIXTURE_ROOT = (
+    Path(__file__).resolve().parents[3] / "data" / "fixtures" / "captured" / "v1"
+)
 _STALE_AFTER = timedelta(days=7)
+
+
+def captured_fixture_root() -> Path:
+    """Return the installed SerpApi capture, separate from the synthetic fixture."""
+
+    return _CAPTURED_FIXTURE_ROOT
 
 
 def load_fixture(
