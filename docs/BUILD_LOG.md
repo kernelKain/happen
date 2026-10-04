@@ -71,9 +71,31 @@ The active execution harness is Cursor. When Entire is enabled, select the agent
 
 ### Blockers carried forward
 
-1. Configure `SERPAPI_API_KEY` in a local ignored environment file before P0.2. Do not paste the key into chat.
+1. `SERPAPI_API_KEY` is now set locally. Resolved on October 4, 2026.
 2. Configure `HF_TOKEN` locally, after Gemma terms are accepted, before a gated download in P0.3.
 3. Read the Render credit balance and current plan price from the Render dashboard before the P0.3 cost decision.
-4. Create `build/happen-mvp` from current `main` before implementation. The agent does not create branches under A1.
+4. Phase branches replace `build/happen-mvp`. `phase/p0-prove-access` exists.
 5. Run `entire enable` when ready. Runtime proofs take priority over this setup.
-6. Confirm the CodeRabbit GitHub App is installed on this repository. This does not block P0.2.
+6. Confirm the CodeRabbit GitHub App is installed on this repository. This does not block the runtime proofs.
+
+## P0.2 — Prove SerpApi evidence shape
+
+- Date: 2026-10-04
+- Result: the Indiranagar restaurant query is viable
+- Product behavior changed: no
+- Cost changed: yes, 5 SerpApi searches, still inside the free plan
+
+### Evidence
+
+- Account before the probe: Free Plan, 250 searches left, 0 used this month.
+- Account after the probe: 245 searches left, 5 used this month.
+- The hourly counter read 4. The monthly counter is the budget figure.
+- Search `restaurants in Indiranagar, Bengaluru` returned HTTP 200, provider status Success, and 20 local results in 2.068 seconds.
+- Place details succeeded for Bombay Brasserie, Chianti Indiranagar, and Truffles Indiranagar. Each has a 7-day hours list.
+- Popular times were missing for Bombay Brasserie and present for Chianti (126 points) and Truffles (133 points).
+- The Chianti reviews call returned 5 snippets, 5 dates, and 5 links in 1.189 seconds. Snippet lengths were 889, 366, 1217, 815, and 1059 characters.
+- No API key, phone number, reviewer name, or raw payload was written into the repository.
+
+### Decision
+
+Keep `restaurants in Indiranagar, Bengaluru` as the canonical discovery query. Do not add a cuisine filter. Treat missing popular times as unknown evidence.
