@@ -20,6 +20,26 @@ const SOURCE_LABEL = {
   community: "Community",
 } as const;
 
+/** What a statement supports, so a reader can tell a fact from context. */
+const SUPPORTED_LABEL: Record<string, string> = {
+  hours: "Opening hours",
+  place_identity: "Place identity",
+  constraint: "Requested constraint",
+  contact: "Contact detail",
+  description: "Description",
+  provenance: "Source link",
+};
+
+/** How the statement was tied to this place. */
+const MATCH_LABEL: Record<string, string> = {
+  provider_id: "Matched by provider id.",
+  official_domain: "Matched on the official domain.",
+  name_and_location: "Matched by name and location.",
+  place_record: "Taken from the place record.",
+  review_text: "Taken from review text.",
+  none_found: "Not tied to this place.",
+};
+
 const FIELD_LABEL: Record<string, string> = {
   destination: "Destination",
   date: "Date",
@@ -169,8 +189,17 @@ function EvidenceGroup({
       {items.length > 0 ? (
         <ul>
           {items.map((item) => (
-            <li key={`${item.source}-${item.retrieved_at}-${item.text}`}>
+            <li
+              key={`${item.source}-${item.retrieved_at}-${item.text}`}
+              data-verification={item.verification}
+              className={`evidence-item evidence-item-${item.source}`}
+            >
               <p>{item.text}</p>
+              <p>{SOURCE_LABEL[item.source]}</p>
+              <p>{SUPPORTED_LABEL[item.field] ?? "Supporting statement"}</p>
+              <p>{MATCH_LABEL[item.matched_by] ?? ""}</p>
+              {item.verification === "unverified" ? <p>Not verified.</p> : null}
+              {item.verification === "conflicting" ? <p>Conflicts with another source.</p> : null}
               <p>{retrievalCopy(item.retrieved_at)}</p>
               {item.url ? <a href={item.url}>Source</a> : null}
             </li>

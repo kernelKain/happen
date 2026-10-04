@@ -22,7 +22,7 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Recompute refinements from cached evidence |
+| Last finished step | Preserve evidence provenance and useful review signals |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -109,7 +109,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Python scores party size, budget, preferences, and accessibility from retrieved evidence. Unknown evidence adds nothing. Gemma claims stay off. |
-| Last finished step | Recompute refinements from cached evidence |
+| Last finished step | Preserve evidence provenance and useful review signals |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
@@ -197,6 +197,54 @@ The two questions are separate, and the server owns both.
 A cached rescore can still change the answer. A better-evidenced place may now outrank the one that was previously selected, and it does. When the cached evidence cannot verify a new constraint, the result is `insufficient_evidence` with that constraint reported as unknown, which is an explicit outcome rather than a stale success.
 
 `tests/contract/test_plan_refinement.py` covers the cache behavior with a counting in-memory provider.
+
+## Evidence provenance
+
+`happen_api.planning.evidence` holds the typed claim. Everything a user can be shown goes through it first.
+
+```python
+EvidenceClaim(
+    kind=ClaimKind.maps | ClaimKind.official | ClaimKind.community,
+    field=ClaimField.hours | place_identity | constraint | contact | description | provenance,
+    text="monday: 6:00 PM–11:00 PM",
+    url=HttpUrl("https://maps.example/kura"),   # only when the link is safe
+    retrieved_at=datetime,
+    matched_by=MatchMethod.place_record,
+    verification=Verification.verified,
+)
+```
+
+`PlanEvidence` carries the same fields into the response, so the frontend can label a claim without re-deriving anything.
+
+### What was wrong
+
+Three defects, all reproduced before the fix:
+
+- An official-domain search result was classified by *what it mentioned*, not by *where it came from*. A snippet from the place's own website was dropped on the floor unless hours were missing, in which case it was filed into `community_notes`.
+- The exact result URL was discarded at the boundary. `_apply_web` read the link only to classify the host, so `PlanEvidence.url` was `None` for every community claim and the reader could not follow a citation.
+- Any community text that merely mentioned hours became a conflict. `The ramen at Kura is great, we went at 7pm` produced "an official hours statement and a community statement disagree."
+
+### Rules now
+
+- A result is classified by its own domain. `_row_kind` asks whether the host is a community host, or the place's official domain. Nothing about the wording changes the answer.
+- The exact safe URL survives to the response. `safe_link` returns the URL verbatim, or `None`.
+- `safe_link` drops a non-HTTP scheme, a missing host, a local or `.local` host, embedded credentials, and any query carrying `api_key`, `token`, `secret`, and similar. An unsafe link yields no link at all; the claim keeps its text.
+- Maps hours stay Maps evidence even when an official site exists. The official site is added as its own claim.
+- A conflict is recorded only when normalization proves the claims incompatible: community text asserting closure *and* the record listing that day closed. Otherwise the claim stays secondary and unverified.
+- Official normalized hours take precedence. `ClaimsConflict.resolved` returns the Maps record, never the community text.
+- A row is claimed only when its provider id appears in the link, or it is on the official domain *and* names the place, or it names the place together with an address, locality, or destination anchor. An official-domain page that never names the place is not claimed.
+
+### Reviews
+
+`place_reviews` is called only when a requested preference is one `review_phrases` recognizes and is still unverified for that place. No preference, or a wording a review cannot check, skips the request entirely. Retained snippets still feed `assess` as unverified context, so a community passage can verify a constraint while staying community.
+
+Snippets stay short, carry no reviewer identity, and a `_PHONE` pattern drops anything that looks like a phone number.
+
+### UI
+
+The evidence drawer shows the source kind, the supported field, the match method, the retrieval time, and a `Not verified.` or `Conflicts with another source.` line where that applies. Each claim carries `data-verification` and a source class, so official, Maps, and community are visually distinct.
+
+`tests/unit/test_evidence_provenance.py` covers classification, URL preservation, entity mismatch, unsafe-link filtering, real conflicts, non-conflicting secondary text, and review skipping.
 
 ## How branches and commits work
 
@@ -904,3 +952,5 @@ Your side:
 | Planning constraints | Done. Party size, budget, preferences, and accessibility reach Python scoring. Unknown evidence adds nothing. | `Apply planning constraints to deterministic scoring.` | Manual test of one evening. Do not push. Do not deploy. |
 
 | Recomputed refinements | Done. Apply sends the whole proposed brief to the server, the cached pool is rescored without a new billed request, and a failure keeps the previous plan. | `Recompute refinements from cached evidence.` | Manual test of one evening. Do not push. Do not deploy. |
+
+| Evidence provenance | Done. Every displayed claim carries its kind, field, safe URL, match method, and verification state. Official evidence is no longer filed as community. | `Preserve evidence provenance and useful review signals.` | Manual test of one evening. Do not push. Do not deploy. |

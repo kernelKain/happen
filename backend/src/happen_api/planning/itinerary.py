@@ -14,7 +14,7 @@ from typing import Literal
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from happen_api.domain.hours import (
     ProviderHours,
@@ -42,7 +42,14 @@ from happen_api.planning.contracts import (
     PlaceIntent,
     PlanningBrief,
 )
-from happen_api.planning.discovery import DiscoveredPlace
+from happen_api.planning.discovery import DiscoveredPlace, _community_claim_for
+from happen_api.planning.evidence import (
+    ClaimField,
+    EvidenceClaim,
+    MatchMethod,
+    Verification,
+    safe_link,
+)
 from happen_api.planning.follow_up import question_for, select_follow_up
 from happen_api.planning.interpret import interpret
 
@@ -61,7 +68,12 @@ class EvidenceSource(StrEnum):
 
 
 class PlanEvidence(BaseModel):
-    """One traceable statement used to explain a stop."""
+    """One traceable statement used to explain a stop.
+
+    The claim carries its provenance: which kind of source it came from, what it
+    supports, how the entity was matched, and whether it is verified. An
+    unverified claim is shown as context, never as a fact.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -69,6 +81,23 @@ class PlanEvidence(BaseModel):
     text: str = Field(min_length=1, max_length=300)
     url: HttpUrl | None = None
     retrieved_at: datetime
+    field: ClaimField = ClaimField.description
+    matched_by: MatchMethod = MatchMethod.none_found
+    verification: Verification = Verification.unverified
+
+    @classmethod
+    def from_claim(cls, claim: EvidenceClaim) -> PlanEvidence:
+        """Project a normalized claim into the response evidence shape."""
+
+        return cls(
+            source=EvidenceSource(claim.kind.value),
+            text=claim.text,
+            url=claim.url,
+            retrieved_at=claim.retrieved_at,
+            field=claim.field,
+            matched_by=claim.matched_by,
+            verification=claim.verification,
+        )
 
 
 class ConstraintAssessment(BaseModel):
@@ -536,6 +565,51 @@ def _stop(
     evidence: list[PlanEvidence] = []
     warnings: list[str] = []
     unknown = [field for field in ("price", "popular_times") if field in place.unknown_fields]
+    maps_link = safe_link(place.maps_link)
+    # Maps hours stay Maps evidence even when an official site exists.
+    for line in place.hours[:3]:
+        evidence.append(
+            PlanEvidence(
+                source=EvidenceSource.maps,
+                text=line[:300],
+                url=maps_link,
+                retrieved_at=retrieved_at,
+                field=ClaimField.hours,
+                matched_by=MatchMethod.place_record,
+                verification=Verification.verified if state == "open" else Verification.unverified,
+            )
+        )
+    website = safe_link(place.website)
+    if website is not None:
+        evidence.append(
+            PlanEvidence(
+                source=EvidenceSource.official,
+                text="Official site listed for this place.",
+                url=website,
+                retrieved_at=retrieved_at,
+                field=ClaimField.provenance,
+                matched_by=MatchMethod.official_domain,
+                verification=Verification.verified,
+            )
+        )
+    for claim in place.claims[:4]:
+        evidence.append(PlanEvidence.from_claim(claim))
+    for note in place.community_notes[:2]:
+        if any(item.text == note for item in evidence):
+            continue
+        evidence.append(
+            PlanEvidence(
+                source=EvidenceSource.community,
+                text=note[:300],
+                url=None,
+                retrieved_at=retrieved_at,
+                field=ClaimField.description,
+                matched_by=MatchMethod.none_found,
+                verification=Verification.unverified,
+            )
+        )
+    if place.claim_conflicts or place.conflicts:
+        warnings.append("An official hours statement and a community statement disagree.")
     reason = hours_decision_reason(place, local_date, arrival)
     if state == "open":
         clock = arrival.strftime("%H:%M")
@@ -553,36 +627,6 @@ def _stop(
         confidence = "low"
         hours = "unknown"
         warnings.append(explanation)
-    for line in place.hours[:4]:
-        evidence.append(
-            PlanEvidence(
-                source=EvidenceSource.maps,
-                text=line[:300],
-                url=_http(place.maps_link),
-                retrieved_at=retrieved_at,
-            )
-        )
-    website = _http(place.website)
-    if website is not None:
-        evidence.append(
-            PlanEvidence(
-                source=EvidenceSource.official,
-                text="Official site listed for this place.",
-                url=website,
-                retrieved_at=retrieved_at,
-            )
-        )
-    for note in place.community_notes[:2]:
-        evidence.append(
-            PlanEvidence(
-                source=EvidenceSource.community,
-                text=note[:300],
-                url=None,
-                retrieved_at=retrieved_at,
-            )
-        )
-    if place.conflicts:
-        warnings.append("An official hours statement and a community statement disagree.")
     checked = findings or []
     assessments = [_assessment(item, place, retrieved_at) for item in checked]
     if hard_unverified(checked):
@@ -601,7 +645,7 @@ def _stop(
         address=place.address,
         latitude=place.latitude,
         longitude=place.longitude,
-        maps_link=_http(place.maps_link),
+        maps_link=maps_link,
         website=website,
         confidence=confidence,
         hours_status=hours,
@@ -640,15 +684,6 @@ def _point(stop: PlanStop) -> str:
     return stop.name
 
 
-def _http(value: str | None) -> HttpUrl | None:
-    if value is None or not value.startswith(("http://", "https://")):
-        return None
-    try:
-        return HttpUrl(value)
-    except ValidationError:
-        return None
-
-
 def _bundle(value: Sequence[str] | EveningConstraints | None) -> EveningConstraints:
     if isinstance(value, EveningConstraints):
         return value
@@ -660,15 +695,32 @@ def _assessment(
 ) -> ConstraintAssessment:
     evidence: list[PlanEvidence] = []
     if item.text and item.source and item.status in {"met", "unmet"}:
+        source = EvidenceSource.maps if item.source == "maps" else EvidenceSource.community
+        url = (
+            safe_link(place.maps_link)
+            if item.source == "maps"
+            else _cited_claim_url(place, item.text)
+        )
+        claim = _community_claim_for(place, item.text)
         evidence.append(
             PlanEvidence(
-                source=EvidenceSource.maps if item.source == "maps" else EvidenceSource.community,
+                source=source,
                 text=item.text[:300],
-                url=_http(place.maps_link if item.source == "maps" else None),
+                url=url,
                 retrieved_at=retrieved_at,
+                field=ClaimField.constraint,
+                matched_by=claim.matched_by if claim is not None else MatchMethod.place_record,
+                verification=Verification.unverified,
             )
         )
     return ConstraintAssessment(constraint=item.constraint, status=item.status, evidence=evidence)
+
+
+def _cited_claim_url(place: DiscoveredPlace, text: str) -> HttpUrl | None:
+    """Return the safe URL the cited community passage came from."""
+
+    claim = _community_claim_for(place, text)
+    return claim.url if claim is not None else None
 
 
 def _components(

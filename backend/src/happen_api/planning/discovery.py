@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from enum import StrEnum
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
@@ -20,6 +20,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from happen_api.domain.hours import ProviderHours, normalize_hours
 from happen_api.planning.contracts import IntentKind, PlaceIntent, ResolvedDestination
+from happen_api.planning.evidence import (
+    ClaimField,
+    ClaimKind,
+    ClaimsConflict,
+    EvidenceClaim,
+    MatchMethod,
+    Verification,
+    safe_link,
+    safe_link_text,
+)
 
 if TYPE_CHECKING:
     from happen_api.planning.constraints import EveningConstraints
@@ -57,6 +67,7 @@ _POOL_TOTAL = _MAX_INTENTS * _POOL_LIMIT
 _DESTINATION_RADIUS_KM = 80.0
 _HOURS_TEXT_LIMIT = 200
 _HOURS_LINE_LIMIT = 8
+_MAX_CLAIMS = 16
 
 
 class DiscoveryStatus(StrEnum):
@@ -106,6 +117,8 @@ class DiscoveredPlace(BaseModel):
     unknown_fields: list[str] = Field(default_factory=list, max_length=16)
     conflicts: list[EvidenceConflict] = Field(default_factory=list, max_length=4)
     community_notes: list[str] = Field(default_factory=list, max_length=4)
+    claims: list[EvidenceClaim] = Field(default_factory=list, max_length=16)
+    claim_conflicts: list[ClaimsConflict] = Field(default_factory=list, max_length=4)
 
 
 class CandidatePool(BaseModel):
@@ -423,6 +436,7 @@ def _reviews_if_needed(
     constraints: EveningConstraints,
     preferences: list[str],
 ) -> DiscoveryStatus | None:
+    from happen_api.planning.constraints import review_phrases
     from happen_api.planning.itinerary import (
         constraint_supported,
         hours_status,
@@ -432,17 +446,24 @@ def _reviews_if_needed(
 
     if not preferences:
         return None
+    # Reviews are only worth a billed request when a requested constraint is
+    # still unverified for this place and its wording is one a review can check.
+    checkable = [
+        item for item in preferences if item.casefold().strip() in set(review_phrases(constraints))
+    ]
+    if not checkable:
+        return None
     targets = [leader]
     runner = _next_viable(group, index, local_date, arrival)
     if runner is not None:
         leader_fit = verified_fit(leader, hours_status(leader, local_date, arrival), constraints)
         runner_fit = verified_fit(runner, hours_status(runner, local_date, arrival), constraints)
         gain = unmet_constraint_gain(runner, constraints)
-        if runner_fit + gain >= leader_fit:
+        if leader_fit + gain >= runner_fit:
             targets.append(runner)
     failure: DiscoveryStatus | None = None
     for target in targets:
-        if all(constraint_supported(target, item) for item in preferences):
+        if all(constraint_supported(target, item) for item in checkable):
             continue
         failure = _spend_reviews(target, client, billed_limit) or failure
         if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
@@ -787,56 +808,170 @@ def _apply_web(
     rows: object,
     destination: ResolvedDestination,
 ) -> None:
+    """Attach supporting web claims without misclassifying where they came from.
+
+    An official-domain result stays official, a community host stays community,
+    and every claim keeps the exact safe URL that carried it. A conflict is
+    recorded only when normalized claims about the same field cannot both be
+    true; anything else stays secondary and unverified.
+    """
+
     if not isinstance(rows, list):
         return
-    official = ""
-    community = ""
+    retrieved = _clock_stamp()
     for row in rows:
-        if not isinstance(row, dict) or not _matches_entity(row, place, destination):
+        if not isinstance(row, dict):
             continue
-        link = _http_url(row.get("link"))
+        matched = _match_method(row, place, destination)
+        if matched is MatchMethod.none_found:
+            continue
         snippet = _clean(row.get("snippet")) or ""
-        host = _host(link)
-        if host in _COMMUNITY_HOSTS:
-            if snippet and not community:
-                community = snippet
+        if not snippet:
             continue
-        if (
-            place.website
-            and link
-            and _same_domain(link, place.website)
-            and snippet
-            and not official
-        ):
-            official = snippet
-    if community and place.hours:
-        place.conflicts.append(
-            EvidenceConflict(official="; ".join(place.hours), community=community[:200])
+        kind = _row_kind(row, place)
+        claim = EvidenceClaim(
+            kind=kind,
+            field=_claim_field(snippet),
+            text=snippet[:300],
+            url=safe_link(row.get("link")),
+            retrieved_at=retrieved,
+            matched_by=matched,
+            verification=Verification.unverified,
         )
-    elif community:
-        place.community_notes.append(community[:200])
-    elif official and not place.hours:
-        place.community_notes.append(official[:200])
+        _record_claim(place, claim)
+    _resolve_claim_conflicts(place)
     place.unknown_fields = _unknown(place)
 
 
-def _matches_entity(
+def _row_kind(row: dict[str, object], place: DiscoveredPlace) -> ClaimKind:
+    """Classify one result by its own domain, never by what it mentions."""
+
+    host = _host(safe_link_text(row.get("link")))
+    if host in _COMMUNITY_HOSTS:
+        return ClaimKind.community
+    if place.website and _same_domain(safe_link_text(row.get("link")), place.website):
+        return ClaimKind.official
+    return ClaimKind.community
+
+
+def _claim_field(snippet: str) -> ClaimField:
+    """Say what a snippet supports, without reading it as a verdict."""
+
+    folded = snippet.casefold()
+    if _mentions_hours(folded):
+        return ClaimField.hours
+    if _PHONE.search(snippet):
+        return ClaimField.contact
+    return ClaimField.description
+
+
+def _mentions_hours(folded: str) -> bool:
+    """Whether a snippet makes an hours statement, rather than merely mentions one.
+
+    A hint that the wording is unclear is not an hours claim, so it is not
+    treated as one that could contradict the record.
+    """
+
+    if any(hedge in folded for hedge in ("unclear", "not sure", "varies", "varies by")):
+        return False
+    return any(word in folded for word in ("hour", "open", "close", "closed", "tonight"))
+
+
+def _record_claim(place: DiscoveredPlace, claim: EvidenceClaim) -> None:
+    """Keep the claim, its safe URL, and its legacy passages for scoring."""
+
+    if any(
+        existing.text == claim.text and existing.kind is claim.kind for existing in place.claims
+    ):
+        return
+    if len(place.claims) >= _MAX_CLAIMS:
+        return
+    place.claims.append(claim)
+    if claim.kind is ClaimKind.community and len(place.community_notes) < 4:
+        # Community text still feeds constraint assessment as unverified context.
+        place.community_notes.append(claim.text[:200])
+
+
+def _community_claim_for(place: DiscoveredPlace, text: str) -> EvidenceClaim | None:
+    """Return the community claim a cited passage came from, keeping its link."""
+
+    for claim in place.claims:
+        if claim.kind is ClaimKind.community and claim.text[:200] == text[:200]:
+            return claim
+    return None
+
+
+def _resolve_claim_conflicts(place: DiscoveredPlace) -> None:
+    """Record a conflict only when normalized claims cannot both be true."""
+
+    place.claim_conflicts = []
+    official_hours = place.hours_schedule
+    for claim in place.claims:
+        if claim.kind is not ClaimKind.community or claim.field is not ClaimField.hours:
+            continue
+        closed = _claims_closed(claim.text)
+        if closed is None or official_hours is None:
+            # The text mentions hours but does not contradict the record.
+            continue
+        if not any(day.status == "closed" for day in official_hours.days.values()):
+            continue
+        place.claim_conflicts.append(
+            ClaimsConflict(
+                field=ClaimField.hours,
+                official=EvidenceClaim(
+                    kind=ClaimKind.maps,
+                    field=ClaimField.hours,
+                    text="; ".join(place.hours)[:300] or "Maps hours.",
+                    url=safe_link(place.maps_link),
+                    retrieved_at=claim.retrieved_at,
+                    matched_by=MatchMethod.place_record,
+                    verification=Verification.conflicting,
+                ),
+                secondary=claim.model_copy(update={"verification": Verification.conflicting}),
+            )
+        )
+
+
+def _claims_closed(text: str) -> bool | None:
+    """Return whether a statement asserts closure, or None if it does not."""
+
+    folded = text.casefold()
+    if "closed" in folded or "shut" in folded:
+        return True
+    return None
+
+
+def _clock_stamp() -> datetime:
+    return datetime.now(tz=UTC)
+
+
+def _match_method(
     row: dict[str, object],
     place: DiscoveredPlace,
     destination: ResolvedDestination,
-) -> bool:
-    link = _http_url(row.get("link")) or ""
+) -> MatchMethod:
+    """Return how this row was tied to the place, or none if it was not.
+
+    An official domain is a strong signal but not a wildcard: a page on that
+    domain still has to mention this place or carry its provider id.
+    """
+
+    link = safe_link_text(row.get("link")) or ""
     if place.place_id and place.place_id in link:
-        return True
-    if place.website and _same_domain(link, place.website):
-        return True
+        return MatchMethod.provider_id
+    on_official_domain = bool(place.website and _same_domain(link, place.website))
     blob = " ".join(
         part for part in (_clean(row.get("title")), _clean(row.get("snippet"))) if part is not None
     ).casefold()
     if place.name.casefold() not in blob:
-        return False
+        # A page on the official domain still has to mention this place.
+        return MatchMethod.none_found
     anchors = [place.address, destination.locality, destination.label, destination.serpapi_location]
-    return any(anchor and anchor.casefold() in blob for anchor in anchors)
+    if on_official_domain:
+        return MatchMethod.official_domain
+    if any(anchor and anchor.casefold() in blob for anchor in anchors):
+        return MatchMethod.name_and_location
+    return MatchMethod.none_found
 
 
 def _web_query(place: DiscoveredPlace, destination: ResolvedDestination) -> str:

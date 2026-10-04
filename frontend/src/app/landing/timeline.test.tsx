@@ -43,6 +43,9 @@ function plan(overrides: Partial<EveningPlan> = {}): EveningPlan {
                 text: "Neighbors mention a quiet room.",
                 url: null,
                 retrieved_at: retrieved,
+                field: "constraint" as const,
+                matched_by: "name_and_location" as const,
+                verification: "unverified" as const,
               },
             ],
           },
@@ -61,18 +64,27 @@ function plan(overrides: Partial<EveningPlan> = {}): EveningPlan {
             text: "The dining room is open this evening.",
             url: "https://kura.example",
             retrieved_at: retrieved,
+            field: "description" as const,
+            matched_by: "official_domain" as const,
+            verification: "verified" as const,
           },
           {
             source: "maps",
             text: "monday: 17:00-22:00",
             url: "https://maps.example/kura",
             retrieved_at: retrieved,
+            field: "hours" as const,
+            matched_by: "place_record" as const,
+            verification: "verified" as const,
           },
           {
             source: "community",
             text: "Neighbors mention a quiet room.",
             url: null,
             retrieved_at: retrieved,
+            field: "description" as const,
+            matched_by: "name_and_location" as const,
+            verification: "unverified" as const,
           },
         ],
         unknown_fields: [],
@@ -150,6 +162,22 @@ describe("evening timeline", () => {
     expect(screen.getByRole("heading", { name: "Community" })).toBeTruthy();
     expect(screen.getByText("Community statements are not live facts.")).toBeTruthy();
     expect(screen.getByText("Neighbors mention a quiet room.")).toBeTruthy();
+  });
+
+  it("shows the source kind, the supported field, and the match method", () => {
+    render(<EveningTimeline plan={plan()} timezone="Asia/Tokyo" intentCount={2} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Show evidence" })[0]);
+    // Each claim names what it supports and how it was tied to the place.
+    expect(screen.getByText("Opening hours")).toBeTruthy();
+    expect(screen.getByText("Taken from the place record.")).toBeTruthy();
+    expect(screen.getByText("Matched on the official domain.")).toBeTruthy();
+    // An unverified community claim is labelled rather than presented as fact.
+    expect(screen.getAllByText("Not verified.").length).toBeGreaterThan(0);
+    const items = document.querySelectorAll("[data-verification]");
+    expect(items.length).toBeGreaterThan(0);
+    expect(document.querySelector(".evidence-item-community")).toBeTruthy();
+    expect(document.querySelector(".evidence-item-official")).toBeTruthy();
+    expect(document.querySelector(".evidence-item-maps")).toBeTruthy();
   });
 
   it("marks incomplete, empty, and insufficient evenings without inventing a stop", () => {

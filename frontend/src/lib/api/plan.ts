@@ -147,6 +147,20 @@ export const planEvidenceSchema = z.object({
   text: z.string().min(1),
   url: z.string().nullable(),
   retrieved_at: instant,
+  field: z
+    .enum(["hours", "place_identity", "constraint", "contact", "description", "provenance"])
+    .default("description"),
+  matched_by: z
+    .enum([
+      "provider_id",
+      "official_domain",
+      "name_and_location",
+      "place_record",
+      "review_text",
+      "none_found",
+    ])
+    .default("none_found"),
+  verification: z.enum(["verified", "unverified", "conflicting"]).default("unverified"),
 });
 
 export const constraintAssessmentSchema = z

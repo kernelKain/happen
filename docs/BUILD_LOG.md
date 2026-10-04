@@ -989,3 +989,44 @@ Commands and results, from a clean `global-live-experience` tree at `4865815` be
 - An unverifiable new constraint produces `insufficient_evidence`. Keeping the previous plan and reporting success would be the exact failure this step removes.
 - The earlier browser test asserted that Apply sends no plan request. It encoded the bug, so it was rewritten to assert the recomputation, and four tests were added for the brief payload, a failed Apply, an unverified preference, and a destination change.
 - The next action is a manual local test of one evening. Deployment and submission stay user-owned and were not requested in this step.
+
+## Preserve evidence provenance and useful review signals
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: Every supporting statement a user can see is now a typed claim that says where it came from, what it supports, how it was tied to the place, and whether it is verified. Three defects were fixed. An official-domain search result was classified by what its text mentioned rather than by where it came from, so a snippet from the place's own website was silently discarded, or filed as community text when hours were missing. The exact result URL was dropped at the boundary, so no community claim could be linked and a reader could not follow a citation. Any community text that merely mentioned hours became a conflict, so "the ramen is great, we went at 7pm" produced a warning that the official hours and a community statement disagree. Maps hours also stay Maps evidence when an official site exists, and official normalized hours take precedence over community text. Review requests are now spent only when a requested preference is one a review can check and is still unverified. This step did not deploy.
+- Product behavior changed: yes. The evidence drawer now labels each claim by source kind, supported field, match method, and verification state. Unsafe, credential-bearing, local, and non-HTTP links are no longer rendered. This step did not deploy.
+- Cost changed: no. Tests use mocks and a counting in-memory provider. This step did not call SerpApi.
+
+### Evidence
+
+- An official-domain result stays official, keeps its own URL, and never enters community notes.
+- A community result stays community, keeps its own URL, and is cited as community when it verifies a constraint.
+- A result that does not name the place is not claimed, including a page on the official domain.
+- The exact safe URL reaches the stop, query string included.
+- Maps hours remain Maps evidence alongside an official site, and every Maps claim carries the Maps link.
+- Unsafe links are dropped: `file://`, `ftp://`, `javascript:`, `localhost`, `127.0.0.1`, a `.local` host, an embedded user and password, an `api_key` query parameter, an empty string, and none.
+- A safe public URL is preserved verbatim.
+- A matched but unsafe result keeps its text and loses only the link.
+- A contradiction is recorded only when the record lists the day closed and the community text asserts closure. Official hours win, and the conflict reports both sides.
+- Community text that merely mentions a time, says "closed" while the record shows the day open, or calls the hours unclear produces no conflict and stays unverified.
+- A community passage still verifies a constraint while remaining community and unverified, with its URL attached.
+- A stop separates official, Maps, and community claims, and each carries a retrieval time and a match method.
+- Reviews are not requested without a preference, not requested for a wording a review cannot check, and are requested when a checkable constraint is still unverified.
+- A stored claim stays at or under 300 characters and exposes no phone number or reviewer identity.
+- `uv run ruff format --check src tests ../scripts/scan-secrets.py` and `uv run ruff check src tests ../scripts/scan-secrets.py` passed.
+- `uv run pytest` — 383 passed.
+- Frontend `npx biome check`, `npx tsc --noEmit`, and `npm run build` passed. `npm test` — 47 passed.
+- Playwright `npx playwright test` passed, 15 tests.
+- `python3 scripts/scan-secrets.py` — exit 0, no findings.
+
+### Decisions
+
+- A claim is classified by its own domain only. Reading intent out of the wording is what produced the misclassification, so wording no longer influences the kind.
+- The match method is recorded, not just the outcome. A reader can see whether a statement was tied by provider id, official domain, or name and location, which is what makes an unmatched or weakly matched claim visible.
+- An official domain is a strong signal but not a wildcard. A page on that domain still has to name the place.
+- A conflict requires proof. Community text becomes a conflict only when the record already lists that day closed; otherwise it is unverified secondary context, which is what the contract asks for.
+- `_mentions_hours` treats hedging as not-a-claim, so "hours here are unclear" cannot be read as an hours statement.
+- The dedupe guard in `_record_claim` was inverted, using `all` over an empty list and discarding the first claim of every kind. That is why the first community claim never appeared. It now uses `any` and a length bound.
+- All links now go through `safe_link`, which also covers the stop's own `maps_link` and `website`.
+- The next action is a manual local test of one evening. Deployment and submission stay user-owned and were not requested in this step.
