@@ -1,0 +1,26 @@
+Read AGENTS.md, docs/HANDOFF.md, and docs/HANDOFF2.md completely before acting.
+
+Confirm that the current branch is global-live-experience and the working tree is clean. If either condition is false, stop and report it. Do not push, merge, deploy, or publish.
+
+Document the approved Global Live Experience redesign before changing implementation:
+
+- Preserve the previous product plan as historical context. Add a clearly dated approved contract addendum to docs/HANDOFF.md rather than silently deleting the earlier contract.
+- Reframe Happen as a global, prompt-led, live evening planner.
+- Scope one plan to one evening and no more than two stops.
+- State that SerpAPI is the only external source of place and supporting web data.
+- State that local Gemma may classify or extract structured preferences, but Python performs validation, feasibility checks, scoring, and final selection.
+- Require source provenance, retrieval timestamps, destination-local time, explicit unknown states, and no unsupported universal-coverage claims.
+- Define the live-only production rule: captured fixtures are test data only and never a user-facing fallback.
+- Define the prompt-to-plan flow, editable planning brief, destination disambiguation, one essential follow-up at a time, results timeline, and explicit refinement diff.
+- Define a shared maximum of eight billed SerpAPI requests for one submitted plan, including any paid destination-resolution fallback.
+- Record the key acceptance criteria and the automated-versus-user responsibilities.
+- Update docs/HANDOFF2.md so global-live-experience is the current branch and this redesign is the current work.
+- Update docs/BUILD_LOG.md with factual planning decisions only.
+
+Do not edit application code in this task.
+
+Run the secret scanner after editing. Review the diff carefully. Commit the documentation with exactly:
+
+Update the contract for global live planning.
+
+Stop after the commit and report the commit hash, changed files, checks run, and git status.
