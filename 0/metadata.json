@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M449H95JB7ZEW09V8EX3Z842",
+  "session_id": "8139fa1d-a298-4685-87a0-02a5b1e7be94",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T20:26:24.52002405Z",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/src/app/landing/Landing.test.tsx",
+    "frontend/src/app/landing/Landing.tsx",
+    "frontend/src/app/landing/flow.test.ts",
+    "frontend/src/app/landing/flow.ts",
+    "frontend/src/app/landing/landing.css",
+    "frontend/src/lib/api/plan.ts",
+    "frontend/src/lib/api/planClient.test.ts",
+    "frontend/src/lib/api/planClient.ts",
+    "frontend/tests/landing.spec.ts"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high-fast",
+  "turn_id": "fb4ab2bfa0a7",
+  "checkpoint_transcript_start": 350,
+  "transcript_lines_at_start": 350,
+  "compact_transcript_start": 27,
+  "session_metrics": {
+    "turn_count": 7,
+    "context_tokens": 248214,
+    "context_window_size": 256000
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T20:26:24.373960377Z",
+    "agent_lines": 2392,
+    "agent_removed": 52,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2392,
+    "total_lines_changed": 2444,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

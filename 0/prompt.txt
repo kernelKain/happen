@@ -1,0 +1,56 @@
+Read the product contract and inspect the existing frontend before editing. Confirm the branch. Do not push or deploy.
+
+Create a distinctive premium landing experience for Happen using React, TypeScript, and the existing frontend toolchain.
+
+Requirements:
+
+- Create an original code-native SVG mark and Happen wordmark. Do not copy a reference logo or add an unlicensed image.
+- Establish a restrained premium visual system: typography, color tokens, surfaces, focus states, spacing, motion, and responsive breakpoints.
+- Build a focused landing page with a strong promise, one primary prompt composer, useful example prompts, a short “how it works” explanation, and a compact trust statement about live SerpAPI evidence and local Gemma processing.
+- Remove repository-oriented or developer-facing copy from the customer journey.
+- Do not expose model filenames, scoring versions, fixture names, API versions, or implementation jargon.
+- Avoid dashboard clutter, generic SaaS card grids, fake testimonials, fake statistics, and decorative features unrelated to planning.
+- Use semantic HTML, keyboard navigation, visible focus, sufficient contrast, reduced-motion support, and mobile-first layout.
+- Support at least 390px mobile and 1280px desktop widths.
+- Add component tests and Playwright accessibility/responsive checks.
+- The landing page may use mocked application-state fixtures in tests only; it must not add a runtime demo mode.
+
+Update progress documentation. Run frontend formatting/check, unit tests, browser tests where supported, and build.
+
+Commit exactly:
+
+Create the Happen landing experience.
+
+Stop and report the hash, screenshots or test viewports used, test results, and git status.
+
+---
+
+Read the instructions and API contracts first. Confirm global-live-experience and do not push or deploy.
+
+Connect the landing prompt to the real v2 planning workflow.
+
+Implement:
+
+- The primary natural-language prompt composer.
+- Helpful global example prompts that populate but do not auto-submit.
+- Prompt interpretation through the backend.
+- An editable planning brief showing destination, local date, local time, party size, budget, intent order, and preferences.
+- One essential follow-up question at a time.
+- Destination disambiguation choices when required.
+- Clear validation that preserves the user’s original prompt and edits.
+- An explicit “Find the plan” confirmation before billed place discovery begins.
+- Real request-stage loading states driven by network activity; do not display fake percentages or artificial delays.
+- Cancel/retry behavior that does not accidentally issue duplicate paid searches.
+- Accessible keyboard and screen-reader behavior.
+- Mobile and desktop layouts.
+- User-safe handling for backend unavailable, destination ambiguity, provider quota, timeout, and no-result states.
+
+Do not add a user-facing fixture/sample fallback. Do not hide failures behind synthetic recommendations.
+
+Add unit, integration, and Playwright tests with mocked network responses. Update progress documentation and run all frontend checks and builds.
+
+Commit exactly:
+
+Build the prompt-led planning flow.
+
+Stop and report the commit hash, tested flows, and git status.
