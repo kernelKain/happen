@@ -7,7 +7,6 @@ services:
     name: happen-web
     runtime: static
     branch: walking-skeleton
-    region: singapore
     autoDeployTrigger: checksPass
     buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
     staticPublishPath: frontend/dist
