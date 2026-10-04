@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "biome check .",
+    "test": "vitest run",
+    "test:shell": "playwright test"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "5.3.0",

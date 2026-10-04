@@ -142,3 +142,79 @@ Operate on the local quantized 270M model. Do not call a hosted model API. Do no
 
 Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0` publishes JavaScript without TypeScript declarations. No locked runtime version changed.
 
+## Build health, metadata, and safe config
+
+- Date: 2026-10-04
+- Queue step: P1.2
+- Result: health and metadata contracts pass locally. The model is not loaded.
+- Product behavior changed: the API can report degraded readiness and the canonical preset. It cannot recommend a restaurant yet.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff check src tests` passed.
+- `uv run pytest` passed, 19 tests.
+- A TestClient call to `/healthz` returned HTTP 200 in under one second with `degraded` / `not_loaded`.
+- Importing the app did not import `llama_cpp`.
+- The local `.env` contains only `SERPAPI_API_KEY`. Startup succeeds because non-secret fields use the example defaults and the model manifest.
+- No secret value was printed or written.
+
+### Decisions
+
+- API contract version is `1.0.0`. Scoring policy version is `v1`.
+- The only neighbourhood is `indiranagar`, the only category is `restaurants`, and the only experience is `easier_conversation`. The canonical arrival range is 18:00–21:00 in `Asia/Kolkata`, with priorities `conversation`, `short_wait`, `seating`.
+- Health stays `degraded` until both the model and the fixture are ready. HTTP status remains 200 so a missing model does not restart the process.
+- Unknown paths use error code `NOT_FOUND`. That code is not in the original stable list; the envelope shape is unchanged.
+- Interactive API docs are disabled so only `/healthz` and `/api/v1/meta` are public routes.
+- `HAPPEN_LIVE_ENABLED` defaults to false. A configured key does not by itself mark live mode available.
+
+## Build the frontend shell
+
+- Date: 2026-10-04
+- Queue step: P1.3
+- Result: the planner shell renders the service preset and its failure states. No recommendation is invented.
+- Product behavior changed: the page now collects the evening request and explains when submission is unavailable.
+- Cost changed: no
+
+### Evidence
+
+- `npm test` passed, 3 tests.
+- `npm run build` passed.
+- `npx playwright test` passed, 5 tests. Horizontal overflow was 0 at 1280×720 and 390×844. Axe reported no serious or critical violations on the initial and service-error states.
+- Against the local API, the page showed Indiranagar, keyboard restore returned 18:00, and the browser console had no errors.
+- Measured contrast for text, muted text, the amber action, and the repository link is above 4.5:1.
+- The production bundle does not contain `SERPAPI`, `HF_TOKEN`, or `api_key`.
+
+### Decisions
+
+- The frontend accepts contract major `1`. Metadata loading retries once after one second.
+- When `VITE_API_BASE_URL` is unset, the app calls same-origin `/api/v1/meta`. Vite proxies that path to `http://127.0.0.1:8000` in dev and preview.
+- Find the moment stays disabled until `model_status` is `ready`. The current API reports `not_loaded`.
+- No decorative motion was added.
+
+## Establish CI and first public deployment
+
+- Date: 2026-10-04
+- Queue step: P1.4
+- Result: CI and the Render blueprint are written and checked locally. Nothing is deployed.
+- Product behavior changed: no
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src`, `backend/tests`, and `scripts/scan-secrets.py`.
+- `uv run pytest` passed, 21 tests.
+- `npm run check`, `npm test` (3 tests), `npm run build`, and `npx playwright test` (5 tests) passed.
+- `python3 scripts/scan-secrets.py` passed on tracked files and on `frontend/dist`. Output is a path plus a rule name.
+- `render.yaml` parses. The API service imports `happen_api.main:app`.
+- GitHub Actions has not run. No Render service was created.
+
+### Decisions
+
+- Backend plan is `1c-2g` in Singapore. Measured RSS after generation was 371.8 MB, under 80% of 2 GB. Move to `2c-4g` only if a live timing run misses 30 seconds.
+- Both services track `walking-skeleton` and use `autoDeployTrigger: checksPass`. Point them at `main` after this branch merges.
+- The first build does not download the model. Health stays HTTP 200 and `degraded`.
+- `HAPPEN_LIVE_ENABLED` is false. `SERPAPI_API_KEY` is dashboard-only. `HF_TOKEN` is omitted because this model file is public.
+- CORS and `VITE_API_BASE_URL` reference the other service's `RENDER_EXTERNAL_URL`. No wildcard and no content-security-policy header until the real hosts exist.
+- The Hook characterization test is not part of this tree. The backend job runs the full pytest suite, so the test joins CI when it is added. Browser tests stay out of this workflow.
+

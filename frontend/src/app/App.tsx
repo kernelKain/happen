@@ -1,0 +1,372 @@
+import { type ReactNode, useEffect, useId, useState } from "react";
+import {
+  type CanonicalPreset,
+  contractMajor,
+  LOCAL_PRESET,
+  loadMetadata,
+  type ServiceMeta,
+  SUPPORTED_CONTRACT_MAJOR,
+} from "../lib/api/meta";
+import { labelFor, moveItem } from "../lib/labels";
+
+type ShellState =
+  | { status: "loading" }
+  | { status: "unavailable" }
+  | { status: "mismatch"; meta: ServiceMeta }
+  | { status: "ready"; meta: ServiceMeta };
+
+const REPOSITORY_URL = "https://github.com/kernelKain/happen";
+
+export function App() {
+  const [reloadKey, setReloadKey] = useState(0);
+  const [shell, setShell] = useState<ShellState>({ status: "loading" });
+  const [draft, setDraft] = useState<CanonicalPreset>(LOCAL_PRESET);
+  const statusId = useId();
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey retries metadata
+  useEffect(() => {
+    let active = true;
+    setShell({ status: "loading" });
+    loadMetadata()
+      .then((meta) => {
+        if (!active) {
+          return;
+        }
+        setDraft(meta.canonical_preset);
+        if (contractMajor(meta.contract_version) !== SUPPORTED_CONTRACT_MAJOR) {
+          setShell({ status: "mismatch", meta });
+          return;
+        }
+        setShell({ status: "ready", meta });
+      })
+      .catch(() => {
+        if (active) {
+          setShell({ status: "unavailable" });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [reloadKey]);
+
+  const meta = shell.status === "ready" || shell.status === "mismatch" ? shell.meta : null;
+  const preset = meta?.canonical_preset ?? LOCAL_PRESET;
+  const choices = {
+    neighborhoods: meta?.supported_neighborhoods ?? [preset.neighborhood],
+    categories: meta?.supported_categories ?? [preset.restaurant_category],
+    experiences: meta?.supported_experiences ?? [preset.desired_experience],
+  };
+  const timezone = meta?.timezone ?? "Asia/Kolkata";
+  const canEdit = shell.status === "ready";
+  const modelReady = meta?.model_status === "ready";
+  const submitEnabled = shell.status === "ready" && modelReady;
+
+  return (
+    <div className="shell">
+      <header className="masthead">
+        <div>
+          <p className="eyebrow">Evening planning</p>
+          <h1>Happen</h1>
+          <p className="tagline">Know where. Know when.</p>
+        </div>
+        <div className="mode-block">
+          <p className="badge">{modeLabel(shell)}</p>
+          <p className="technical">No snapshot yet · {timezone}</p>
+        </div>
+      </header>
+
+      <section className="intro" aria-labelledby="thesis-heading">
+        <h2 id="thesis-heading">Plan the evening</h2>
+        <p className="thesis">
+          Happen helps a friend choose not merely a restaurant, but the best-supported restaurant
+          and arrival window for the experience they want.
+        </p>
+        <p className="preset-note">
+          Demo preset: {labelFor(preset.neighborhood)} dinner, {formatRange(preset)}.
+          {shell.status === "unavailable"
+            ? " These choices are stored in the page because the service could not confirm them."
+            : " Choices come from the Happen service."}
+        </p>
+      </section>
+
+      <ShellNotice shell={shell} onRetry={() => setReloadKey((value) => value + 1)} />
+
+      <form
+        className="planner"
+        aria-busy={shell.status === "loading"}
+        onSubmit={(event) => {
+          event.preventDefault();
+        }}
+      >
+        <div className="fields">
+          <Field label="Neighbourhood" id="neighborhood">
+            <select
+              id="neighborhood"
+              value={draft.neighborhood}
+              disabled={!canEdit}
+              onChange={(event) => setDraft({ ...draft, neighborhood: event.target.value })}
+            >
+              {choices.neighborhoods.map((value) => (
+                <option key={value} value={value}>
+                  {labelFor(value)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Category" id="category">
+            <select
+              id="category"
+              value={draft.restaurant_category}
+              disabled={!canEdit}
+              onChange={(event) => setDraft({ ...draft, restaurant_category: event.target.value })}
+            >
+              {choices.categories.map((value) => (
+                <option key={value} value={value}>
+                  {labelFor(value)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Arrival from" id="arrival-start">
+            <input
+              id="arrival-start"
+              type="time"
+              step={1800}
+              value={draft.arrival_start}
+              disabled={!canEdit}
+              onChange={(event) => setDraft({ ...draft, arrival_start: event.target.value })}
+            />
+          </Field>
+          <Field label="Arrival until" id="arrival-end">
+            <input
+              id="arrival-end"
+              type="time"
+              step={1800}
+              value={draft.arrival_end}
+              disabled={!canEdit}
+              onChange={(event) => setDraft({ ...draft, arrival_end: event.target.value })}
+            />
+          </Field>
+          <Field label="Desired experience" id="experience">
+            <select
+              id="experience"
+              value={draft.desired_experience}
+              disabled={!canEdit}
+              onChange={(event) => setDraft({ ...draft, desired_experience: event.target.value })}
+            >
+              {choices.experiences.map((value) => (
+                <option key={value} value={value}>
+                  {labelFor(value)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <fieldset className="priorities" disabled={!canEdit}>
+          <legend>Priority order</legend>
+          <ol>
+            {draft.priorities.map((priority, index) => (
+              <li key={priority}>
+                <span className="rank">{index + 1}</span>
+                <span>{labelFor(priority)}</span>
+                <span className="rank-actions">
+                  <button
+                    type="button"
+                    aria-label={`Move ${labelFor(priority)} earlier`}
+                    onClick={() =>
+                      setDraft({ ...draft, priorities: moveItem(draft.priorities, index, -1) })
+                    }
+                  >
+                    Earlier
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${labelFor(priority)} later`}
+                    onClick={() =>
+                      setDraft({ ...draft, priorities: moveItem(draft.priorities, index, 1) })
+                    }
+                  >
+                    Later
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </fieldset>
+
+        <p className="mode-copy">{evidenceCopy(shell)}</p>
+        <p id={statusId} className="submit-reason">
+          {submitReason(shell)}
+        </p>
+
+        <div className="actions">
+          <button type="submit" disabled={!submitEnabled} aria-describedby={statusId}>
+            Find the moment
+          </button>
+          <button
+            type="button"
+            onClick={() => setDraft(preset)}
+            disabled={shell.status === "loading"}
+          >
+            Restore demo preset
+          </button>
+        </div>
+      </form>
+
+      <section className="matrix-frame" aria-labelledby="matrix-heading">
+        <div className="matrix-heading">
+          <h2 id="matrix-heading">Tonight&apos;s moment</h2>
+          <p>Nothing has been recommended yet.</p>
+        </div>
+        <ul className="legend">
+          <li>
+            <span className="swatch swatch-strong" aria-hidden="true" />
+            Strong — supported
+          </li>
+          <li>
+            <span className="swatch swatch-possible" aria-hidden="true" />
+            Possible — partial support
+          </li>
+          <li>
+            <span className="swatch swatch-weak" aria-hidden="true" />
+            Weak — unfavorable
+          </li>
+          <li>
+            <span className="swatch swatch-unknown" aria-hidden="true" />
+            Unknown — not enough evidence
+          </li>
+        </ul>
+        <p className="matrix-empty">
+          Three restaurant timelines will appear here after evidence is gathered. Missing evidence
+          stays Unknown.
+        </p>
+      </section>
+
+      <footer className="colophon">
+        <p>Planning evidence—not live occupancy.</p>
+        <p>
+          Gemma extracts review evidence. Python scoring chooses the moment. SerpApi is the only
+          place-data source.
+        </p>
+        <p>
+          <a href={REPOSITORY_URL} rel="noopener noreferrer">
+            Project repository
+          </a>
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+function ShellNotice({ shell, onRetry }: { shell: ShellState; onRetry: () => void }) {
+  if (shell.status === "loading") {
+    return (
+      <p className="notice" role="status">
+        Checking the Happen service.
+      </p>
+    );
+  }
+  if (shell.status === "unavailable") {
+    return (
+      <div className="notice notice-error" role="alert">
+        <p>The Happen service is unavailable.</p>
+        <p>Retry the connection. The page will not invent a recommendation.</p>
+        <button type="button" onClick={onRetry}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (shell.status === "mismatch") {
+    return (
+      <div className="notice notice-error" role="alert">
+        <p>A new version is available.</p>
+        <p>Refresh the page so the planner matches the service. Submission stays off.</p>
+        <button type="button" onClick={() => window.location.reload()}>
+          Refresh the page
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
+function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  return (
+    <label className="field" htmlFor={id}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function modeLabel(shell: ShellState): string {
+  if (shell.status === "loading") {
+    return "Checking service";
+  }
+  if (shell.status === "unavailable") {
+    return "Service unavailable";
+  }
+  if (shell.status === "mismatch") {
+    return "Update required";
+  }
+  if (shell.meta.live_available) {
+    return "Live evidence";
+  }
+  if (shell.meta.fixture_available) {
+    return "Captured fixture";
+  }
+  return "Evidence not ready";
+}
+
+function evidenceCopy(shell: ShellState): string {
+  if (shell.status !== "ready") {
+    return "Live and captured evidence can be used only after the service responds.";
+  }
+  if (shell.meta.live_available && shell.meta.fixture_available) {
+    return "Live evidence is available. Captured evidence stays a separate, labeled path.";
+  }
+  if (shell.meta.live_available) {
+    return "Live evidence is available. Captured evidence is not installed.";
+  }
+  if (shell.meta.fixture_available) {
+    return "Captured evidence is available and will be labeled as a captured fixture.";
+  }
+  return "Live evidence is off, and captured evidence is not installed.";
+}
+
+function submitReason(shell: ShellState): string {
+  if (shell.status === "loading") {
+    return "Find the moment stays off until the service responds.";
+  }
+  if (shell.status === "unavailable") {
+    return "Find the moment stays off because the service is unavailable.";
+  }
+  if (shell.status === "mismatch") {
+    return "Find the moment stays off until this page matches the service.";
+  }
+  if (shell.meta.model_status === "loading") {
+    return "The evidence model is waking up, so Find the moment stays off.";
+  }
+  if (shell.meta.model_status !== "ready") {
+    return "The evidence model is not ready, so Find the moment stays off.";
+  }
+  return "Find the moment uses the service. It does not run until you choose it.";
+}
+
+function formatRange(preset: CanonicalPreset): string {
+  return `${formatTime(preset.arrival_start)}–${formatTime(preset.arrival_end)}`;
+}
+
+function formatTime(value: string): string {
+  const [hourText, minuteText] = value.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+    return value;
+  }
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minuteText} ${suffix}`;
+}
