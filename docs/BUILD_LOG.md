@@ -817,3 +817,29 @@ Commands and results, from a clean `global-live-experience` tree at `4865815` be
 - The next action is an independent local audit. Manual testing, the friend walkthrough, deployment, and submission stay user-owned and were not requested in this step.
 - The 1B candidate stays unselected. The pinned artifact stays the 270M file, and the deterministic parser stays the reader.
 
+## Rank a bounded set of live candidates
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: Global discovery no longer keeps only the first Maps row for each intent. Each intent keeps up to five valid places. Duplicates match place id, then data id, then a normalized name and address. A coordinate more than 80 km from the destination is rejected. Missing optional fields stay unknown. Python scores listed open hours, a website, a Maps link, a rating, and support for an explicitly requested constraint. Provider order breaks a tie only when that evidence is equal. An equal provider rank then uses the casefolded name and the place id. Details are requested for missing hours or coordinates, or for one close alternative. Reviews are requested only when a requested constraint can still change the comparison. At most two web searches fill missing hours. A finalist whose hours are definitely closed is replaced while the eight-request budget remains. Two intents still become at most two stops. The plan cache stores that candidate pool for 15 minutes. No second provider, model API, database, or paid service was added.
+- Product behavior changed: yes. A later place with stronger listed evidence can be chosen over the first Maps row. A closed first result can be skipped. This step did not deploy.
+- Cost changed: no. Tests use mocks. This step did not call SerpApi.
+
+### Evidence
+
+- A later verified-open place is selected ahead of an earlier row with weaker listed evidence.
+- A first result whose details say it is closed on the visit day is skipped for the next candidate.
+- Two places with equal evidence select the earlier provider result, not the alphabetically earlier name.
+- Five results for each of two intents still produce two stops.
+- A two-intent search with thin evidence and a review constraint sends at most eight billed calls. The test client allows 20, so the stop comes from the plan budget.
+- `uv run ruff format --check src tests ../scripts/scan-secrets.py` — 75 files already formatted.
+- `uv run ruff check src tests ../scripts/scan-secrets.py` — all checks passed.
+- `uv run pytest` — 247 passed.
+- `python3 scripts/scan-secrets.py` — exit 0, no findings.
+
+### Decisions
+
+- The tie-breaker is the provider result index, then the casefolded name, then the place id.
+- A place without coordinates is kept. Only a pin more than 80 km away is treated as outside the destination.
+- The next action is a manual local test of one evening. The friend walkthrough, deployment, and submission stay user-owned and were not requested in this step.
+

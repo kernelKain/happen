@@ -1,12 +1,14 @@
 """Choose one or two evening stops from retrieved places.
 
-Selection, hours checks, and tie handling stay in Python. This module does not
-call a model and does not invent a travel duration.
+Selection, hours checks, and tie handling stay in Python. Verified fit is the
+score. Provider order is only the tie-breaker when that fit is equal. This
+module does not call a model and does not invent a travel duration.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import date, datetime, time, timedelta
 from enum import StrEnum
 from typing import Literal
@@ -31,10 +33,22 @@ from happen_api.planning.interpret import interpret
 
 _DAY = "monday|tuesday|wednesday|thursday|friday|saturday|sunday"
 _HOURS = re.compile(rf"(?i)^({_DAY})\s*:\s*(\d{{1,2}}:\d{{2}})\s*[-–—]\s*(\d{{1,2}}:\d{{2}})$")
-_OPEN_WEIGHT = 4
-_UNKNOWN_WEIGHT = 1
-_OFFICIAL_WEIGHT = 2
-_MAPS_WEIGHT = 1
+_CLOSED_DAY = re.compile(rf"(?i)^({_DAY})\s*:\s*closed$")
+_OPEN_FIT = 100
+_UNKNOWN_FIT = 20
+_WEBSITE_FIT = 4
+_MAPS_FIT = 2
+_CONSTRAINT_FIT = 8
+_CONSTRAINT_TERMS: dict[str, tuple[str, ...]] = {
+    "quiet": ("quiet", "calm", "peaceful"),
+    "vegetarian": ("vegetarian",),
+    "vegan": ("vegan",),
+    "romantic": ("romantic",),
+    "outdoor seating": ("outdoor", "patio", "terrace"),
+    "casual": ("casual",),
+    "formal": ("formal",),
+    "spicy": ("spicy",),
+}
 
 
 class EvidenceSource(StrEnum):
@@ -151,9 +165,11 @@ def hours_status(
     if not place.hours:
         return "unknown"
     parsed = _parse_hours(place.hours)
-    if not parsed:
-        return "unknown"
     weekday = local_date.strftime("%A").lower()
+    if not parsed:
+        if _listed_closed(place.hours, weekday):
+            return "closed"
+        return "unknown"
     previous = (local_date - timedelta(days=1)).strftime("%A").lower()
     for day, start, end in parsed:
         if end > start and day == weekday and start <= arrival < end:
@@ -165,6 +181,87 @@ def hours_status(
     return "closed"
 
 
+def constraint_terms(preferences: Sequence[str]) -> tuple[str, ...]:
+    """Return requested preferences that review text can support."""
+
+    found: list[str] = []
+    for item in preferences:
+        key = item.casefold().strip()
+        if key in _CONSTRAINT_TERMS and key not in found:
+            found.append(key)
+    return tuple(found)
+
+
+def constraint_supported(place: DiscoveredPlace, preference: str) -> bool:
+    """Return whether place text already shows one requested constraint."""
+
+    terms = _CONSTRAINT_TERMS.get(preference.casefold().strip(), ())
+    if not terms:
+        return False
+    blob = " ".join([*place.highlights, *place.community_notes]).casefold()
+    return any(term in blob for term in terms)
+
+
+def unmet_constraint_gain(place: DiscoveredPlace, preferences: Sequence[str]) -> int:
+    """Return the fit a review could still add for requested constraints."""
+
+    return _CONSTRAINT_FIT * sum(
+        1 for item in constraint_terms(preferences) if not constraint_supported(place, item)
+    )
+
+
+def verified_fit(
+    place: DiscoveredPlace,
+    state: Literal["open", "closed", "unknown"],
+    preferences: Sequence[str] = (),
+) -> int:
+    """Score listed evidence. A missing field adds nothing.
+
+    Open hours outrank unknown hours. A listed website, Maps link, rating, or
+    supported constraint adds its own points. Closed hours do not.
+    """
+
+    if state == "open":
+        score = _OPEN_FIT
+    elif state == "unknown":
+        score = _UNKNOWN_FIT
+    else:
+        score = 0
+    if place.website is not None:
+        score += _WEBSITE_FIT
+    if place.maps_link is not None:
+        score += _MAPS_FIT
+    if place.rating is not None:
+        score += round(place.rating * 10)
+    for preference in constraint_terms(preferences):
+        if constraint_supported(place, preference):
+            score += _CONSTRAINT_FIT
+    return score
+
+
+def selection_key(
+    place: DiscoveredPlace,
+    *,
+    local_date: date,
+    arrival: time,
+    preferences: Sequence[str] | None = None,
+) -> tuple[int, int, str, str]:
+    """Order one place. Provider rank breaks ties and is not the main score.
+
+    The first value is verified fit. When that fit is equal, the earlier
+    provider result wins. When that rank is also equal, the casefolded name
+    and then the place id keep the order stable.
+    """
+
+    accepted = preferences or ()
+    return (
+        -verified_fit(place, hours_status(place, local_date, arrival), accepted),
+        place.provider_rank,
+        place.name.casefold(),
+        place.place_id or place.data_id or "",
+    )
+
+
 def assemble_itinerary(
     places: list[DiscoveredPlace],
     intents: list[PlaceIntent],
@@ -172,6 +269,7 @@ def assemble_itinerary(
     local_date: date,
     local_start: time,
     retrieved_at: datetime,
+    preferences: list[str] | None = None,
 ) -> EveningPlan:
     """Select at most one place for each of up to two intents."""
 
@@ -196,7 +294,15 @@ def assemble_itinerary(
         if not open_or_unknown:
             warnings.append(f"No open place matched {intent.label}.")
             continue
-        place, state = min(open_or_unknown, key=_rank)
+        place, state = min(
+            open_or_unknown,
+            key=lambda item: selection_key(
+                item[0],
+                local_date=local_date,
+                arrival=local_start,
+                preferences=preferences,
+            ),
+        )
         stops.append(_stop(place, intent, state, local_date, local_start, retrieved_at))
     outcome: Literal["planned", "no_results", "insufficient_evidence"] = (
         "planned" if stops else "insufficient_evidence"
@@ -314,14 +420,12 @@ def _joined(values: list[str]) -> str | None:
     return ", ".join(values) if values else None
 
 
-def _rank(item: tuple[DiscoveredPlace, str]) -> tuple[int, str, str]:
-    place, state = item
-    quality = _OPEN_WEIGHT if state == "open" else _UNKNOWN_WEIGHT
-    if place.website is not None:
-        quality += _OFFICIAL_WEIGHT
-    if place.maps_link is not None:
-        quality += _MAPS_WEIGHT
-    return (-quality, place.name.casefold(), place.place_id or place.data_id or "")
+def _listed_closed(lines: list[str], weekday: str) -> bool:
+    for line in lines:
+        match = _CLOSED_DAY.match(line.strip())
+        if match is not None and match.group(1).lower() == weekday:
+            return True
+    return False
 
 
 def _stop(

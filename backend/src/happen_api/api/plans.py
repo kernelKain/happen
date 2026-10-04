@@ -26,7 +26,12 @@ from happen_api.planning.destination import (
     ResolutionStatus,
     resolve_destination,
 )
-from happen_api.planning.discovery import DiscoveryStatus, discover_places, discovery_cache_key
+from happen_api.planning.discovery import (
+    CandidatePool,
+    DiscoveryStatus,
+    discover_places,
+    discovery_cache_key,
+)
 from happen_api.planning.interpret import interpret
 from happen_api.planning.itinerary import (
     assemble_itinerary,
@@ -197,16 +202,18 @@ def create_plan(body: PlanRequest, request: Request) -> object:
         start_time=body.local_start,
         end_time=body.local_end,
         intents=body.intents,
+        preferences=body.preferences,
     )
     cached = _plan_cache(request).get(cache_key)
     if cached is not None:
         _end(request, billed=True)
         return assemble_itinerary(
-            cached,
+            cached.places,
             body.intents,
             local_date=body.local_date,
             local_start=body.local_start,
             retrieved_at=_clock(request).now(),
+            preferences=body.preferences,
         )
     client, owned = _client(request, remaining)
     if isinstance(client, _Unavailable):
@@ -222,6 +229,7 @@ def create_plan(body: PlanRequest, request: Request) -> object:
             start_time=body.local_start,
             end_time=body.local_end,
             retrieved_at=_clock(request).now(),
+            preferences=body.preferences,
         )
     except SerpApiFailure as exc:
         return _provider_failure(request, exc)
@@ -229,7 +237,7 @@ def create_plan(body: PlanRequest, request: Request) -> object:
         _close(client, owned)
         _end(request, billed=True)
     if found.places and found.stopped not in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
-        _plan_cache(request).put(cache_key, found.places)
+        _plan_cache(request).put(cache_key, CandidatePool(places=found.places))
     if found.status is DiscoveryStatus.timeout and not found.places:
         return _failure(
             request,
@@ -254,6 +262,7 @@ def create_plan(body: PlanRequest, request: Request) -> object:
         local_date=body.local_date,
         local_start=body.local_start,
         retrieved_at=found.retrieved_at,
+        preferences=body.preferences,
     )
     if found.stopped is DiscoveryStatus.timeout:
         plan.warnings.append("Some place evidence did not respond in time.")

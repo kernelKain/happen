@@ -27,12 +27,19 @@ def _snapshot(payload: dict[str, object]) -> SimpleNamespace:
     return SimpleNamespace(payload=payload)
 
 
-def _row(title: str, place_id: str, hours: dict[str, str] | None) -> dict[str, object]:
+def _row(
+    title: str,
+    place_id: str,
+    hours: dict[str, str] | None,
+    *,
+    latitude: float = 35.6764,
+    longitude: float = 139.6500,
+) -> dict[str, object]:
     record: dict[str, object] = {
         "title": title,
         "place_id": place_id,
-        "address": "Kyoto",
-        "gps_coordinates": {"latitude": 35.0, "longitude": 135.7},
+        "address": "Tokyo",
+        "gps_coordinates": {"latitude": latitude, "longitude": longitude},
         "website": "https://venue.example",
         "link": "https://maps.example/venue",
         "description": "Counter seating.",
@@ -89,7 +96,17 @@ class ScriptedProvider:
         if self.empty:
             return _snapshot({"local_results": []})
         title = "Night Bar" if "drinks" in query else "Kura"
-        return _snapshot({"local_results": [_row(title, title.casefold(), self.hours)]})
+        latitude = 35.6764 if latitude is None else latitude
+        longitude = 139.6500 if longitude is None else longitude
+        return _snapshot(
+            {
+                "local_results": [
+                    _row(
+                        title, title.casefold(), self.hours, latitude=latitude, longitude=longitude
+                    )
+                ]
+            }
+        )
 
     def place_details(
         self,

@@ -13,11 +13,13 @@ from happen_api.app import create_app
 from happen_api.config import Settings
 from happen_api.planning.contracts import IntentKind, PlaceIntent, ResolvedDestination
 from happen_api.planning.discovery import (
+    DiscoveredPlace,
     DiscoveryStatus,
     _apply_web,
     discover_places,
     discovery_cache_key,
 )
+from happen_api.planning.itinerary import assemble_itinerary
 from happen_api.providers.serpapi.client import SerpApiClient
 
 _KEY = "live-key-value"
@@ -66,7 +68,7 @@ def test_two_intents_keep_provider_language_and_skip_extra_calls() -> None:
 
 
 def test_incomplete_london_evidence_stays_unknown_and_uses_one_web_search() -> None:
-    """A place without hours spends details, reviews, and at most one web search."""
+    """A place without hours spends details and one web search. Reviews wait for a constraint."""
 
     sparse = {
         "title": "The Eagle",
@@ -74,7 +76,6 @@ def test_incomplete_london_evidence_stays_unknown_and_uses_one_web_search() -> N
         "gps_coordinates": {"latitude": 51.52, "longitude": -0.12},
     }
     detail = {"title": "The Eagle", "address": "159 Farringdon Road, London"}
-    reviews = {"reviews": [{"snippet": "Loud room near the bar."}]}
     web = {
         "organic_results": [
             {
@@ -94,7 +95,6 @@ def test_incomplete_london_evidence_stays_unknown_and_uses_one_web_search() -> N
             side_effect=[
                 _response({"local_results": [sparse]}),
                 _response({"place_results": detail}),
-                _response(reviews),
                 _response(web),
             ]
         )
@@ -108,17 +108,17 @@ def test_incomplete_london_evidence_stays_unknown_and_uses_one_web_search() -> N
         )
 
     assert result.status is DiscoveryStatus.partial_evidence
-    assert result.billed_requests == 4
+    assert result.billed_requests == 3
     assert [call.request.url.params["engine"] for call in route.calls] == [
         "google_maps",
         "google_maps",
-        "google_maps_reviews",
         "google",
     ]
     place = result.places[0]
     assert "hours" in place.unknown_fields
+    assert "highlights" in place.unknown_fields
     assert place.address == "159 Farringdon Road, London"
-    assert place.highlights == ["Loud room near the bar."]
+    assert place.highlights == []
     assert place.community_notes
     assert place.conflicts == []
     assert all(urlsplit_host(call.request.url) == "serpapi.com" for call in route.calls)
@@ -365,3 +365,286 @@ def test_queries_follow_the_destination_country(country: str) -> None:
     assert sent["q"] == f"coffee in {labels[country]}"
     assert "hl" not in sent
     assert "gl" not in sent
+
+
+def test_a_later_candidate_with_stronger_fit_is_selected() -> None:
+    """The first Maps row is not chosen when a later row is verified open."""
+
+    weak = _row("First Counter", "first", hours={}, rating=4.9, website=None)
+    strong = _row("Verified Room", "verified", hours={"monday": "17:00-22:00"}, rating=4.0)
+    with respx.mock, _client() as client:
+        route = respx.get(_URL).mock(side_effect=_router([weak, strong]))
+        result = discover_places(
+            _kyoto(),
+            [_intent(IntentKind.dinner, 1)],
+            client,
+            local_date=date(2026, 10, 5),
+            start_time=time(19, 0),
+            retrieved_at=_WHEN,
+        )
+    plan = _selected(result.places)
+    assert plan.stops[0].name == "Verified Room"
+    assert result.places[0].name == "Verified Room"
+    assert result.places[0].provider_rank == 1
+    assert {place.name for place in result.places} >= {"First Counter", "Verified Room"}
+    assert len(route.calls) <= 8
+
+
+def test_a_definitely_closed_first_result_is_skipped() -> None:
+    """Details that show the leader is closed move on to the next candidate."""
+
+    shut = _row("Shut Room", "shut", hours={}, rating=4.9)
+    later = _row("Open Later", "later", hours={}, rating=None, website=None)
+    hours = {
+        "shut": {"monday": "Closed"},
+        "later": {"monday": "17:00-22:00"},
+    }
+    with respx.mock, _client() as client:
+        respx.get(_URL).mock(side_effect=_router([shut, later], detail_hours=hours))
+        result = discover_places(
+            _kyoto(),
+            [_intent(IntentKind.dinner, 1)],
+            client,
+            local_date=date(2026, 10, 5),
+            start_time=time(19, 0),
+            retrieved_at=_WHEN,
+        )
+    plan = _selected(result.places)
+    assert plan.stops[0].name == "Open Later"
+    assert plan.stops[0].hours_status == "open"
+    assert {place.name for place in result.places} >= {"Shut Room", "Open Later"}
+
+
+def test_equal_evidence_uses_provider_order_as_the_tie_breaker() -> None:
+    """Equal verified fit keeps the earlier provider result, not the earlier name."""
+
+    zeta = _row("Zeta Room", "zeta")
+    alpha = _row("Alpha Room", "alpha")
+    with respx.mock, _client() as client:
+        respx.get(_URL).mock(side_effect=_router([zeta, alpha]))
+        result = discover_places(
+            _kyoto(),
+            [_intent(IntentKind.dinner, 1)],
+            client,
+            local_date=date(2026, 10, 5),
+            start_time=time(19, 0),
+            retrieved_at=_WHEN,
+        )
+    assert [place.provider_rank for place in result.places] == [0, 1]
+    assert _selected(result.places).stops[0].name == "Zeta Room"
+    assert result.billed_requests == 1
+
+
+def test_two_intents_still_produce_at_most_two_stops() -> None:
+    """Five results for each of two intents still become one stop each."""
+
+    dinner = [_row(f"Dinner {index}", f"dinner-{index}") for index in range(5)]
+    drinks = [_row(f"Drinks {index}", f"drinks-{index}") for index in range(5)]
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        if "drinks" in _params(request)["q"]:
+            return _response({"local_results": drinks})
+        return _response({"local_results": dinner})
+
+    with respx.mock, _client() as client:
+        route = respx.get(_URL).mock(side_effect=answer)
+        result = discover_places(
+            _kyoto(),
+            [_intent(IntentKind.dinner, 1), _intent(IntentKind.drinks, 2)],
+            client,
+            local_date=date(2026, 10, 5),
+            start_time=time(19, 0),
+            retrieved_at=_WHEN,
+        )
+    plan = _selected(result.places, [_intent(IntentKind.dinner, 1), _intent(IntentKind.drinks, 2)])
+    assert len(result.places) == 10
+    assert len(plan.stops) == 2
+    assert [stop.intent.value for stop in plan.stops] == ["dinner", "drinks"]
+    assert len(route.calls) == 2
+
+
+def test_discovery_cannot_exceed_eight_billed_calls() -> None:
+    """Two intents, thin evidence, and a review constraint still stop at eight calls."""
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        params = _params(request)
+        if params.get("type") == "search":
+            rows = [
+                {
+                    "title": f"Place {index}",
+                    "place_id": f"place-{index}",
+                    "gps_coordinates": {"latitude": 35.01, "longitude": 135.77},
+                }
+                for index in range(8)
+            ]
+            return _response({"local_results": rows})
+        if params.get("type") == "place":
+            return _response({"place_results": {}})
+        if params.get("engine") == "google_maps_reviews":
+            return _response({"reviews": [{"snippet": "A quiet room."}]})
+        return _response({"organic_results": []})
+
+    with respx.mock, _client(credit_limit=20) as client:
+        route = respx.get(_URL).mock(side_effect=answer)
+        result = discover_places(
+            _kyoto(),
+            [_intent(IntentKind.dinner, 1), _intent(IntentKind.drinks, 2)],
+            client,
+            local_date=date(2026, 10, 5),
+            start_time=time(19, 0),
+            retrieved_at=_WHEN,
+            preferences=["quiet"],
+        )
+    assert len(route.calls) <= 8
+    assert result.billed_requests <= 8
+    assert client.credits_charged <= 8
+    searches = [call for call in route.calls if _params(call.request).get("type") == "search"]
+    assert len(searches) <= 2
+
+
+def test_duplicates_and_outside_places_leave_the_pool() -> None:
+    """Place id, data id, and name plus address dedupe. A far pin is rejected."""
+
+    rows = [
+        _row("Kikunoi", "place-a", data_id="data-a", address="459 Shimokawara-cho"),
+        _row("Kikunoi", "place-b", data_id="data-b", address="459 Shimokawara cho"),
+        _row("Other Name", "place-a", data_id="data-c", address="9 Other Road"),
+        _row("Elsewhere", "place-e", data_id="data-a", address="9 New Road"),
+        _row(
+            "Paris Bistro",
+            "place-far",
+            data_id="data-far",
+            address="1 Rue de Rivoli",
+            latitude=48.86,
+            longitude=2.35,
+        ),
+        _row("Junsei", "place-junsei", data_id="data-junsei", address="Different Street"),
+        {
+            "title": "No Pin",
+            "place_id": "place-none",
+            "data_id": "data-none",
+        },
+    ]
+    with respx.mock, _client() as client:
+        respx.get(_URL).mock(side_effect=_router(rows))
+        result = discover_places(
+            _kyoto(),
+            [_intent(IntentKind.dinner, 1)],
+            client,
+            local_date=date(2026, 10, 5),
+            start_time=time(19, 0),
+            retrieved_at=_WHEN,
+        )
+    names = [place.name for place in result.places]
+    assert names.count("Kikunoi") == 1
+    assert "Junsei" in names
+    assert "No Pin" in names
+    assert "Paris Bistro" not in names
+    assert "Other Name" not in names
+    assert "Elsewhere" not in names
+    missing = next(place for place in result.places if place.name == "No Pin")
+    assert "address" in missing.unknown_fields
+    assert "hours" in missing.unknown_fields
+
+
+def test_a_requested_constraint_can_outrank_provider_order() -> None:
+    """Reviews are read only for a requested constraint, and that evidence can win."""
+
+    alpha = _row("Alpha Room", "alpha")
+    bravo = _row("Bravo Room", "bravo")
+    reviews = {
+        "alpha": [{"snippet": "Loud room near the door."}],
+        "bravo": [{"snippet": "A quiet room in the back."}],
+    }
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        params = _params(request)
+        if params.get("engine") == "google_maps_reviews":
+            place_id = params.get("place_id", "")
+            return _response({"reviews": reviews.get(place_id, [])})
+        return _router([alpha, bravo])(request)
+
+    with respx.mock, _client() as client:
+        route = respx.get(_URL).mock(side_effect=answer)
+        result = discover_places(
+            _kyoto(),
+            [_intent(IntentKind.dinner, 1)],
+            client,
+            local_date=date(2026, 10, 5),
+            start_time=time(19, 0),
+            retrieved_at=_WHEN,
+            preferences=["quiet"],
+        )
+    assert _selected(result.places, preferences=["quiet"]).stops[0].name == "Bravo Room"
+    assert any(_params(call.request).get("engine") == "google_maps_reviews" for call in route.calls)
+    assert len(route.calls) <= 8
+
+
+def _selected(
+    places: list[DiscoveredPlace],
+    intents: list[PlaceIntent] | None = None,
+    preferences: list[str] | None = None,
+):
+    return assemble_itinerary(
+        places,
+        intents or [_intent(IntentKind.dinner, 1)],
+        local_date=date(2026, 10, 5),
+        local_start=time(19, 0),
+        retrieved_at=_WHEN,
+        preferences=preferences,
+    )
+
+
+def _kyoto() -> ResolvedDestination:
+    return _destination("Kyoto, Japan", "JP", 35.0116, 135.7681, "Kyoto")
+
+
+def _router(
+    rows: list[dict[str, object]],
+    detail_hours: dict[str, dict[str, str]] | None = None,
+):
+    def answer(request: httpx.Request) -> httpx.Response:
+        params = _params(request)
+        if params.get("type") == "place":
+            hours = (detail_hours or {}).get(params.get("place_id", ""))
+            body: dict[str, object] = {}
+            if hours is not None:
+                body["operating_hours"] = hours
+            return _response({"place_results": body})
+        if params.get("engine") == "google":
+            return _response({"organic_results": []})
+        return _response({"local_results": rows})
+
+    return answer
+
+
+def _row(
+    name: str,
+    place_id: str,
+    *,
+    hours: dict[str, str] | None = None,
+    rating: float | None = 4.5,
+    website: str | None = "https://example.com/venue",
+    data_id: str | None = None,
+    address: str = "1 Example Street",
+    latitude: float = 35.01,
+    longitude: float = 135.77,
+) -> dict[str, object]:
+    record: dict[str, object] = {
+        "title": name,
+        "place_id": place_id,
+        "data_id": data_id or f"data-{place_id}",
+        "address": address,
+        "gps_coordinates": {"latitude": latitude, "longitude": longitude},
+        "link": "https://maps.example/venue",
+        "type": "restaurant",
+    }
+    if rating is not None:
+        record["rating"] = rating
+    if website is not None:
+        record["website"] = website
+    if hours is None:
+        record["operating_hours"] = {"monday": "17:00-22:00"}
+    elif hours:
+        record["operating_hours"] = hours
+    return record

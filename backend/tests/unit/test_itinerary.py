@@ -142,8 +142,26 @@ def test_price_and_busyness_gaps_do_not_raise_a_place() -> None:
     assert _plan([busy], [_intent()]).stops[0].busyness == "listed"
 
 
+def test_equal_evidence_uses_provider_rank_before_the_name() -> None:
+    """When verified fit matches, the earlier provider result wins over the name."""
+
+    later_name = _place(
+        name="Alpha Room",
+        place_id="alpha",
+        provider_rank=1,
+        website="https://alpha.example",
+    )
+    earlier = _place(
+        name="Zeta Room",
+        place_id="zeta",
+        provider_rank=0,
+        website="https://zeta.example",
+    )
+    assert _plan([later_name, earlier]).stops[0].name == "Zeta Room"
+
+
 def test_official_source_breaks_a_name_tie_and_equal_places_use_the_name() -> None:
-    """An official site outranks a maps-only place. Equal places use the name, not input order."""
+    """An official site outranks a maps-only place. Equal ranks then use the name."""
 
     maps_only = _place(name="Alpha")
     official = _place(

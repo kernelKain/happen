@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from happen_api.ai.extractor import release_model
 from happen_api.planning.contracts import IntentKind
-from happen_api.planning.discovery import DiscoveredPlace
+from happen_api.planning.discovery import CandidatePool, DiscoveredPlace
 from happen_api.planning.limits import PlanCache, PlanningThrottle
 
 
@@ -21,23 +21,23 @@ def test_three_billed_plans_block_another_until_one_finishes() -> None:
 
 
 def test_plan_cache_keeps_a_bound_and_rejects_a_raw_key() -> None:
-    """The cache evicts past its maximum and ignores a key that is not a hash."""
+    """The cache stores the candidate pool, evicts past its maximum, and ignores a raw key."""
 
     cache = PlanCache(maxsize=2, ttl=60)
-    first = _place("First")
-    cache.put("a" * 64, [first])
-    cache.put("b" * 64, [_place("Second")])
-    cache.put("c" * 64, [_place("Third")])
-    cache.put("Dinner in Kyoto", [_place("Rejected")])
+    cache.put("a" * 64, CandidatePool(places=[_place("First")]))
+    cache.put("b" * 64, CandidatePool(places=[_place("Second"), _place("Alternate")]))
+    cache.put("c" * 64, CandidatePool(places=[_place("Third"), _place("Other")]))
+    cache.put("Dinner in Kyoto", CandidatePool(places=[_place("Rejected")]))
+    cache.put("d" * 64, CandidatePool(places=[]))
     assert len(cache) == 2
     assert cache.get("a" * 64) is None
     kept = cache.get("c" * 64)
     assert kept is not None
-    assert kept[0].name == "Third"
-    kept[0].name = "Mutated"
+    assert [place.name for place in kept.places] == ["Third", "Other"]
+    kept.places[0].name = "Mutated"
     again = cache.get("c" * 64)
     assert again is not None
-    assert again[0].name == "Third"
+    assert again.places[0].name == "Third"
     assert cache.get("Dinner in Kyoto") is None
 
 

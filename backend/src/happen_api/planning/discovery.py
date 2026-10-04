@@ -1,12 +1,15 @@
 """Global place discovery. Queries come from the destination and the intents.
 
-The provider chooses language. Missing facts stay unknown. Official hours
-override a community statement, and a disagreement stays on the place.
+The provider chooses language. A search keeps a bounded candidate pool, and
+Python ranks that pool. Provider order is only a tie-breaker. Missing facts
+stay unknown. Official hours override a community statement, and a
+disagreement stays on the place.
 """
 
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from datetime import date, datetime, time
 from enum import StrEnum
@@ -41,8 +44,12 @@ _COMMUNITY_HOSTS = {
     "www.facebook.com",
 }
 _PHONE = re.compile(r"(?:\+\d|\(\d|\b\d)[\d\s().-]{7,}\d")
+_LABEL = re.compile(r"[^0-9a-z]+")
 _MAX_WEB_SEARCHES = 2
 _MAX_INTENTS = 2
+_POOL_LIMIT = 5
+_POOL_TOTAL = _MAX_INTENTS * _POOL_LIMIT
+_DESTINATION_RADIUS_KM = 80.0
 
 
 class DiscoveryStatus(StrEnum):
@@ -69,6 +76,7 @@ class DiscoveredPlace(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     intent: IntentKind
+    provider_rank: int = Field(default=0, ge=0, le=100)
     place_id: str | None = Field(default=None, max_length=120)
     data_id: str | None = Field(default=None, max_length=120)
     name: str = Field(min_length=1, max_length=160)
@@ -92,13 +100,21 @@ class DiscoveredPlace(BaseModel):
     community_notes: list[str] = Field(default_factory=list, max_length=4)
 
 
+class CandidatePool(BaseModel):
+    """Normalized places kept so a later selection can compare them."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    places: list[DiscoveredPlace] = Field(default_factory=list, max_length=_POOL_TOTAL)
+
+
 class DiscoveryResult(BaseModel):
-    """Places for one evening, plus the billed requests this call spent."""
+    """Candidate places for one evening, plus the billed requests this call spent."""
 
     model_config = ConfigDict(extra="forbid")
 
     status: DiscoveryStatus
-    places: list[DiscoveredPlace] = Field(default_factory=list, max_length=_MAX_INTENTS)
+    places: list[DiscoveredPlace] = Field(default_factory=list, max_length=_POOL_TOTAL)
     cache_key: str = Field(min_length=64, max_length=64)
     billed_requests: int = Field(ge=0)
     queries: list[str] = Field(default_factory=list, max_length=8)
@@ -113,15 +129,19 @@ def discovery_cache_key(
     start_time: time,
     end_time: time | None,
     intents: list[PlaceIntent],
+    preferences: list[str] | None = None,
 ) -> str:
-    """Identify one retrieval by destination, local evening, and intents."""
+    """Identify one retrieval by destination, local evening, intents, and constraints."""
 
     canonical = (destination.serpapi_location or destination.label).casefold()
     window = start_time.isoformat()
     if end_time is not None:
         window = f"{window}/{end_time.isoformat()}"
     ordered = ",".join(item.kind.value for item in sorted(intents, key=lambda item: item.position))
-    material = f"{canonical}|{local_date.isoformat()}|{window}|{ordered}"
+    prefs = ",".join(
+        sorted({item.casefold().strip() for item in preferences or [] if item.strip()})
+    )
+    material = f"{canonical}|{local_date.isoformat()}|{window}|{ordered}|{prefs}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
@@ -143,20 +163,23 @@ def discover_places(
     end_time: time | None = None,
     retrieved_at: datetime,
     billed_limit: int = PLAN_BILLED_REQUEST_LIMIT,
+    preferences: list[str] | None = None,
 ) -> DiscoveryResult:
-    """Search up to two intents, then fill only the finalists inside the shared budget."""
+    """Search up to two intents and keep a ranked pool inside the shared budget."""
 
     if retrieved_at.tzinfo is None or retrieved_at.utcoffset() is None:
         raise ValueError("retrieved_at must be timezone-aware")
     ordered = sorted(intents, key=lambda item: item.position)[:_MAX_INTENTS]
     if not ordered:
         raise ValueError("discovery needs at least one intent")
+    chosen = [item for item in preferences or [] if item.strip()]
     cache_key = discovery_cache_key(
         destination,
         local_date=local_date,
         start_time=start_time,
         end_time=end_time,
         intents=ordered,
+        preferences=chosen,
     )
     started = client.credits_charged
     queries: list[str] = []
@@ -179,17 +202,35 @@ def discover_places(
             break
         rows = snapshot.payload.get("local_results")
         if isinstance(rows, list):
-            place = _first_place(rows, intent.kind)
-            if place is not None:
-                found.append(place)
+            found.extend(
+                _candidate_pool(
+                    rows,
+                    intent.kind,
+                    destination,
+                    local_date=local_date,
+                    arrival=start_time,
+                    preferences=chosen,
+                )
+            )
     if failure is None:
-        failure = _complete_finalists(
+        failure = _enrich(
             found,
+            ordered,
             destination,
             client,
             queries,
             billed_limit=billed_limit,
+            local_date=local_date,
+            arrival=start_time,
+            preferences=chosen,
         )
+    _sort_pool(
+        found,
+        ordered,
+        local_date=local_date,
+        arrival=start_time,
+        preferences=chosen,
+    )
     status = _status(found, failure)
     stopped = failure if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota} else None
     return DiscoveryResult(
@@ -203,49 +244,324 @@ def discover_places(
     )
 
 
-def _complete_finalists(
+def _candidate_pool(
+    rows: list[object],
+    intent: IntentKind,
+    destination: ResolvedDestination,
+    *,
+    local_date: date,
+    arrival: time,
+    preferences: list[str],
+) -> list[DiscoveredPlace]:
+    """Keep up to five in-destination places. Search order is not the rank."""
+
+    accepted: list[DiscoveredPlace] = []
+    seen_place: set[str] = set()
+    seen_data: set[str] = set()
+    seen_labels: set[tuple[str, str]] = set()
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        place = _place_from_record(row, intent, provider_rank=index)
+        if place is None or _outside_destination(place, destination):
+            continue
+        if _is_duplicate(place, seen_place, seen_data, seen_labels):
+            continue
+        _remember(place, seen_place, seen_data, seen_labels)
+        accepted.append(place)
+    accepted.sort(
+        key=lambda place: _order_key(
+            place,
+            local_date=local_date,
+            arrival=arrival,
+            preferences=preferences,
+        )
+    )
+    return accepted[:_POOL_LIMIT]
+
+
+def _enrich(
     places: list[DiscoveredPlace],
+    intents: list[PlaceIntent],
     destination: ResolvedDestination,
     client: SerpApiClient,
     queries: list[str],
     *,
     billed_limit: int,
+    local_date: date,
+    arrival: time,
+    preferences: list[str],
 ) -> DiscoveryStatus | None:
+    """Enrich in rank order. A closed finalist yields to the next place."""
+
     failure: DiscoveryStatus | None = None
-    for place in places:
-        if place.hours and place.latitude is not None:
-            continue
-        if not _within_budget(client, billed_limit):
-            return DiscoveryStatus.quota
-        failure = _fill_details(place, client) or failure
-        if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
-            return failure
-    for place in places:
-        if place.highlights:
-            continue
-        if not _within_budget(client, billed_limit):
-            return DiscoveryStatus.quota
-        failure = _fill_reviews(place, client) or failure
-        if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
-            return failure
     web_used = 0
-    for place in places:
-        if place.hours or web_used >= _MAX_WEB_SEARCHES:
-            continue
-        if not _within_budget(client, billed_limit):
-            return DiscoveryStatus.quota
-        query = _web_query(place, destination)
-        queries.append(query)
-        web_used += 1
-        try:
-            snapshot = client.web_search(query)
-        except SerpApiFailure as exc:
-            return _failure_status(exc)
-        _apply_web(place, snapshot.payload.get("organic_results"), destination)
-    incomplete = any("hours" in place.unknown_fields for place in places)
-    if failure == DiscoveryStatus.quota or incomplete:
-        return DiscoveryStatus.partial_evidence if places else failure
+    removed: set[int] = set()
+    for intent in intents:
+        group = [place for place in places if place.intent == intent.kind]
+        for index, place in enumerate(group):
+            if _outside_destination(place, destination):
+                removed.add(id(place))
+                continue
+            state = _visit_state(place, local_date, arrival)
+            if state != "closed" and _needs_feasibility(place, destination):
+                failure, stop = _merge_status(failure, _spend_details(place, client, billed_limit))
+                if stop:
+                    _drop(places, removed)
+                    return failure
+                if _outside_destination(place, destination):
+                    removed.add(id(place))
+                    continue
+                state = _visit_state(place, local_date, arrival)
+            if state == "closed":
+                continue
+            failure, stop = _merge_status(
+                failure,
+                _compare_runner_up(
+                    group,
+                    index,
+                    place,
+                    destination,
+                    client,
+                    billed_limit=billed_limit,
+                    local_date=local_date,
+                    arrival=arrival,
+                    preferences=preferences,
+                    removed=removed,
+                ),
+            )
+            if stop:
+                _drop(places, removed)
+                return failure
+            failure, stop = _merge_status(
+                failure,
+                _reviews_if_needed(
+                    group,
+                    index,
+                    place,
+                    client,
+                    billed_limit=billed_limit,
+                    local_date=local_date,
+                    arrival=arrival,
+                    preferences=preferences,
+                ),
+            )
+            if stop:
+                _drop(places, removed)
+                return failure
+            if not place.hours and web_used < _MAX_WEB_SEARCHES:
+                before = len(queries)
+                failure, stop = _merge_status(
+                    failure,
+                    _spend_web(place, destination, client, queries, billed_limit),
+                )
+                if len(queries) > before:
+                    web_used += 1
+                if stop:
+                    _drop(places, removed)
+                    return failure
+            break
+    _drop(places, removed)
     return failure
+
+
+def _compare_runner_up(
+    group: list[DiscoveredPlace],
+    index: int,
+    leader: DiscoveredPlace,
+    destination: ResolvedDestination,
+    client: SerpApiClient,
+    *,
+    billed_limit: int,
+    local_date: date,
+    arrival: time,
+    preferences: list[str],
+    removed: set[int],
+) -> DiscoveryStatus | None:
+    runner = _next_viable(group, index, local_date, arrival)
+    if runner is None or id(runner) in removed:
+        return None
+    if not _needs_feasibility(runner, destination):
+        return None
+    if _open_ceiling(runner, preferences) < _current_fit(leader, local_date, arrival, preferences):
+        return None
+    failure = _spend_details(runner, client, billed_limit)
+    if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
+        return failure
+    if _outside_destination(runner, destination):
+        removed.add(id(runner))
+    return failure
+
+
+def _reviews_if_needed(
+    group: list[DiscoveredPlace],
+    index: int,
+    leader: DiscoveredPlace,
+    client: SerpApiClient,
+    *,
+    billed_limit: int,
+    local_date: date,
+    arrival: time,
+    preferences: list[str],
+) -> DiscoveryStatus | None:
+    from happen_api.planning.itinerary import (
+        constraint_supported,
+        constraint_terms,
+        unmet_constraint_gain,
+        verified_fit,
+    )
+
+    constraints = constraint_terms(preferences)
+    if not constraints:
+        return None
+    targets = [leader]
+    runner = _next_viable(group, index, local_date, arrival)
+    if runner is not None:
+        leader_fit = verified_fit(leader, _visit_state(leader, local_date, arrival), preferences)
+        runner_fit = verified_fit(runner, _visit_state(runner, local_date, arrival), preferences)
+        if runner_fit + unmet_constraint_gain(runner, preferences) >= leader_fit:
+            targets.append(runner)
+    failure: DiscoveryStatus | None = None
+    for target in targets:
+        if all(constraint_supported(target, item) for item in constraints):
+            continue
+        failure = _spend_reviews(target, client, billed_limit) or failure
+        if failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
+            return failure
+    return failure
+
+
+def _next_viable(
+    group: list[DiscoveredPlace],
+    index: int,
+    local_date: date,
+    arrival: time,
+) -> DiscoveredPlace | None:
+    for candidate in group[index + 1 :]:
+        if _visit_state(candidate, local_date, arrival) != "closed":
+            return candidate
+    return None
+
+
+def _needs_feasibility(place: DiscoveredPlace, destination: ResolvedDestination) -> bool:
+    if not place.hours:
+        return True
+    return place.latitude is None and destination.latitude is not None
+
+
+def _spend_details(
+    place: DiscoveredPlace,
+    client: SerpApiClient,
+    billed_limit: int,
+) -> DiscoveryStatus | None:
+    if not _within_budget(client, billed_limit):
+        return DiscoveryStatus.quota
+    return _fill_details(place, client)
+
+
+def _spend_reviews(
+    place: DiscoveredPlace,
+    client: SerpApiClient,
+    billed_limit: int,
+) -> DiscoveryStatus | None:
+    if not _within_budget(client, billed_limit):
+        return DiscoveryStatus.quota
+    return _fill_reviews(place, client)
+
+
+def _spend_web(
+    place: DiscoveredPlace,
+    destination: ResolvedDestination,
+    client: SerpApiClient,
+    queries: list[str],
+    billed_limit: int,
+) -> DiscoveryStatus | None:
+    if not _within_budget(client, billed_limit):
+        return DiscoveryStatus.quota
+    query = _web_query(place, destination)
+    queries.append(query)
+    try:
+        snapshot = client.web_search(query)
+    except SerpApiFailure as exc:
+        return _failure_status(exc)
+    _apply_web(place, snapshot.payload.get("organic_results"), destination)
+    return None
+
+
+def _merge_status(
+    current: DiscoveryStatus | None,
+    new: DiscoveryStatus | None,
+) -> tuple[DiscoveryStatus | None, bool]:
+    failure = new or current
+    return failure, failure in {DiscoveryStatus.timeout, DiscoveryStatus.quota}
+
+
+def _drop(places: list[DiscoveredPlace], removed: set[int]) -> None:
+    if removed:
+        places[:] = [place for place in places if id(place) not in removed]
+
+
+def _sort_pool(
+    places: list[DiscoveredPlace],
+    intents: list[PlaceIntent],
+    *,
+    local_date: date,
+    arrival: time,
+    preferences: list[str],
+) -> None:
+    ordered: list[DiscoveredPlace] = []
+    for intent in intents:
+        group = [place for place in places if place.intent == intent.kind]
+        group.sort(
+            key=lambda place: _order_key(
+                place,
+                local_date=local_date,
+                arrival=arrival,
+                preferences=preferences,
+            )
+        )
+        ordered.extend(group[:_POOL_LIMIT])
+    places[:] = ordered
+
+
+def _order_key(
+    place: DiscoveredPlace,
+    *,
+    local_date: date,
+    arrival: time,
+    preferences: list[str],
+) -> tuple[int, int, str, str]:
+    from happen_api.planning.itinerary import selection_key
+
+    return selection_key(
+        place,
+        local_date=local_date,
+        arrival=arrival,
+        preferences=preferences,
+    )
+
+
+def _visit_state(place: DiscoveredPlace, local_date: date, arrival: time) -> str:
+    from happen_api.planning.itinerary import hours_status
+
+    return hours_status(place, local_date, arrival)
+
+
+def _current_fit(
+    place: DiscoveredPlace,
+    local_date: date,
+    arrival: time,
+    preferences: list[str],
+) -> int:
+    from happen_api.planning.itinerary import verified_fit
+
+    return verified_fit(place, _visit_state(place, local_date, arrival), preferences)
+
+
+def _open_ceiling(place: DiscoveredPlace, preferences: list[str]) -> int:
+    from happen_api.planning.itinerary import verified_fit
+
+    return verified_fit(place, "open", preferences)
 
 
 def _fill_details(place: DiscoveredPlace, client: SerpApiClient) -> DiscoveryStatus | None:
@@ -298,16 +614,11 @@ def _status(places: list[DiscoveredPlace], failure: DiscoveryStatus | None) -> D
     return DiscoveryStatus.ready
 
 
-def _first_place(rows: list[object], intent: IntentKind) -> DiscoveredPlace | None:
-    for row in rows:
-        if isinstance(row, dict):
-            place = _place_from_record(row, intent)
-            if place is not None:
-                return place
-    return None
-
-
-def _place_from_record(record: dict[str, object], intent: IntentKind) -> DiscoveredPlace | None:
+def _place_from_record(
+    record: dict[str, object],
+    intent: IntentKind,
+    provider_rank: int = 0,
+) -> DiscoveredPlace | None:
     name = _clean(record.get("title")) or _clean(record.get("name"))
     place_id = _identifier(record.get("place_id"))
     data_id = _identifier(record.get("data_id"))
@@ -318,6 +629,7 @@ def _place_from_record(record: dict[str, object], intent: IntentKind) -> Discove
     highlights = _inline_highlights(record)
     place = DiscoveredPlace(
         intent=intent,
+        provider_rank=provider_rank,
         place_id=place_id,
         data_id=data_id,
         name=name,
@@ -338,6 +650,84 @@ def _place_from_record(record: dict[str, object], intent: IntentKind) -> Discove
         provider_language=_language(record.get("language")),
     )
     return place.model_copy(update={"unknown_fields": _unknown(place)})
+
+
+def _is_duplicate(
+    place: DiscoveredPlace,
+    seen_place: set[str],
+    seen_data: set[str],
+    seen_labels: set[tuple[str, str]],
+) -> bool:
+    if place.place_id and place.place_id in seen_place:
+        return True
+    if place.data_id and place.data_id in seen_data:
+        return True
+    label = _label_key(place)
+    return label is not None and label in seen_labels
+
+
+def _remember(
+    place: DiscoveredPlace,
+    seen_place: set[str],
+    seen_data: set[str],
+    seen_labels: set[tuple[str, str]],
+) -> None:
+    if place.place_id:
+        seen_place.add(place.place_id)
+    if place.data_id:
+        seen_data.add(place.data_id)
+    label = _label_key(place)
+    if label is not None:
+        seen_labels.add(label)
+
+
+def _label_key(place: DiscoveredPlace) -> tuple[str, str] | None:
+    name = _normalized_label(place.name)
+    address = _normalized_label(place.address)
+    if not name or not address:
+        return None
+    return name, address
+
+
+def _normalized_label(value: str | None) -> str:
+    if not value:
+        return ""
+    return " ".join(_LABEL.sub(" ", value.casefold()).split())
+
+
+def _outside_destination(place: DiscoveredPlace, destination: ResolvedDestination) -> bool:
+    if (
+        place.latitude is None
+        or place.longitude is None
+        or destination.latitude is None
+        or destination.longitude is None
+    ):
+        return False
+    distance = _distance_km(
+        place.latitude,
+        place.longitude,
+        destination.latitude,
+        destination.longitude,
+    )
+    return distance > _DESTINATION_RADIUS_KM
+
+
+def _distance_km(
+    left_latitude: float,
+    left_longitude: float,
+    right_latitude: float,
+    right_longitude: float,
+) -> float:
+    radius = 6371.0
+    phi_left = math.radians(left_latitude)
+    phi_right = math.radians(right_latitude)
+    delta_phi = math.radians(right_latitude - left_latitude)
+    delta_lon = math.radians(right_longitude - left_longitude)
+    chord = (
+        math.sin(delta_phi / 2) ** 2
+        + math.cos(phi_left) * math.cos(phi_right) * math.sin(delta_lon / 2) ** 2
+    )
+    return 2 * radius * math.asin(min(1.0, math.sqrt(chord)))
 
 
 def _overlay_official(place: DiscoveredPlace, record: dict[str, object]) -> None:

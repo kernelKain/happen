@@ -12,7 +12,7 @@ The planning records, a deterministic prompt parser, and destination resolution 
 
 Local Gemma was measured and missed the planning and review gates. Model claims stay off. The customer page does not score a captured fixture. The deterministic parser remains the planning reader.
 
-Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents, reuses inline place evidence, and keeps details, reviews, and at most two web searches inside the same eight billed requests as destination resolution. `POST /api/v2/plans` uses that discovery, then Python selects one or two stops. The customer page is the landing composer. It interprets a prompt, shows one follow-up when needed, resolves the destination, and calls place discovery only after Find the plan. The result is a vertical timeline of at most two stops. A later change shows a diff and waits for Apply or Cancel. A change that keeps the destination, date, and intents reuses the plan already on the page. It does not offer a fixture or a sample plan. A layout query stays on that page. When `APP_ENV` is production, the process does not mount the historical recommendation routes, and metadata does not publish the Indiranagar preset or a fixed timezone. Development still mounts those routes so tests can replay captured fixtures. A live failure does not tell the visitor to use captured evidence. Planning requests are limited to 16 KB and 2,000 characters. Identical place lists are cached in memory for 15 minutes under a hash key. One process admits at most three billed plans at once and returns HTTP 429 when the rate window is full. A cancelled search is not sent. The HTTP client and any loaded model are released when the process stops. Production plan errors do not contain fixture names, a model prompt, or a stack trace. `README.md` explains the prompt-led workflow, the measured Gemma fallback, the eight-request cap, local setup, and the remaining user-owned work.
+Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents and keeps up to five valid places per intent. Duplicates are dropped by place id, then data id, then a normalized name and address. A pin more than 80 km from the destination is rejected. Missing optional fields stay unknown. Python ranks the pool from listed evidence: open hours, a website, a Maps link, a rating, and support for an explicitly requested constraint. Provider order is only the tie-breaker when that evidence is equal; an equal rank then uses the name and the place id. Details are fetched only for feasibility or a close comparison, reviews only when they can affect a requested constraint, and at most two web searches only for missing hours. A definitely closed finalist is replaced while budget remains. Those calls share the same eight billed requests as destination resolution. `POST /api/v2/plans` uses that discovery, then Python selects one or two stops. The customer page is the landing composer. It interprets a prompt, shows one follow-up when needed, resolves the destination, and calls place discovery only after Find the plan. The result is a vertical timeline of at most two stops. A later change shows a diff and waits for Apply or Cancel. A change that keeps the destination, date, and intents reuses the plan already on the page. It does not offer a fixture or a sample plan. A layout query stays on that page. When `APP_ENV` is production, the process does not mount the historical recommendation routes, and metadata does not publish the Indiranagar preset or a fixed timezone. Development still mounts those routes so tests can replay captured fixtures. A live failure does not tell the visitor to use captured evidence. Planning requests are limited to 16 KB and 2,000 characters. The normalized candidate pool is cached in memory for 15 minutes under a hash key. One process admits at most three billed plans at once and returns HTTP 429 when the rate window is full. A cancelled search is not sent. The HTTP client and any loaded model are released when the process stops. Production plan errors do not contain fixture names, a model prompt, or a stack trace. `README.md` explains the prompt-led workflow, the measured Gemma fallback, the eight-request cap, local setup, and the remaining user-owned work.
 
 `global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
 
@@ -22,8 +22,8 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Document and verify the global live experience |
-| Next step | independent local audit |
+| Last finished step | Rank a bounded set of live candidates |
+| Next step | user manual test of one evening |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
@@ -108,9 +108,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Release checks passed on `global-live-experience`. The README records the workflow, the failed Gemma gates, the deterministic-parser fallback, and the eight-request cap. Gemma claims stay off. |
-| Last finished step | Document and verify the global live experience |
-| Next step | independent local audit |
+| Status | Python compares a bounded pool of live places. Provider order is only the tie-breaker. Gemma claims stay off. |
+| Last finished step | Rank a bounded set of live candidates |
+| Next step | user manual test of one evening |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -817,4 +817,5 @@ Your side:
 | Live timeline and refinement | Done. The result is a two-stop timeline. A change shows a diff before Apply. `?layout=sample` is no longer the old winner. | `Present and refine live evening plans.` | Nothing. Do not push. |
 | Demo paths removed from production | Done. Production does not mount the historical recommendation routes. The customer page has no sample layout or captured-evidence action. | `Remove demo-only production paths.` | Nothing. Do not push. Do not deploy. |
 | Global live planning hardened | Done. Body and prompt limits, explicit CORS, in-memory throttling, cancellation, cache bounds, and fixture isolation are covered by tests. | `Harden the global live planning workflow.` | Nothing. Do not push. Do not deploy. |
-| Global live experience verified | Done. README, automated checks, secret scan, and one Jaipur live smoke. | `Document and verify the global live experience.` | independent local audit. Do not push. Do not deploy. |
+| Global live experience verified | Done. README, automated checks, secret scan, and one Jaipur live smoke. | `Document and verify the global live experience.` | Ranking fix below. Do not push. Do not deploy. |
+| Rank live candidates | Done. Python compares up to five places per intent. Provider order is only the tie-breaker. | `Rank a bounded set of live candidates.` | Manual test of one evening. Do not push. Do not deploy. |

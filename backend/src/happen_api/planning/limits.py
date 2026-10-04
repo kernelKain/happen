@@ -1,7 +1,7 @@
 """Process-local admission control and a bounded plan cache.
 
 One small process keeps a short hit list per caller and at most a few billed
-plans at once. Cached places are normalized records, keyed by a hash.
+plans at once. The cache stores the normalized candidate pool, keyed by a hash.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import time
 
 from cachetools import TTLCache
 
-from happen_api.planning.discovery import DiscoveredPlace
+from happen_api.planning.discovery import CandidatePool
 
 _CALLERS = 256
 _ACTIVE_BILLED = 3
@@ -64,14 +64,14 @@ class PlanningThrottle:
 
 
 class PlanCache:
-    """Bounded reuse of normalized places. Raw provider documents are not stored."""
+    """Bounded reuse of a candidate pool. Raw provider documents are not stored."""
 
     def __init__(self, *, maxsize: int = _CACHE_MAX, ttl: int = _CACHE_TTL_SECONDS) -> None:
-        self._items: TTLCache[str, list[DiscoveredPlace]] = TTLCache(maxsize=maxsize, ttl=ttl)
+        self._items: TTLCache[str, CandidatePool] = TTLCache(maxsize=maxsize, ttl=ttl)
         self._lock = threading.Lock()
 
-    def get(self, key: str) -> list[DiscoveredPlace] | None:
-        """Return a copy of cached places, or None when the key is unsafe or missing."""
+    def get(self, key: str) -> CandidatePool | None:
+        """Return a copy of the cached pool, or None when the key is unsafe or missing."""
 
         if not _safe_key(key):
             return None
@@ -79,14 +79,14 @@ class PlanCache:
             found = self._items.get(key)
         if found is None:
             return None
-        return [place.model_copy(deep=True) for place in found]
+        return found.model_copy(deep=True)
 
-    def put(self, key: str, places: list[DiscoveredPlace]) -> None:
-        """Store a copy of places when the key is a hash and the list is not empty."""
+    def put(self, key: str, pool: CandidatePool) -> None:
+        """Store a copy of the pool when the key is a hash and the pool is not empty."""
 
-        if not places or not _safe_key(key):
+        if not pool.places or not _safe_key(key):
             return
-        stored = [place.model_copy(deep=True) for place in places]
+        stored = pool.model_copy(deep=True)
         with self._lock:
             self._items[key] = stored
 
