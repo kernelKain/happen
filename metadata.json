@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M43YX26Z8ZYNJA91E93VXAGS",
+  "strategy": "manual-commit",
+  "branch": "demo-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 58319,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 595200,
+    "output_tokens": 18449,
+    "api_call_count": 1
+  }
+}
