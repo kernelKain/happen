@@ -3,7 +3,7 @@
   "checkpoint_id": "01M44ADRDAZXVGWJE9CB514M7A",
   "session_id": "8139fa1d-a298-4685-87a0-02a5b1e7be94",
   "strategy": "manual-commit",
-  "created_at": "2026-10-04T20:41:57.814422365Z",
+  "created_at": "2026-10-04T20:42:32.836485898Z",
   "branch": "global-live-experience",
   "checkpoints_count": 1,
   "files_touched": [
@@ -25,33 +25,24 @@
   "agent": "Cursor",
   "model": "grok-4.7-high-fast",
   "turn_id": "bc72147b4a58",
-  "checkpoint_transcript_start": 445,
-  "transcript_lines_at_start": 445,
-  "compact_transcript_start": 38,
+  "checkpoint_transcript_start": 447,
+  "transcript_lines_at_start": 447,
+  "compact_transcript_start": 40,
   "session_metrics": {
     "turn_count": 9,
     "context_tokens": 237592,
     "context_window_size": 256000
   },
   "initial_attribution": {
-    "calculated_at": "2026-10-04T20:41:57.622024547Z",
-    "agent_lines": 248,
-    "agent_removed": 1248,
+    "calculated_at": "2026-10-04T20:42:32.658247649Z",
+    "agent_lines": 2,
+    "agent_removed": 2,
     "human_added": 0,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 248,
-    "total_lines_changed": 1496,
+    "total_committed": 2,
+    "total_lines_changed": 4,
     "agent_percentage": 100,
     "metric_version": 2
-  },
-  "prompt_attributions": [
-    {
-      "checkpoint_number": 1,
-      "user_lines_added": 0,
-      "user_lines_removed": 0,
-      "agent_lines_added": 0,
-      "agent_lines_removed": 0
-    }
-  ]
+  }
 }
