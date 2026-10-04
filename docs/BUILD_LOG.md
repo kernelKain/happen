@@ -500,3 +500,11 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Keep the untuned 270M file. Do not treat the failed fine-tune as a passing model, and do not add another model API.
 - The synthetic fixture remains in the repository for the earlier labeled tests. It is not the page source.
 
+## Deploy readiness check
+
+- Date: 2026-10-04
+- Queue step: Deploy and smoke the sponsor vertical slice
+- Result: local checks passed on the merged revision. No Render service was created. Product behavior did not change. Cost did not change.
+- Evidence: `uv run pytest` passed, 119 tests. `npm test` passed, 7 tests. `python3 scripts/scan-secrets.py` passed. GitHub Actions run `37219473378` on `main` succeeded. `origin/main` is `91b7b94`. `live-sponsor` at `d05d024` has the same files.
+- Decision: leave deployment to the user. `render.yaml` still names `live-sponsor`, which matches `main` until the next commit. `HAPPEN_LIVE_ENABLED` stays false until the user turns it on for one public live run.
+
