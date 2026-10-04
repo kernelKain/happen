@@ -67,6 +67,24 @@ class LivePlanOutcome(StrEnum):
     ready_for_retrieval = "ready_for_retrieval"
 
 
+class DatePhrase(StrEnum):
+    """A date the prompt stated relative to the destination's local day."""
+
+    today = "today"
+    tonight = "tonight"
+    tomorrow = "tomorrow"
+    weekday = "weekday"
+    next_weekday = "next_weekday"
+    weekend = "weekend"
+
+
+class ResolutionSource(StrEnum):
+    """Which SerpApi call supplied the coordinates that were kept."""
+
+    locations_api = "locations_api"
+    maps_lookup = "maps_lookup"
+
+
 class PlanningErrorCode(StrEnum):
     prompt_empty = "PROMPT_EMPTY"
     prompt_too_large = "PROMPT_TOO_LARGE"
@@ -97,6 +115,14 @@ def _iana(value: str | None) -> str | None:
     except ZoneInfoNotFoundError as exc:
         raise ValueError("timezone_name must be an IANA zone") from exc
     return value
+
+
+def _coordinate(value: float | None, *, minimum: float, maximum: float, name: str) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not minimum <= value <= maximum:
+        raise ValueError(f"{name} is out of range")
+    return float(value)
 
 
 class PlanningUserError(BaseModel):
@@ -216,6 +242,24 @@ class Ambiguity(BaseModel):
 FollowUp = Annotated[MissingField | Ambiguity, Field(discriminator="kind")]
 
 
+class PendingDate(BaseModel):
+    """A relative date. It becomes a calendar date only after a destination zone is known."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    phrase: DatePhrase
+    weekday: int | None = Field(default=None, ge=0, le=6)
+
+    @model_validator(mode="after")
+    def _weekday_matches_phrase(self) -> PendingDate:
+        needs_weekday = self.phrase in {DatePhrase.weekday, DatePhrase.next_weekday}
+        if needs_weekday and self.weekday is None:
+            raise ValueError("a weekday phrase names a weekday")
+        if not needs_weekday and self.weekday is not None:
+            raise ValueError("only a weekday phrase names a weekday")
+        return self
+
+
 class SourceProvenance(BaseModel):
     """Where a shown place fact came from, and when it was retrieved."""
 
@@ -238,7 +282,7 @@ class SourceProvenance(BaseModel):
 
 
 class ResolvedDestination(BaseModel):
-    """A destination the user has chosen. The parser does not fill this in."""
+    """One canonical place. Coordinates stay empty when the provider did not supply them."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -248,12 +292,40 @@ class ResolvedDestination(BaseModel):
     region: str | None = Field(default=None, max_length=80)
     country_code: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     timezone_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    serpapi_location: str | None = Field(default=None, max_length=120)
+    confidence: BriefConfidence | None = None
+    resolution_source: ResolutionSource | None = None
     provenance: SourceProvenance | None = None
 
     @field_validator("timezone_name")
     @classmethod
     def _zone(cls, value: str | None) -> str | None:
         return _iana(value)
+
+    @field_validator("latitude")
+    @classmethod
+    def _latitude(cls, value: float | None) -> float | None:
+        return _coordinate(value, minimum=-90, maximum=90, name="latitude")
+
+    @field_validator("longitude")
+    @classmethod
+    def _longitude(cls, value: float | None) -> float | None:
+        return _coordinate(value, minimum=-180, maximum=180, name="longitude")
+
+    @field_validator("locality", "region", "serpapi_location")
+    @classmethod
+    def _place_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _reject_controls(value)
+
+    @model_validator(mode="after")
+    def _coordinates_together(self) -> ResolvedDestination:
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("latitude and longitude are set together")
+        return self
 
 
 class LocalDateTimeWindow(BaseModel):
@@ -325,6 +397,7 @@ class PlanningBrief(BaseModel):
     raw_prompt: str = Field(min_length=1, max_length=MAX_PROMPT_LENGTH)
     destination_text: str | None = Field(default=None, max_length=120)
     local_date: date | None = None
+    pending_date: PendingDate | None = None
     local_start: time | None = None
     party_size: int | None = Field(default=None, ge=1, le=20)
     budget: Budget | None = None

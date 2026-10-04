@@ -1,9 +1,10 @@
-"""Bounded SerpApi access for search, place, and review calls.
+"""Bounded SerpApi access for search, place, review, and location calls.
 
-Every sent attempt counts toward the credit budget, including a retry and
-including a response SerpApi might have served from cache. The API key stays
-in memory and on the outgoing request. Logs, errors, and returned documents
-do not include it.
+Search, place, review, and maps lookup attempts count toward the credit
+budget, including a retry and including a response SerpApi might have served
+from cache. The Locations API is free and does not count. The API key stays
+in memory and on billed requests. Logs, errors, and returned records do not
+include it, and location lookups do not keep the raw response.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from happen_api.logging import get_logger
 
 _SEARCH_URL = "https://serpapi.com/search.json"
+_LOCATIONS_URL = "https://serpapi.com/locations.json"
 _ATTEMPT_TIMEOUT_SECONDS = 8.0
 _TOTAL_TIMEOUT_SECONDS = 14.0
 _RECOMMENDATION_CREDIT_LIMIT = 7
@@ -46,6 +48,29 @@ class SerpApiFailure(Exception):
         self.retryable = retryable
         self.immediate_retry = immediate_retry
         super().__init__(message)
+
+
+class SupportedLocation(BaseModel):
+    """One Locations API match. The raw catalog document is not kept."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    canonical_name: str | None = Field(default=None, max_length=120)
+    country_code: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
+    target_type: str | None = Field(default=None, max_length=40)
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class MapsCoordinate(BaseModel):
+    """Coordinates taken from a billed Maps lookup. The raw search document is not kept."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, max_length=120)
+    latitude: float
+    longitude: float
 
 
 class ProviderSnapshot(BaseModel):
@@ -185,7 +210,97 @@ class SerpApiClient:
             },
         )
 
+    def supported_locations(self, query: str, *, limit: int = 5) -> list[SupportedLocation]:
+        """Query the free Locations API. This call does not consume a billed search."""
+
+        self._ensure_live()
+        cleaned = " ".join(query.split())
+        if not cleaned or len(cleaned) > 120:
+            raise SerpApiFailure(
+                "INVALID_REQUEST",
+                "A location search needs a query.",
+                retryable=False,
+            )
+        if not _host_allowed(_LOCATIONS_URL):
+            raise SerpApiFailure(
+                "INVALID_DEPENDENCY_RESPONSE",
+                "SerpApi returned a response Happen could not use.",
+                retryable=False,
+            )
+        bounded = min(10, max(1, limit))
+        params = {"q": cleaned, "limit": str(bounded)}
+        last_failure: SerpApiFailure | None = None
+        for _attempt in (1, 2):
+            try:
+                response = self._http.get(
+                    _LOCATIONS_URL,
+                    params=params,
+                    timeout=httpx.Timeout(self._attempt_timeout_seconds),
+                )
+            except _RETRYABLE_TRANSPORT:
+                _log_failure("TRANSIENT_DEPENDENCY")
+                last_failure = SerpApiFailure(
+                    "TRANSIENT_DEPENDENCY",
+                    "SerpApi did not respond before the deadline.",
+                    retryable=True,
+                    immediate_retry=True,
+                )
+                continue
+            except httpx.HTTPError:
+                _log_failure("INVALID_DEPENDENCY_RESPONSE")
+                raise SerpApiFailure(
+                    "INVALID_DEPENDENCY_RESPONSE",
+                    "SerpApi returned a response Happen could not use.",
+                    retryable=False,
+                ) from None
+            parsed = _locations(response)
+            if isinstance(parsed, list):
+                _log_success(response.status_code)
+                return parsed
+            _log_failure(parsed.code)
+            if parsed.immediate_retry:
+                last_failure = parsed
+                continue
+            self._maybe_disable(parsed)
+            raise parsed
+        if last_failure is not None:
+            raise last_failure
+        raise SerpApiFailure(
+            "TRANSIENT_DEPENDENCY",
+            "SerpApi did not respond before the deadline.",
+            retryable=True,
+        )
+
+    def lookup_maps_coordinates(self, query: str) -> list[MapsCoordinate]:
+        """Run one billed Maps search and keep only coordinates."""
+
+        cleaned = " ".join(query.split())
+        if not cleaned:
+            raise SerpApiFailure(
+                "INVALID_REQUEST",
+                "A place search needs a query.",
+                retryable=False,
+            )
+        body = self._billed_success(
+            {
+                "engine": "google_maps",
+                "type": "search",
+                "q": cleaned,
+                "hl": "en",
+                "output": "json",
+            }
+        )
+        return _map_points(body)
+
     def _execute(self, kind: _Kind, params: dict[str, str]) -> ProviderSnapshot:
+        body, attempts = self._billed_success_with_attempts(params)
+        return self._snapshot(kind, body, attempts=attempts)
+
+    def _billed_success(self, params: dict[str, str]) -> dict[str, Any]:
+        body, _attempts = self._billed_success_with_attempts(params)
+        return body
+
+    def _billed_success_with_attempts(self, params: dict[str, str]) -> tuple[dict[str, Any], int]:
         self._ensure_live()
         started = self._mark_started()
         last_failure: SerpApiFailure | None = None
@@ -223,9 +338,8 @@ class SerpApiClient:
                 ) from None
             interpreted = self._interpret(response)
             if isinstance(interpreted, dict):
-                snapshot = self._snapshot(kind, interpreted, attempts=attempt)
                 _log_success(response.status_code)
-                return snapshot
+                return interpreted, attempt
             _log_failure(interpreted.code)
             if interpreted.immediate_retry:
                 last_failure = interpreted
@@ -278,50 +392,9 @@ class SerpApiClient:
         )
 
     def _interpret(self, response: httpx.Response) -> SerpApiFailure | dict[str, Any]:
-        if 300 <= response.status_code < 400:
-            return SerpApiFailure(
-                "INVALID_DEPENDENCY_RESPONSE",
-                "SerpApi returned a response Happen could not use.",
-                retryable=False,
-            )
-        error_text = _error_text(response)
-        if response.status_code == 401 or _mentions_invalid_key(response.status_code, error_text):
-            return SerpApiFailure(
-                "AUTHENTICATION_FAILED",
-                "SerpApi rejected the API key.",
-                retryable=False,
-            )
-        if _is_quota(error_text):
-            return SerpApiFailure(
-                "QUOTA_EXHAUSTED",
-                "SerpApi search quota is exhausted.",
-                retryable=False,
-            )
-        if response.status_code == 429:
-            return SerpApiFailure(
-                "TRANSIENT_DEPENDENCY",
-                "SerpApi is temporarily unavailable.",
-                retryable=True,
-            )
-        if response.status_code >= 500:
-            return SerpApiFailure(
-                "TRANSIENT_DEPENDENCY",
-                "SerpApi returned a server error.",
-                retryable=True,
-                immediate_retry=True,
-            )
-        if response.status_code >= 400:
-            return SerpApiFailure(
-                "PROVIDER_REJECTED",
-                "SerpApi rejected the request.",
-                retryable=False,
-            )
-        if response.status_code != 200:
-            return SerpApiFailure(
-                "INVALID_DEPENDENCY_RESPONSE",
-                "SerpApi returned a response Happen could not use.",
-                retryable=False,
-            )
+        failure = _status_failure(response)
+        if failure is not None:
+            return failure
         try:
             body = response.json()
         except json.JSONDecodeError:
@@ -331,12 +404,6 @@ class SerpApiClient:
                 retryable=False,
             )
         if not isinstance(body, dict):
-            return SerpApiFailure(
-                "INVALID_DEPENDENCY_RESPONSE",
-                "SerpApi returned a response Happen could not use.",
-                retryable=False,
-            )
-        if error_text:
             return SerpApiFailure(
                 "INVALID_DEPENDENCY_RESPONSE",
                 "SerpApi returned a response Happen could not use.",
@@ -400,6 +467,154 @@ def _redact_value(value: object, api_key: str) -> object:
             hidden = hidden.replace(api_key, "[redacted]")
         return hidden
     return value
+
+
+def _status_failure(response: httpx.Response) -> SerpApiFailure | None:
+    if 300 <= response.status_code < 400:
+        return SerpApiFailure(
+            "INVALID_DEPENDENCY_RESPONSE",
+            "SerpApi returned a response Happen could not use.",
+            retryable=False,
+        )
+    error_text = _error_text(response)
+    if response.status_code == 401 or _mentions_invalid_key(response.status_code, error_text):
+        return SerpApiFailure(
+            "AUTHENTICATION_FAILED",
+            "SerpApi rejected the API key.",
+            retryable=False,
+        )
+    if _is_quota(error_text):
+        return SerpApiFailure(
+            "QUOTA_EXHAUSTED",
+            "SerpApi search quota is exhausted.",
+            retryable=False,
+        )
+    if response.status_code == 429:
+        return SerpApiFailure(
+            "TRANSIENT_DEPENDENCY",
+            "SerpApi is temporarily unavailable.",
+            retryable=True,
+        )
+    if response.status_code >= 500:
+        return SerpApiFailure(
+            "TRANSIENT_DEPENDENCY",
+            "SerpApi returned a server error.",
+            retryable=True,
+            immediate_retry=True,
+        )
+    if response.status_code >= 400:
+        return SerpApiFailure(
+            "PROVIDER_REJECTED",
+            "SerpApi rejected the request.",
+            retryable=False,
+        )
+    if response.status_code != 200 or error_text:
+        return SerpApiFailure(
+            "INVALID_DEPENDENCY_RESPONSE",
+            "SerpApi returned a response Happen could not use.",
+            retryable=False,
+        )
+    return None
+
+
+def _locations(response: httpx.Response) -> SerpApiFailure | list[SupportedLocation]:
+    failure = _status_failure(response)
+    if failure is not None:
+        return failure
+    try:
+        body = response.json()
+    except json.JSONDecodeError:
+        return SerpApiFailure(
+            "INVALID_DEPENDENCY_RESPONSE",
+            "SerpApi returned a response Happen could not use.",
+            retryable=False,
+        )
+    if not isinstance(body, list):
+        return SerpApiFailure(
+            "INVALID_DEPENDENCY_RESPONSE",
+            "SerpApi returned a response Happen could not use.",
+            retryable=False,
+        )
+    found: list[SupportedLocation] = []
+    for item in body:
+        if isinstance(item, dict):
+            parsed = _one_location(item)
+            if parsed is not None:
+                found.append(parsed)
+    return found
+
+
+def _one_location(item: dict[str, Any]) -> SupportedLocation | None:
+    name = item.get("name")
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 120:
+        return None
+    canonical = item.get("canonical_name")
+    if not isinstance(canonical, str) or not canonical.strip():
+        canonical_name = None
+    else:
+        canonical_name = canonical.strip()[:120]
+    country = item.get("country_code")
+    if isinstance(country, str) and len(country) == 2 and country.isalpha():
+        country_code = country.upper()
+    else:
+        country_code = None
+    target = item.get("target_type")
+    target_type = target.strip()[:40] if isinstance(target, str) and target.strip() else None
+    latitude, longitude = _location_gps(item.get("gps"))
+    return SupportedLocation(
+        name=name.strip(),
+        canonical_name=canonical_name,
+        country_code=country_code,
+        target_type=target_type,
+        latitude=latitude,
+        longitude=longitude,
+    )
+
+
+def _location_gps(value: object) -> tuple[float | None, float | None]:
+    """Locations API gps is longitude, then latitude."""
+
+    if not isinstance(value, list) or len(value) != 2:
+        return None, None
+    longitude, latitude = value
+    if not _axis(longitude, -180, 180) or not _axis(latitude, -90, 90):
+        return None, None
+    return float(latitude), float(longitude)
+
+
+def _axis(value: object, low: float, high: float) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return low <= float(value) <= high
+
+
+def _map_points(body: dict[str, Any]) -> list[MapsCoordinate]:
+    place = body.get("place_results")
+    if isinstance(place, dict):
+        point = _map_point(place.get("title"), place.get("gps_coordinates"))
+        if point is not None:
+            return [point]
+    results = body.get("local_results")
+    points: list[MapsCoordinate] = []
+    if isinstance(results, list):
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            point = _map_point(item.get("title"), item.get("gps_coordinates"))
+            if point is not None:
+                points.append(point)
+    return points[:3]
+
+
+def _map_point(title: object, coordinates: object) -> MapsCoordinate | None:
+    if not isinstance(coordinates, dict):
+        return None
+    latitude = coordinates.get("latitude")
+    longitude = coordinates.get("longitude")
+    if not _axis(latitude, -90, 90) or not _axis(longitude, -180, 180):
+        return None
+    label = title.strip()[:120] if isinstance(title, str) and title.strip() else None
+    return MapsCoordinate(title=label, latitude=float(latitude), longitude=float(longitude))
 
 
 def _place_identifier(data_id: str | None, place_id: str | None) -> dict[str, str]:

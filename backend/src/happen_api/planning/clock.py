@@ -1,4 +1,4 @@
-"""Clock used to resolve relative dates without reading the wall clock in tests."""
+"""Clock used to supply one instant. Relative dates use it only after a destination zone exists."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Protocol
 
 
 class Clock(Protocol):
-    """Supplies one timezone-aware moment. The civil date is that moment's own date."""
+    """Supplies one timezone-aware instant for a later destination-local date."""
 
     def now(self) -> datetime:
         """Return the current timezone-aware moment."""

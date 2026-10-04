@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date, time, timedelta
+from datetime import date, time
 from decimal import Decimal
 from itertools import pairwise
 
@@ -24,11 +24,13 @@ from happen_api.planning.contracts import (
     Budget,
     BudgetBound,
     BudgetTier,
+    DatePhrase,
     EssentialField,
     IntentKind,
     LivePlanOutcome,
     LivePlanResponse,
     MissingField,
+    PendingDate,
     PlaceIntent,
     PlanningBrief,
     PlanningErrorCode,
@@ -280,13 +282,19 @@ _SPLIT_GAP = re.compile(r"(?i)\bor\b|\band\b")
 
 
 def interpret(prompt: str, clock: Clock) -> LivePlanResponse:
-    """Read explicit evening facts and attach at most one follow-up question."""
+    """Read explicit evening facts and attach at most one follow-up question.
+
+    Relative dates stay on the brief until a destination timezone is known.
+    The clock supplies that later instant and is not applied here.
+    """
 
     request = _request(prompt)
     evidence = _without_instructions(request.prompt)
-    today = clock.now().date()
+    moment = clock.now()
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("clock moment must be timezone-aware")
     destination, destination_note = _destination(evidence)
-    local_date, date_note = _date(evidence, today)
+    local_date, pending_date, date_note = _date(evidence)
     local_start, time_note = _start_time(evidence)
     party_size, party_note = _party(evidence)
     budget, budget_note = _budget(evidence)
@@ -299,6 +307,7 @@ def interpret(prompt: str, clock: Clock) -> LivePlanResponse:
     missing = _missing(
         destination=destination,
         local_date=local_date,
+        pending_date=pending_date,
         local_start=local_start,
         intents=intents,
         ambiguities=ambiguities,
@@ -307,6 +316,7 @@ def interpret(prompt: str, clock: Clock) -> LivePlanResponse:
         raw_prompt=request.prompt,
         destination_text=destination,
         local_date=local_date,
+        pending_date=pending_date,
         local_start=local_start,
         party_size=party_size,
         budget=budget,
@@ -315,7 +325,7 @@ def interpret(prompt: str, clock: Clock) -> LivePlanResponse:
         accessibility_needs=_phrases(evidence, _ACCESS),
         missing_essentials=missing,
         ambiguities=ambiguities,
-        confidence=_confidence(destination, local_date, local_start, intents),
+        confidence=_confidence(destination, local_date, pending_date, local_start, intents),
     )
     follow_up = select_follow_up(brief)
     warnings: list[str] = []
@@ -457,8 +467,9 @@ def _place_ambiguity(place: _Place) -> Ambiguity:
     )
 
 
-def _date(text: str, today: date) -> tuple[date | None, Ambiguity | None]:
+def _date(text: str) -> tuple[date | None, PendingDate | None, Ambiguity | None]:
     resolved: list[date] = []
+    pending: list[PendingDate] = []
     ambiguous: list[str] = []
     occupied: list[tuple[int, int]] = []
 
@@ -508,14 +519,12 @@ def _date(text: str, today: date) -> tuple[date | None, Ambiguity | None]:
             ambiguous.extend(
                 item.isoformat() for item in (day_first, month_first) if item is not None
             )
-    for match in re.finditer(r"\b(?:today|tonight|tomorrow)\b", text, re.IGNORECASE):
+    for match in re.finditer(r"\b(today|tonight|tomorrow)\b", text, re.IGNORECASE):
         if take(match.span()):
-            resolved.append(
-                today + timedelta(days=1 if match.group(0).lower() == "tomorrow" else 0)
-            )
+            pending.append(PendingDate(phrase=DatePhrase(match.group(1).lower())))
     weekend = re.search(r"\b(?:this\s+)?weekend\b", text, re.IGNORECASE)
     if weekend is not None and take(weekend.span()):
-        ambiguous.extend(item.isoformat() for item in _weekend_dates(today))
+        pending.append(PendingDate(phrase=DatePhrase.weekend))
     weekday = re.compile(
         rf"\b(?:(this|next)\s+)?({'|'.join(_WEEKDAYS)})\b",
         re.IGNORECASE,
@@ -523,22 +532,36 @@ def _date(text: str, today: date) -> tuple[date | None, Ambiguity | None]:
     for match in weekday.finditer(text):
         if not take(match.span()):
             continue
-        soon = _upcoming(_WEEKDAYS[match.group(2).lower()], today)
-        if (match.group(1) or "").lower() == "next":
-            ambiguous.extend((soon.isoformat(), (soon + timedelta(days=7)).isoformat()))
-        else:
-            resolved.append(soon)
-    pool = list(dict.fromkeys([*ambiguous, *(item.isoformat() for item in resolved)]))
-    if len(pool) > 1:
-        return None, Ambiguity(
-            field=BriefField.date,
-            message="Which date should this evening be?",
-            candidates=pool[:6],
-            blocking=True,
-        )
-    if len(pool) == 1:
-        return date.fromisoformat(pool[0]), None
-    return None, None
+        qualifier = (match.group(1) or "").lower()
+        phrase = DatePhrase.next_weekday if qualifier == "next" else DatePhrase.weekday
+        pending.append(PendingDate(phrase=phrase, weekday=_WEEKDAYS[match.group(2).lower()]))
+    explicit = list(dict.fromkeys([*ambiguous, *(item.isoformat() for item in resolved)]))
+    relative = list(dict.fromkeys(_pending_label(item) for item in pending))
+    if len(explicit) > 1 or (explicit and relative) or len(relative) > 1:
+        return None, None, _date_ambiguity((explicit or relative)[:6])
+    if len(explicit) == 1:
+        return date.fromisoformat(explicit[0]), None, None
+    if len(pending) == 1:
+        return None, pending[0], None
+    return None, None, None
+
+
+def _pending_label(pending: PendingDate) -> str:
+    if pending.weekday is None:
+        return pending.phrase.value
+    name = next(label for label, number in _WEEKDAYS.items() if number == pending.weekday)
+    if pending.phrase is DatePhrase.next_weekday:
+        return f"next {name}"
+    return name
+
+
+def _date_ambiguity(candidates: list[str]) -> Ambiguity:
+    return Ambiguity(
+        field=BriefField.date,
+        message="Which date should this evening be?",
+        candidates=candidates,
+        blocking=True,
+    )
 
 
 def _valid_date(year: int, month: int, day: int) -> date | None:
@@ -546,17 +569,6 @@ def _valid_date(year: int, month: int, day: int) -> date | None:
         return date(year, month, day)
     except ValueError:
         return None
-
-
-def _upcoming(weekday: int, today: date) -> date:
-    return today + timedelta(days=(weekday - today.weekday()) % 7)
-
-
-def _weekend_dates(today: date) -> tuple[date, ...]:
-    if today.weekday() == 6:
-        return (today,)
-    saturday = _upcoming(5, today)
-    return (saturday, saturday + timedelta(days=1))
 
 
 def _start_time(text: str) -> tuple[time | None, Ambiguity | None]:
@@ -827,6 +839,7 @@ def _missing(
     *,
     destination: str | None,
     local_date: date | None,
+    pending_date: PendingDate | None,
     local_start: time | None,
     intents: list[PlaceIntent],
     ambiguities: list[Ambiguity],
@@ -834,7 +847,7 @@ def _missing(
     blocked = {item.field for item in ambiguities if item.blocking}
     present = {
         EssentialField.destination: destination is not None,
-        EssentialField.date: local_date is not None,
+        EssentialField.date: local_date is not None or pending_date is not None,
         EssentialField.time: local_start is not None,
         EssentialField.primary_intent: bool(intents),
     }
@@ -854,13 +867,14 @@ def _missing(
 def _confidence(
     destination: str | None,
     local_date: date | None,
+    pending_date: PendingDate | None,
     local_start: time | None,
     intents: list[PlaceIntent],
 ) -> BriefConfidence:
     score = sum(
         (
             destination is not None,
-            local_date is not None,
+            local_date is not None or pending_date is not None,
             local_start is not None,
             bool(intents),
         )

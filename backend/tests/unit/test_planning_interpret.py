@@ -1,4 +1,4 @@
-"""Deterministic prompt reading. Relative dates use a fixed clock."""
+"""Deterministic prompt reading. Relative dates stay pending until a destination zone exists."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import pytest
 
 from happen_api.planning import (
     BriefConfidence,
+    DatePhrase,
     EssentialField,
     FixedClock,
     PlanningErrorCode,
@@ -35,7 +36,9 @@ def test_kyoto_prompt_keeps_explicit_facts_and_the_raw_text() -> None:
     brief = result.brief
     assert brief.raw_prompt == prompt
     assert brief.destination_text == "Kyoto"
-    assert brief.local_date == date(2026, 10, 5)
+    assert brief.local_date is None
+    assert brief.pending_date is not None
+    assert brief.pending_date.phrase is DatePhrase.tomorrow
     assert brief.local_start == time(19, 0)
     assert brief.party_size == 2
     assert brief.budget is not None
@@ -145,7 +148,9 @@ def test_london_asks_one_destination_question_before_other_gaps() -> None:
     assert follow_up.field.value == "destination"
     assert follow_up.candidates == ["London, United Kingdom", "London, Ontario"]
     assert result.brief.destination_text is None
-    assert result.brief.local_date == date(2026, 10, 5)
+    assert result.brief.local_date is None
+    assert result.brief.pending_date is not None
+    assert result.brief.pending_date.phrase is DatePhrase.tomorrow
     assert result.brief.local_start is None
     assert [item.field for item in result.brief.missing_essentials] == [EssentialField.time]
     assert result.outcome is LivePlanOutcome.needs_follow_up
@@ -274,15 +279,16 @@ def test_capitalized_unknown_city_is_kept_as_text_only() -> None:
     assert brief.ambiguities == []
 
 
-def test_relative_dates_use_the_clock_zone() -> None:
-    """Tomorrow follows the clock's civil date, including a zone that is not UTC."""
+def test_relative_dates_stay_pending_for_every_clock_zone() -> None:
+    """Tomorrow is not converted until the destination timezone is known."""
 
     tokyo = FixedClock(datetime(2026, 10, 5, 1, 0, tzinfo=ZoneInfo("Asia/Tokyo")))
     new_york = FixedClock(datetime(2026, 10, 4, 23, 30, tzinfo=ZoneInfo("America/New_York")))
-    assert _plan("Dinner in Tokyo tomorrow at 7pm", tokyo).brief.local_date == date(2026, 10, 6)
-    assert _plan("Dinner in Chicago tomorrow at 7pm", new_york).brief.local_date == date(
-        2026, 10, 5
-    )
+    for clock in (tokyo, new_york):
+        brief = _plan("Dinner in Tokyo tomorrow at 7pm", clock).brief
+        assert brief.local_date is None
+        assert brief.pending_date is not None
+        assert brief.pending_date.phrase is DatePhrase.tomorrow
 
 
 def test_named_dates_and_unambiguous_numeric_dates() -> None:
@@ -306,8 +312,8 @@ def test_slash_date_with_two_valid_readings_is_not_chosen() -> None:
     assert result.follow_up.candidates == ["2026-10-05", "2026-05-10"]
 
 
-def test_bare_hour_and_next_weekday_stay_ambiguous() -> None:
-    """A hour without am or pm, and next weekday, each keep both readings."""
+def test_bare_hour_stays_ambiguous_and_next_weekday_stays_pending() -> None:
+    """A hour without am or pm keeps both readings. Next weekday waits for a zone."""
 
     hour = _plan("Dinner in Kobe on 2026-10-05 at 8")
     assert hour.brief.local_start is None
@@ -316,15 +322,20 @@ def test_bare_hour_and_next_weekday_stay_ambiguous() -> None:
 
     weekday = _plan("Dinner in Nara next Friday at 7pm")
     assert weekday.brief.local_date is None
-    assert weekday.follow_up is not None
-    assert weekday.follow_up.candidates == ["2026-10-09", "2026-10-16"]
+    assert weekday.brief.pending_date is not None
+    assert weekday.brief.pending_date.phrase is DatePhrase.next_weekday
+    assert weekday.brief.pending_date.weekday == 4
+    assert weekday.follow_up is None
 
 
-def test_this_friday_uses_the_upcoming_weekday_on_the_clock() -> None:
-    """A bare weekday is the next matching day, including today when it matches."""
+def test_this_friday_stays_pending_until_a_destination_zone_is_known() -> None:
+    """A weekday phrase is kept, and the calendar day is not taken from the clock zone."""
 
     brief = _plan("Dinner in Sapporo this Friday at 7:30pm").brief
-    assert brief.local_date == date(2026, 10, 9)
+    assert brief.local_date is None
+    assert brief.pending_date is not None
+    assert brief.pending_date.phrase is DatePhrase.weekday
+    assert brief.pending_date.weekday == 4
     assert brief.local_start == time(19, 30)
 
 

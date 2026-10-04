@@ -574,3 +574,31 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - `¥` without the word yen or yuan does not become a currency. Two named currencies do not collapse into one budget.
 - A third evening activity is kept as an unplanned note and does not become a third stop or a follow-up question.
 
+## Resolve destinations in their local time
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: A destination query resolves through the existing SerpApi client. The free Locations API is tried first. One billed Google Maps search runs only when that lookup has no match or no coordinates. Relative dates are applied after the destination timezone is known.
+- Product behavior changed: no user-facing behavior. Resolution is not wired to an endpoint. The v1 recommendation API is unchanged.
+- Cost changed: no. Tests mock every provider call. No live SerpApi request was made.
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src`, `backend/tests`, and `scripts/scan-secrets.py`.
+- `uv run pytest` passed, 191 tests.
+- `python3 scripts/scan-secrets.py` reported nothing.
+- `timezonefinder==9.0.0` is pinned in `backend/pyproject.toml`, and `backend/uv.lock` includes it.
+- Jaipur, London, New York, and Tokyo resolve from mocked Locations API rows to `Asia/Kolkata`, `Europe/London`, `America/New_York`, and `Asia/Tokyo`.
+- An ambiguous Springfield query returns three choices and does not select one. An unknown place is unsupported. A catalog row without coordinates is an explicit missing-coordinates result unless one Maps lookup fills them.
+- `2026-03-08 02:30` in `America/New_York` is a DST gap. `2026-11-01 01:30` is ambiguous, with offsets `-04:00` and `-05:00`.
+- At `2026-10-04 22:00` UTC, Tokyo today is `2026-10-05` and tomorrow is `2026-10-06`. New York today is `2026-10-04` and tomorrow is `2026-10-05`.
+
+### Decisions
+
+- The Locations API does not consume a billed search and is not sent the API key. A Maps lookup counts toward the same eight-request budget as a later plan.
+- Maps Autocomplete was not used. It requires an origin coordinate, which is the fact the fallback is trying to obtain. The bounded fallback is one Google Maps search.
+- Several Locations API cities become at most three choices, in the order returned. The resolver does not pick among them.
+- The stored place keeps the canonical display name, country, region, latitude, longitude, SerpApi location value, confidence, and resolution source. The raw provider document is not kept or logged.
+- The IANA timezone comes from `timezonefinder` and the coordinates. `zoneinfo` handles the civil date and wall time. A missing zone, a missing coordinate pair, an unsupported place, a DST gap, and an ambiguous local time each stay explicit.
+- `today`, `tonight`, `tomorrow`, a weekday, `next` weekday, and `weekend` stay unresolved on the brief until that timezone exists.
+

@@ -8,7 +8,7 @@ This is the running notebook for the build. A new chat must read this file befor
 
 The current branch is `global-live-experience`. The current work is the Global Live Experience redesign. Section 30 of `docs/HANDOFF.md` is the approved contract: a global, prompt-led, live evening planner, one evening, at most two stops, SerpApi as the only external place and supporting-web source, Python validation and selection, and live retrieval only. Captured fixtures stay test data.
 
-The planning records and a deterministic prompt parser are in `backend/src/happen_api/planning/`. A prompt becomes a brief with at most one follow-up. The parser does not call SerpApi or load Gemma. The existing v1 recommendation API is unchanged, and the running page is still the earlier Indiranagar planner.
+The planning records, a deterministic prompt parser, and destination resolution are in `backend/src/happen_api/planning/`. A prompt becomes a brief with at most one follow-up. Relative dates stay pending until a destination timezone is known. Destination resolution uses the existing SerpApi client: the free Locations API first, then at most one billed Maps lookup when coordinates are still missing. That lookup shares the eight-request plan budget. Timezones come from coordinates through `timezonefinder` offline, and date arithmetic uses `zoneinfo`. The parser does not load Gemma. The existing v1 recommendation API is unchanged, and the running page is still the earlier Indiranagar planner. This step is not on a user-facing route.
 
 `global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
 
@@ -17,9 +17,9 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. The planning brief parser is in place. Live retrieval and the user-facing flow are not. |
-| Last finished step | Parse planning prompts into structured briefs |
-| Next step | Serve the brief and one follow-up without SerpApi, Gemma, or a fixture fallback. |
+| Phase complete | No. Destination resolution is in place. Live retrieval and the user-facing flow are not. |
+| Last finished step | Resolve destinations in their local time |
+| Next step | Serve the brief, one follow-up, and a resolved destination without a fixture fallback. |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
@@ -104,9 +104,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Planning prompts parse into structured briefs. The v1 API and the Indiranagar page are unchanged. Live retrieval has not started. |
-| Last finished step | Parse planning prompts into structured briefs |
-| Next step | Serve the brief and one follow-up without SerpApi, Gemma, or a fixture fallback. |
+| Status | Destinations resolve through SerpApi in tests, with local time after the timezone is known. The v1 API and the Indiranagar page are unchanged. Live retrieval has not started. |
+| Last finished step | Resolve destinations in their local time |
+| Next step | Serve the brief, one follow-up, and a resolved destination without a fixture fallback. |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -804,3 +804,4 @@ Your side:
 | Audit, publish, and submit | Not started | — | Merge, publish, submit, and paste the confirmation. |
 | Global live planning contract | Recorded | `Update the contract for global live planning.` | Nothing for that record. |
 | Planning prompt parser | Done. v1 API unchanged. No SerpApi or Gemma call. | `Parse planning prompts into structured briefs.` | Nothing. Do not push. |
+| Destination resolution | Done. Not on a user-facing route. Provider calls are mocked in tests. | `Resolve destinations in their local time.` | Nothing. Do not push. |
