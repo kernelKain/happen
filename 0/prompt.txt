@@ -1,35 +1,3 @@
-Read AGENTS.md and the product/progress contracts first. Confirm the correct branch. Do not push, deploy, use hosted inference, or commit a model binary.
-
-Build a reproducible quality gate for local Gemma rather than assuming that a valid GGUF file is a capable model.
-
-Requirements:
-
-- Preserve and report the current Gemma 3 270M baseline.
-- Add a planning-interpretation evaluation dataset covering multiple countries, currencies, local dates, two-intent prompts, missing information, ambiguity, and adversarial prompt text.
-- Measure strict JSON/schema parse rate and essential-field accuracy for planning interpretation.
-- Continue measuring review evidence extraction using the existing held-out dataset.
-- Record model load time, inference latency, file size, and peak memory where the local environment can measure them.
-- Evaluate a publicly downloadable Gemma 3 1B instruction-tuned Q4 GGUF only if a trustworthy source, immutable filename, and checksum can be pinned without requiring HF_TOKEN.
-- If that artifact cannot be verified or does not fit the project’s resource constraints, document the reason and continue safely with deterministic interpretation.
-- Never commit *.gguf files. Update scripts/download-model.py and ml/model-manifest.json only for a verified selected artifact.
-- Selection gates are at least 95% strict schema parsing, 90% essential planning-field accuracy, and 80% review dimension-plus-polarity accuracy.
-- A failed model gate must disable model-derived claims. The deterministic parser remains usable.
-- Separate artifact integrity from measured quality in readiness and health metadata.
-- Gemma may propose structured preferences only. It must never choose the winning place, invent place facts, or bypass validation.
-- Tests must mock inference and must work without the GGUF present.
-
-Store reproducible aggregate reports under ml/reports without personal data, raw provider payloads, or secrets. Update HANDOFF2 and BUILD_LOG honestly, including failed gates.
-
-Run all relevant backend tests, evaluation commands that are feasible locally, and the secret scanner.
-
-Commit exactly:
-
-Measure local model quality for planning.
-
-Stop after the commit and report the selected fallback, measured results, hash, and git status.
-
----
-
 Read all repository instructions and verify the current branch before editing. Do not push or deploy.
 
 Generalize the existing SerpAPI integration from hard-coded Indiranagar restaurants to global intent-based discovery.
