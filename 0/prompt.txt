@@ -1,0 +1,58 @@
+Read AGENTS.md and the current product contract. Confirm the branch. Do not push, merge, or deploy.
+
+Remove demo-only behavior from the production application while preserving deterministic fixtures for automated tests.
+
+Requirements:
+
+- Remove the public sample-layout query parameter and any user-facing captured-evidence fallback.
+- Remove production UI imports or controls that can serve fixture recommendations.
+- Remove or development-gate old demo endpoints so deployed production cannot return captured recommendations.
+- Keep captured payloads only as test fixtures.
+- Ensure failed live requests remain honest failures.
+- Remove hard-coded Indiranagar presets and Kolkata timezone assumptions.
+- Remove development metadata and repository links from the main customer flow.
+- Update render.yaml for the eventual merged main branch and live mode, but do not deploy.
+- Keep SERPAPI_API_KEY as a secret environment variable reference only.
+- Never put a key or value into render.yaml, documentation, tests, logs, or commits.
+- Ensure *.gguf, .env, caches, provider payloads, and generated artifacts remain ignored.
+- Update outdated tests instead of weakening assertions.
+
+Update HANDOFF2 and BUILD_LOG. Run backend and frontend test suites, builds, and secret scanning.
+
+Commit exactly:
+
+Remove demo-only production paths.
+
+Stop and report the hash, removed runtime paths, retained test fixtures, and git status.
+
+---
+
+Read all repository instructions and inspect the complete implementation. Confirm the branch and do not push or deploy.
+
+Harden the global live-planning workflow without adding a database, authentication, paid service, or another model API.
+
+Implement or verify:
+
+- Strict request-body size and prompt-length limits.
+- Safe URL and redirect handling for every SerpAPI request.
+- Configurable CORS using explicit origins.
+- In-memory abuse throttling appropriate for one small process.
+- Provider timeouts, bounded retries, total request budgets, and cancellation.
+- Resource cleanup for HTTP and model clients.
+- Cache bounds and safe cache keys.
+- No secret, raw provider payload, raw review corpus, model prompt, or stack-trace leakage.
+- Graceful behavior when the model is absent, corrupt, slow, or below its quality gate.
+- Honest behavior when SerpAPI is absent, over quota, or incomplete.
+- Accessibility checks using axe.
+- Responsive browser coverage at 390px and 1280px.
+- Destination-local date/time behavior for India, the UK, the US, and Japan.
+- Regression tests proving scoring remains in Python and fixtures cannot leak into production responses.
+- Regression tests proving one plan cannot exceed the eight-request SerpAPI budget.
+
+Run the full automated suite. Fix discovered defects within this scope. Update progress documentation with exact evidence.
+
+Commit exactly:
+
+Harden the global live planning workflow.
+
+Stop and report the hash, fixes, complete test totals, and git status.
