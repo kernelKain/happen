@@ -11,12 +11,12 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | P0 in progress |
-| Last finished step | P0.2 — Prove SerpApi evidence shape |
-| Next step | P0.3 — Prove Gemma and Render feasibility |
+| Last finished step | P0.3 — Prove Gemma and Render feasibility |
+| Next step | P1.1 — Scaffold the locked monorepo |
 | Branch | `phase/p0-prove-access` |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | Gemma access and the Render credit balance are still unread |
+| Biggest blocker | None for the next build step. Do not leave a paid Render service running after judging. |
 
 ## How branches and commits work
 
@@ -123,20 +123,41 @@ Your side after this step:
 
 ### P0.3 — Prove Gemma and Render feasibility
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026.
 
-Cursor will load quantized Gemma 3 270M locally, run one schema prompt, and record memory, latency, and the native-or-Docker path. Training stays on free Colab only if a T4 session is actually available.
+You accepted the Gemma terms. The model page did not ask for a token, and none is needed to run the demo.
 
-Your side after Cursor finishes:
+What is free:
 
-1. Read the measured memory and latency. Say if the recorded Render plan is acceptable.
-2. From the Render dashboard, report the credit balance and the current price of the chosen plan. Do not send payment details.
-3. On Hugging Face, accept the Gemma model terms if the download says the model is gated.
-4. If you want the tuning branch checked now, open a free Colab T4 session and say that it started. Otherwise the build keeps the untuned model until P3.5.
+- Running Gemma on our own server does not send reviews to a paid model API and does not create a Google bill.
+- The public quantized file downloaded with no account token. It is a 241.3 MB `Q4_K_M` GGUF of `google/gemma-3-270m-it` from `bartowski/google_gemma-3-270m-it-GGUF`.
+- SHA-256: `c866c9f113f2e9aa2225c5997ede437392b8fa844ba5db9e4c77e315ffe20800`. The file stays outside git.
+- SerpApi remains on the free plan, with 245 searches left.
+- The Render static site is $0. The $50 credit balance is already in the account.
 
-Your side before the model download:
+What is not free if left running:
 
-1. Set `HF_TOKEN` in the ignored `.env` if the model is gated.
+- The measured process used 372 MB after loading the model. Render’s $0 web service has only 512 MB, which is too small once the API is added.
+- A backend with 1 CPU and 2 GB of RAM is listed at $25 per month. Two CPUs and 4 GB are listed at $85 per month. Render draws that from the $50 credits only while the service is on.
+- $50 covers about 60 days of the smaller plan, or about 18 days of the larger plan, if the service stays on all day. Through the October 5 deadline, either plan is a few dollars of credits, not a new card charge, if you suspend it afterward.
+- Do not buy Colab compute, a Hugging Face inference endpoint, or a larger Render plan.
+
+Measured runtime on this machine:
+
+- Python 3.13.15 and `llama-cpp-python` 0.3.36 built from source. PyPI has no prebuilt wheel, so the Render build must have a compiler. Docker stays the fallback only if that native build fails on Render.
+- Model load: 0.5 seconds. One extraction: 2.3 to 2.9 seconds. Memory: 372 MB.
+- Both replies were JSON. The exact-span check rejected every quote because the small model did not copy the review. That is a quality gap for later tuning or a stricter decoder. It is not a reason to switch to a paid model.
+
+A Hugging Face token is still not required. Create a free read token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) only if a later Colab download of the official `google/gemma-3-270m-it` weights says the model is restricted. Accepting the terms in the browser does not by itself authorize a script. Creating the token does not start billing. Do not paste it into chat.
+
+Commit: `Record the free Gemma runtime proof and Render credit limit.`
+
+Your side after this step:
+
+1. Nothing else is required before the app scaffold.
+2. Before the first Render service exists, set the workspace spend limit so usage cannot charge a card after the $50 credits. Do not add a payment method if Render lets you skip it.
+3. After judging, suspend the paid web service. The static site can stay.
+4. Skip Colab for now. Tuning stays optional and only on a free T4.
 
 ---
 
@@ -565,7 +586,7 @@ Your side:
 |---|---|---|---|
 | P0.1 | Done | `P0.1: record account and workflow access checks.` | Optional: Entire and CodeRabbit. |
 | P0.2 | Done | `Record the Indiranagar restaurant evidence probe.` | Nothing else for SerpApi. |
-| P0.3 | Next | — | Gemma terms, `HF_TOKEN` if gated, Render balance. |
+| P0.3 | Done | `Record the free Gemma runtime proof and Render credit limit.` | Before deploy, cap Render spend at the credits and suspend the paid service after judging. No token needed now. |
 | P1.1–P1.3 | Not started | — | Review only if a check needs you. |
 | P1.4 | Not started | — | Push, Render services, secrets, public URLs. |
 | P2.1–P2.4 | Not started | — | Nothing unless a note asks. |
