@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M43Y335XMM152VT3TBADV8E5",
+  "strategy": "manual-commit",
+  "branch": "live-sponsor",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "backend/src/happen_api/ai/validation.py",
+    "backend/src/happen_api/api/health.py",
+    "backend/src/happen_api/app.py",
+    "backend/src/happen_api/fixtures/loader.py",
+    "backend/src/happen_api/readiness.py",
+    "backend/src/happen_api/recommendations/service.py",
+    "backend/tests/contract/test_demo_recommendations.py",
+    "backend/tests/contract/test_health_meta.py",
+    "backend/tests/contract/test_live_recommendations.py",
+    "backend/tests/unit/test_extraction.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/src/app/App.tsx",
+    "frontend/src/lib/api/recommendation.test.ts",
+    "frontend/src/lib/api/recommendation.ts",
+    "frontend/src/lib/labels.ts",
+    "frontend/tests/hook.spec.ts",
+    "render.yaml",
+    "scripts/render-backend-build.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 728928,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 7904000,
+    "output_tokens": 48528,
+    "api_call_count": 1
+  }
+}
