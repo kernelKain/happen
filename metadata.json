@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M42PXYCB29ZHPA9A45JKBPD2",
+  "strategy": "manual-commit",
+  "branch": "fixture-hook",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "backend/data/fixtures/v1/manifest.json",
+    "backend/data/fixtures/v1/scenarios/indiranagar-dinner.json",
+    "backend/src/happen_api/ai/__init__.py",
+    "backend/src/happen_api/ai/extractor.py",
+    "backend/src/happen_api/ai/prompt.py",
+    "backend/src/happen_api/ai/validation.py",
+    "backend/src/happen_api/api/demo.py",
+    "backend/src/happen_api/app.py",
+    "backend/src/happen_api/config.py",
+    "backend/src/happen_api/domain/__init__.py",
+    "backend/src/happen_api/domain/models.py",
+    "backend/src/happen_api/domain/scoring.py",
+    "backend/src/happen_api/domain/timing.py",
+    "backend/src/happen_api/fixtures/__init__.py",
+    "backend/src/happen_api/fixtures/loader.py",
+    "backend/src/happen_api/fixtures/schema.py",
+    "backend/src/happen_api/recommendations/__init__.py",
+    "backend/src/happen_api/recommendations/contracts.py",
+    "backend/src/happen_api/recommendations/memory.py",
+    "backend/src/happen_api/recommendations/service.py",
+    "backend/tests/contract/test_demo_recommendations.py",
+    "backend/tests/unit/test_extraction.py",
+    "backend/tests/unit/test_fixtures.py",
+    "backend/tests/unit/test_hook.py",
+    "backend/tests/unit/test_scoring.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 666896,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 16761856,
+    "output_tokens": 199009,
+    "api_call_count": 5
+  }
+}
