@@ -1,0 +1,74 @@
+Read all repository instructions and verify the current branch before editing. Do not push or deploy.
+
+Generalize the existing SerpAPI integration from hard-coded Indiranagar restaurants to global intent-based discovery.
+
+Requirements:
+
+- Remove hard-coded city, country, language, and restaurant-query assumptions from production discovery.
+- Build Google Maps searches from the resolved destination, ordered intents, local date/time, and safe query templates.
+- Support up to two intent searches per plan.
+- Normalize place ID/data ID, name, address, coordinates, rating, review count, price information, category, hours, popular times, official website, maps link, thumbnail, events, and useful highlights when present.
+- Preserve provider language where translation is unavailable.
+- Treat missing information as unknown.
+- Reuse inline place evidence before spending another request.
+- For finalists only, use place details and reviews when required.
+- Allow at most two supplementary Google Search requests, and only for critical missing evidence. Prefer an official venue source; use indexed community material only as secondary evidence.
+- Do not directly scrape Reddit, Instagram, X, or other sites.
+- Enforce exact entity matching using place identifiers plus name, locality, address, or official domain.
+- Official hours override community statements. Conflicts remain visible.
+- Share a maximum budget of eight billed SerpAPI requests across resolution and planning.
+- Add cache keys that include canonical destination, local date, time window, and intent.
+- Ensure the HTTP client closes through application lifespan management.
+- Never log keys, raw reviews, phone numbers, or raw provider responses.
+- Add typed timeout, quota, no-result, and partial-evidence behavior.
+- Tests must mock SerpAPI and cover multiple countries and incomplete evidence.
+
+Update progress documentation and run backend formatting, lint, tests, and secret scanning.
+
+Commit exactly:
+
+Generalize live place discovery.
+
+Stop after committing and report the hash, request-budget behavior, test totals, and git status.
+
+---
+
+Read the instructions and contracts first. Confirm the branch and do not push or deploy.
+
+Implement deterministic itinerary construction and expose the new API flow.
+
+Add versioned endpoints equivalent to:
+
+- POST /api/v2/briefs/interpret
+- POST /api/v2/destinations/resolve
+- POST /api/v2/plans
+- POST /api/v2/plans/refine
+
+Use naming consistent with the existing FastAPI structure if a small adjustment is cleaner.
+
+Rules:
+
+- A plan contains one or two stops only.
+- Python performs eligibility, source-quality weighting, hours/date checks, scoring, tie handling, and final selection.
+- Gemma cannot select, rank, or invent a place.
+- Do not invent travel durations. If travel-time evidence does not exist, label the transition as unverified and link to directions.
+- Check opening hours against the destination-local date and proposed arrival time.
+- Exclude definitely closed places.
+- Keep unknown-hours candidates only with an explicit warning and lower confidence.
+- Price or busyness gaps remain unknown rather than positive evidence.
+- Explain each recommendation with traceable evidence and retrieval timestamps.
+- Return official, Maps, and community sources as distinct source types.
+- Refinement must produce a validated proposed brief and a structured diff. Do not replace the current plan until the client explicitly applies the proposal.
+- Return user-safe errors for ambiguity, exhausted quota, timeouts, no results, and insufficient evidence.
+- Never expose internal prompts, stack traces, model paths, scoring implementation details, or secrets.
+- Keep v1 operational until the later cleanup task.
+
+Add contract, unit, integration, timezone, overnight-hours, refinement, failure-state, and scoring tests. Synchronize frontend Zod schemas for the v2 contracts without building the screens yet.
+
+Update progress documentation and run complete backend checks plus frontend type/build tests.
+
+Commit exactly:
+
+Assemble source-backed evening plans.
+
+Stop and report the commit, API routes, tests, and git status.

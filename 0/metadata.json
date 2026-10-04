@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M4483GFNZ2B33CMX695A32FV",
+  "session_id": "8139fa1d-a298-4685-87a0-02a5b1e7be94",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T20:01:24.258511942Z",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "backend/src/happen_api/api/plans.py",
+    "backend/src/happen_api/app.py",
+    "backend/src/happen_api/planning/itinerary.py",
+    "backend/tests/contract/test_plans.py",
+    "backend/tests/unit/test_itinerary.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/src/lib/api/plan.test.ts",
+    "frontend/src/lib/api/plan.ts"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high-fast",
+  "turn_id": "a7c5d5809b95",
+  "checkpoint_transcript_start": 116,
+  "transcript_lines_at_start": 116,
+  "compact_transcript_start": 16,
+  "session_metrics": {
+    "turn_count": 5,
+    "context_tokens": 245599,
+    "context_window_size": 256000
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T20:01:24.213358353Z",
+    "agent_lines": 1856,
+    "agent_removed": 10,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1856,
+    "total_lines_changed": 1866,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
