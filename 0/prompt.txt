@@ -1,0 +1,26 @@
+Read AGENTS.md and the current product contract. Confirm the branch. Do not push, merge, or deploy.
+
+Remove demo-only behavior from the production application while preserving deterministic fixtures for automated tests.
+
+Requirements:
+
+- Remove the public sample-layout query parameter and any user-facing captured-evidence fallback.
+- Remove production UI imports or controls that can serve fixture recommendations.
+- Remove or development-gate old demo endpoints so deployed production cannot return captured recommendations.
+- Keep captured payloads only as test fixtures.
+- Ensure failed live requests remain honest failures.
+- Remove hard-coded Indiranagar presets and Kolkata timezone assumptions.
+- Remove development metadata and repository links from the main customer flow.
+- Update render.yaml for the eventual merged main branch and live mode, but do not deploy.
+- Keep SERPAPI_API_KEY as a secret environment variable reference only.
+- Never put a key or value into render.yaml, documentation, tests, logs, or commits.
+- Ensure *.gguf, .env, caches, provider payloads, and generated artifacts remain ignored.
+- Update outdated tests instead of weakening assertions.
+
+Update HANDOFF2 and BUILD_LOG. Run backend and frontend test suites, builds, and secret scanning.
+
+Commit exactly:
+
+Remove demo-only production paths.
+
+Stop and report the hash, removed runtime paths, retained test fixtures, and git status.
