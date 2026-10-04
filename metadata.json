@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M44ADRDAZXVGWJE9CB514M7A",
+  "strategy": "manual-commit",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "backend/src/happen_api/api/health.py",
+    "backend/src/happen_api/app.py",
+    "backend/src/happen_api/recommendations/live.py",
+    "backend/tests/contract/test_health_meta.py",
+    "backend/tests/contract/test_live_recommendations.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "frontend/src/app/App.tsx",
+    "frontend/src/app/result/MomentResult.tsx",
+    "frontend/src/main.tsx",
+    "frontend/tests/hook.spec.ts",
+    "frontend/tests/result.spec.ts",
+    "frontend/tests/shell.spec.ts",
+    "render.yaml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ]
+}
