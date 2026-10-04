@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M42TN23QR5PMVPFNY4VG897V",
+  "strategy": "manual-commit",
+  "branch": "live-sponsor",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "backend/src/happen_api/providers/serpapi/__init__.py",
+    "backend/src/happen_api/providers/serpapi/normalizer.py",
+    "backend/tests/unit/test_serpapi_normalizer.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 178959,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3348608,
+    "output_tokens": 35952,
+    "api_call_count": 1
+  }
+}

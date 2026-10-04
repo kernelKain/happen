@@ -1,0 +1,61 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M42TN23QR5PMVPFNY4VG897V",
+  "session_id": "5b0f0b4e-31bb-409b-97ab-44dad1a8e9a2",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T06:47:04.83201337Z",
+  "branch": "live-sponsor",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [
+    "backend/src/happen_api/providers/serpapi/__init__.py",
+    "backend/src/happen_api/providers/serpapi/normalizer.py",
+    "backend/tests/unit/test_serpapi_normalizer.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high",
+  "turn_id": "3da2464335fb",
+  "checkpoint_transcript_start": 44,
+  "transcript_lines_at_start": 44,
+  "compact_transcript_start": 4,
+  "token_usage": {
+    "input_tokens": 178959,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 3348608,
+    "output_tokens": 35952,
+    "api_call_count": 1
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T06:47:04.80082162Z",
+    "agent_lines": 949,
+    "agent_removed": 13,
+    "human_added": 0,
+    "human_modified": 3,
+    "human_removed": 0,
+    "total_committed": 952,
+    "total_lines_changed": 965,
+    "agent_percentage": 99.68911917098445,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 952,
+      "agent_lines_removed": 13
+    }
+  ]
+}
