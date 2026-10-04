@@ -1,0 +1,141 @@
+i have opend this and connetced:https://colab.research.google.com/notebook#scrollTo=UUjeeVxRHEVz&fileId=https%3A//huggingface.co/google/gemma-3-270m-it.ipynb, guide me step by step what i should do: The untuned Gemma model missed the extraction gate. It parsed **2 of 30** held-out excerpts (**6.7%**) and matched **4 of 90** dimension-plus-polarity pairs (**4.4%**). The required gate is **95%** parse and **80%** accuracy. No tuned adapter was measured, so the shipping model stays the untuned 270M file. This is not committed.
+
+The held-out set has 30 authored examples, and the training set has 100. They do not share text. Sampling was temperature 0, seed 0, and one schema retry. The report is `ml/reports/baseline-270m.json`. `uv run pytest` passed, 118 tests. No SerpApi search was spent.
+
+From your side:
+
+1. Open `ml/tune_extraction.ipynb` on a free Colab T4 and let it run, or say that Colab is unavailable. The base model is gated, so Colab needs a read-only `HF_TOKEN` in secrets. Upload `ml/extraction/train.jsonl` and `ml/extraction/held_out.jsonl` if Colab cannot see the repository.
+2. Paste the two printed Colab estimate lines. Do not publish any score that is not in the baseline report or in that output.
+
+The notebook trains a short adapter and prints an estimate. It does not replace the shipping model.
+
+CHECK: questions_this_turn=0 step=P3.5 autonomy=A1 packet=none stage=C
+
+---
+
+what opions should i slect: Create new Access Token
+Token type
+Fine-grained
+Read
+Write
+ This cannot be changed after token creation.
+Token name
+happen-google/gemma-3-270m-it
+Presets
+Read-Only
+Inference
+Write
+CI/CD
+Full Access
+Custom
+
+---
+
+i am not able to edit it , i tsay read only for the file i uuplaoded, also another collab notbeook is open for this model what to do with it
+
+---
+
+i have removed all teh conetent from opened nb and put copyied all cocnetnt from this file into my notebook and runned all cells one by one what should i do next, how should i knwo i did things right?
+
+---
+
+i go this error: ---------------------------------------------------------------------------
+SecretNotFoundError                       Traceback (most recent call last)
+/tmp/ipykernel_2608/758404441.py in <cell line: 0>()
+      8 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+      9 
+---> 10 login(token=userdata.get("the key i added in this"), add_to_git_credential=False)
+     11 
+     12 def load_split(name):
+
+/usr/local/lib/python3.13/dist-packages/google/colab/userdata.py in get(key)
+     66     raise TimeoutException(key)
+     67   if not resp.get('exists', False):
+---> 68     raise SecretNotFoundError(key)
+     69   if not resp.get('access', False):
+     70     raise NotebookAccessError(key)
+
+SecretNotFoundError: Secret "the key i added in this" does not exist. ;; do i have to keep key somehwere else or shoul di ha  put key diretly in this cell
+
+---
+
+i have not added any file, where should i add the fiels:FileNotFoundError                         Traceback (most recent call last)
+/tmp/ipykernel_2608/1429119010.py in <cell line: 0>()
+     16     raise FileNotFoundError(name)
+     17 
+---> 18 train_rows = load_split("train.jsonl")
+     19 held_rows = load_split("held_out.jsonl")
+     20 print(len(train_rows), "training rows", len(held_rows), "held-out rows")
+
+/tmp/ipykernel_2608/1429119010.py in load_split(name)
+     14         if candidate.is_file():
+     15             return [json.loads(line) for line in candidate.read_text().splitlines() if line.strip()]
+---> 16     raise FileNotFoundError(name)
+     17 
+     18 train_rows = load_split("train.jsonl")
+
+FileNotFoundError: train.jsonl
+
+---
+
+where is this content folder?
+
+---
+
+this cell is executing from last 5 min what is wrong: model.eval()
+parsed = 0
+correct = 0
+dimensions = ("conversation", "short_wait", "seating")
+for row in held_rows:
+    prompt = tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt_for(row)}],
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    with torch.no_grad():
+        output = model.generate(**inputs, max_new_tokens=384, do_sample=False)
+    reply = tokenizer.decode(output[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True)
+    start = reply.find("{")
+    end = reply.rfind("}")
+    try:
+        payload = json.loads(reply[start : end + 1]) if start >= 0 and end > start else None
+    except json.JSONDecodeError:
+        payload = None
+    if not isinstance(payload, dict):
+        continue
+    parsed += 1
+    predicted = {}
+    for signal in payload.get("signals", []):
+        if isinstance(signal, dict) and signal.get("dimension") in dimensions:
+            predicted[signal["dimension"]] = signal.get("polarity")
+    gold = {signal["dimension"]: signal["polarity"] for signal in row["signals"]}
+    for dimension in dimensions:
+        if dimension in gold:
+            correct += predicted.get(dimension) == gold[dimension]
+        else:
+            correct += dimension not in predicted
+
+parse_rate = parsed / len(held_rows)
+accuracy = correct / (len(held_rows) * 3)
+print(f"Colab estimate parse rate {parse_rate:.1%}")
+print(f"Colab estimate dimension-plus-polarity accuracy {accuracy:.1%}")
+print("Baseline parse rate 6.7%. Baseline accuracy 4.4%.")
+print("Paste these two Colab lines back. Do not publish any other score.")
+print("Do not replace the shipping model from this estimate.")
+
+---
+
+its been 10 min now
+
+---
+
+Colab estimate parse rate 6.7%
+Colab estimate dimension-plus-polarity accuracy 3.3%
+Baseline parse rate 6.7%. Baseline accuracy 4.4%.
+Paste these two Colab lines back. Do not publish any other score.
+Do not replace the shipping model from this estimate.
+
+---
+
+but fintetuning is needed, whta to do to make output better? If nothing can be done should i like pivot this project in diffrernt direction? i have only 8hrs of implementation time left.

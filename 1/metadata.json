@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M43TETPQS98ZBNBRY2QS51ZZ",
+  "session_id": "68f0ef34-2eab-48ae-a334-8c332ba153cc",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T16:02:55.407778552Z",
+  "branch": "live-sponsor",
+  "checkpoints_count": 11,
+  "save_step_count": 2,
+  "files_touched": [
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high",
+  "turn_id": "c807971c30ff",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 230151,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 454656,
+    "output_tokens": 11976,
+    "api_call_count": 2
+  },
+  "session_metrics": {
+    "turn_count": 11
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T16:02:55.394145504Z",
+    "agent_lines": 37,
+    "agent_removed": 12,
+    "human_added": 0,
+    "human_modified": 1,
+    "human_removed": 0,
+    "total_committed": 38,
+    "total_lines_changed": 50,
+    "agent_percentage": 98,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 38,
+      "agent_lines_removed": 12
+    }
+  ]
+}
