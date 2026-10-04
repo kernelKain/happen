@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from happen_api.ai.prompt import EXTRACTION_SCHEMA_VERSION
+from happen_api.domain.hours import parse_clock
 from happen_api.domain.models import (
     AcceptedSignal,
     Dimension,
@@ -18,7 +19,6 @@ from happen_api.domain.models import (
     ReviewExcerpt,
     TemporalHint,
 )
-from happen_api.domain.timing import _parse_clock
 
 _CLOCK_TOKEN = re.compile(r"\d{1,2}(?::\d{2})?\s*(?:am|pm)?", re.IGNORECASE)
 
@@ -209,7 +209,7 @@ def _span_is_exact(
 
 
 def _contains_clock(span: str) -> bool:
-    return any(_parse_clock(match.group(0)) is not None for match in _CLOCK_TOKEN.finditer(span))
+    return any(parse_clock(match.group(0)) is not None for match in _CLOCK_TOKEN.finditer(span))
 
 
 def _normalize(text: str) -> str:

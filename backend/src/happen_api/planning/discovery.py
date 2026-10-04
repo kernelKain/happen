@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from happen_api.domain.hours import ProviderHours, normalize_hours
 from happen_api.planning.contracts import IntentKind, PlaceIntent, ResolvedDestination
 
 if TYPE_CHECKING:
@@ -54,6 +55,8 @@ _MAX_INTENTS = 2
 _POOL_LIMIT = 5
 _POOL_TOTAL = _MAX_INTENTS * _POOL_LIMIT
 _DESTINATION_RADIUS_KM = 80.0
+_HOURS_TEXT_LIMIT = 200
+_HOURS_LINE_LIMIT = 8
 
 
 class DiscoveryStatus(StrEnum):
@@ -92,6 +95,7 @@ class DiscoveredPlace(BaseModel):
     price: str | None = Field(default=None, max_length=40)
     category: str | None = Field(default=None, max_length=80)
     hours: list[str] = Field(default_factory=list, max_length=8)
+    hours_schedule: ProviderHours | None = None
     popular_times_known: bool = False
     website: str | None = Field(default=None, max_length=300)
     maps_link: str | None = Field(default=None, max_length=300)
@@ -640,7 +644,7 @@ def _place_from_record(
     if name is None or (place_id is None and data_id is None):
         return None
     latitude, longitude = _coordinates(record.get("gps_coordinates"))
-    hours = _hours(record)
+    hours, hours_schedule = _hours_schedule(record)
     highlights = _inline_highlights(record)
     place = DiscoveredPlace(
         intent=intent,
@@ -656,6 +660,7 @@ def _place_from_record(
         price=_clean(record.get("price")),
         category=_category(record),
         hours=hours,
+        hours_schedule=hours_schedule,
         popular_times_known=_present(record.get("popular_times")),
         website=_http_url(record.get("website")),
         maps_link=_http_url(record.get("gps_link") or record.get("link")),
@@ -746,9 +751,10 @@ def _distance_km(
 
 
 def _overlay_official(place: DiscoveredPlace, record: dict[str, object]) -> None:
-    hours = _hours(record)
+    hours, hours_schedule = _hours_schedule(record)
     if hours:
         place.hours = hours
+        place.hours_schedule = hours_schedule
     if place.address is None:
         place.address = _clean(record.get("address"))
     if place.latitude is None:
@@ -912,22 +918,58 @@ def _inline_highlights(record: dict[str, object]) -> list[str]:
 
 
 def _hours(record: dict[str, object]) -> list[str]:
+    """Keep the provider's own hours text for display."""
+
+    lines, _schedule = _hours_schedule(record)
+    return lines
+
+
+def _hours_schedule(record: dict[str, object]) -> tuple[list[str], ProviderHours]:
+    """Normalize provider hours once and keep the original text beside them.
+
+    SerpApi sends a weekday dictionary, a list of weekday dictionaries, or a
+    list of `{"day": ..., "hours": ...}` records. Whatever the shape, the
+    canonical schedule is built here at the provider boundary and the original
+    text is preserved so a stop can still show what the provider listed.
+    """
+
     value = record.get("operating_hours")
     if value is None:
         value = record.get("hours")
+    schedule = normalize_hours(value)
+    lines = _display_lines(value, schedule)
+    return lines[:8], schedule
+
+
+def _display_lines(value: object, schedule: ProviderHours) -> list[str]:
     lines: list[str] = []
     if isinstance(value, dict):
         for day, span in value.items():
             text = _clean(span)
             label = _clean(day)
             if text and label:
-                lines.append(f"{label}: {text}"[:80])
+                lines.append(f"{label}: {text}"[:_HOURS_TEXT_LIMIT])
     elif isinstance(value, list):
-        for item in value:
-            text = _clean(item)
-            if text:
-                lines.append(text[:80])
-    return lines[:8]
+        for index, item in enumerate(value):
+            if isinstance(item, dict):
+                day = _clean(item.get("day"))
+                text = _clean(item.get("hours"))
+                if day and text:
+                    lines.append(f"{day}: {text}"[:_HOURS_TEXT_LIMIT])
+                    continue
+                if len(item) == 1:
+                    label, span = next(iter(item.items()))
+                    day, text = _clean(label), _clean(span)
+                    if day and text:
+                        lines.append(f"{day}: {text}"[:_HOURS_TEXT_LIMIT])
+                        continue
+            elif isinstance(item, str):
+                text = _clean(item)
+                if text:
+                    lines.append(text[:_HOURS_TEXT_LIMIT])
+    if lines:
+        return lines
+    return [text for text in schedule.unrecognized if text][:_HOURS_LINE_LIMIT]
 
 
 def _events(value: object) -> list[str]:

@@ -7,9 +7,8 @@ module does not call a model and does not invent a travel duration.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 from enum import StrEnum
 from typing import Literal
 from urllib.parse import quote
@@ -17,6 +16,12 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, model_validator
 
+from happen_api.domain.hours import (
+    ProviderHours,
+    hours_reason,
+    hours_state,
+    schedule_from_lines,
+)
 from happen_api.planning.clock import Clock
 from happen_api.planning.constraints import (
     EveningConstraints,
@@ -41,9 +46,6 @@ from happen_api.planning.discovery import DiscoveredPlace
 from happen_api.planning.follow_up import question_for, select_follow_up
 from happen_api.planning.interpret import interpret
 
-_DAY = "monday|tuesday|wednesday|thursday|friday|saturday|sunday"
-_HOURS = re.compile(rf"(?i)^({_DAY})\s*:\s*(\d{{1,2}}:\d{{2}})\s*[-–—]\s*(\d{{1,2}}:\d{{2}})$")
-_CLOSED_DAY = re.compile(rf"(?i)^({_DAY})\s*:\s*closed$")
 _OPEN_FIT = 100
 _UNKNOWN_FIT = 20
 _WEBSITE_FIT = 4
@@ -191,25 +193,35 @@ class RefinementProposal(BaseModel):
 def hours_status(
     place: DiscoveredPlace, local_date: date, arrival: time
 ) -> Literal["open", "closed", "unknown"]:
-    """Return open, closed, or unknown for one destination-local arrival."""
+    """Return open, closed, or unknown for one destination-local arrival.
 
+    The decision reads the canonical schedule, never the display strings. A
+    place that is definitely closed for that arrival is excluded. Hours that
+    could not be normalized stay unknown rather than being guessed open.
+    """
+
+    return hours_state(place_schedule(place), local_date=local_date, arrival=arrival)
+
+
+def place_schedule(place: DiscoveredPlace) -> ProviderHours | None:
+    """Return the canonical schedule for one place, normalizing text if needed.
+
+    Places built by the provider boundary already carry a normalized schedule.
+    A place assembled elsewhere still normalizes its own display lines, so no
+    second parser is needed and no caller silently loses its hours.
+    """
+
+    if place.hours_schedule is not None:
+        return place.hours_schedule
     if not place.hours:
-        return "unknown"
-    parsed = _parse_hours(place.hours)
-    weekday = local_date.strftime("%A").lower()
-    if not parsed:
-        if _listed_closed(place.hours, weekday):
-            return "closed"
-        return "unknown"
-    previous = (local_date - timedelta(days=1)).strftime("%A").lower()
-    for day, start, end in parsed:
-        if end > start and day == weekday and start <= arrival < end:
-            return "open"
-        if end <= start and day == weekday and arrival >= start:
-            return "open"
-        if end <= start and day == previous and arrival < end:
-            return "open"
-    return "closed"
+        return None
+    return schedule_from_lines(place.hours)
+
+
+def hours_decision_reason(place: DiscoveredPlace, local_date: date, arrival: time) -> str:
+    """Return the structured reason behind one place's hours decision."""
+
+    return hours_reason(place_schedule(place), local_date=local_date, arrival=arrival)
 
 
 def constraint_terms(preferences: Sequence[str]) -> tuple[str, ...]:
@@ -354,7 +366,18 @@ def assemble_itinerary(
         if missing:
             hard_missing = True
             warnings.extend(_named_warnings(missing))
-        stops.append(_stop(place, intent, state, local_date, local_start, retrieved_at, findings))
+        stops.append(
+            _stop(
+                place,
+                intent,
+                state,
+                local_date,
+                local_start,
+                retrieved_at,
+                findings,
+                arrival_verified=intent.position == 1,
+            )
+        )
     outcome: Literal["planned", "no_results", "insufficient_evidence"] = "planned"
     if not stops:
         outcome = "insufficient_evidence"
@@ -499,14 +522,6 @@ def _budget_text(brief: PlanningBrief) -> str | None:
     return None
 
 
-def _listed_closed(lines: list[str], weekday: str) -> bool:
-    for line in lines:
-        match = _CLOSED_DAY.match(line.strip())
-        if match is not None and match.group(1).lower() == weekday:
-            return True
-    return False
-
-
 def _stop(
     place: DiscoveredPlace,
     intent: PlaceIntent,
@@ -515,12 +530,22 @@ def _stop(
     arrival: time,
     retrieved_at: datetime,
     findings: list[Finding] | None = None,
+    *,
+    arrival_verified: bool = True,
 ) -> PlanStop:
     evidence: list[PlanEvidence] = []
     warnings: list[str] = []
     unknown = [field for field in ("price", "popular_times") if field in place.unknown_fields]
+    reason = hours_decision_reason(place, local_date, arrival)
     if state == "open":
-        explanation = f"Maps hours cover {arrival.strftime('%H:%M')} on {local_date.isoformat()}."
+        clock = arrival.strftime("%H:%M")
+        if arrival_verified:
+            explanation = f"Maps hours cover {clock} on {local_date.isoformat()}."
+        else:
+            explanation = (
+                f"Maps hours list this place open at {clock} on {local_date.isoformat()}. "
+                "A separate arrival was not planned for this stop."
+            )
         confidence: Literal["high", "medium", "low"] = "high" if place.website else "medium"
         hours: Literal["open", "unknown"] = "open"
     else:
@@ -586,7 +611,7 @@ def _stop(
         explanation=explanation,
         evidence=evidence[:8],
         constraints=assessments,
-        components=_components(hours, checked),
+        components=_components(hours, reason, checked),
         unknown_fields=unknown,
         warnings=warnings[:4],
     )
@@ -624,29 +649,6 @@ def _http(value: str | None) -> HttpUrl | None:
         return None
 
 
-def _parse_hours(lines: list[str]) -> list[tuple[str, time, time]]:
-    parsed: list[tuple[str, time, time]] = []
-    for line in lines:
-        match = _HOURS.match(line.strip())
-        if match is None:
-            continue
-        start = _clock(match.group(2))
-        end = _clock(match.group(3))
-        if start is None or end is None:
-            continue
-        parsed.append((match.group(1).lower(), start, end))
-    return parsed
-
-
-def _clock(value: str) -> time | None:
-    hour_text, minute_text = value.split(":")
-    hour = int(hour_text)
-    minute = int(minute_text)
-    if hour > 23 or minute > 59:
-        return None
-    return time(hour, minute)
-
-
 def _bundle(value: Sequence[str] | EveningConstraints | None) -> EveningConstraints:
     if isinstance(value, EveningConstraints):
         return value
@@ -670,12 +672,12 @@ def _assessment(
 
 
 def _components(
-    hours: Literal["open", "unknown"], findings: list[Finding]
+    hours: Literal["open", "unknown"], reason: str, findings: list[Finding]
 ) -> list[ScoringComponent]:
     detail = (
-        "Hours: opening hours cover this arrival."
+        f"Hours: opening hours cover this arrival ({reason})."
         if hours == "open"
-        else "Hours: opening hours were not listed."
+        else f"Hours: opening hours were not listed ({reason})."
     )
     rows = [
         ScoringComponent(

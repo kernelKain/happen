@@ -62,7 +62,7 @@ def test_two_intents_keep_provider_language_and_skip_extra_calls() -> None:
     assert result.places[0].provider_language == "ja"
     assert result.places[0].category == "レストラン"
     assert result.places[0].price == "¥¥¥"
-    assert result.places[0].hours == ["monday: 17:00-22:00"]
+    assert result.places[0].hours == ["monday: 5:00 PM–10:00 PM"]
     assert "+81-75-000-0000" not in result.model_dump_json()
     assert _KEY not in result.model_dump_json()
 
@@ -255,8 +255,8 @@ def test_official_hours_override_a_community_statement() -> None:
         ],
         _destination("Kyoto, Japan", "JP", 35.0116, 135.7681, "Kyoto"),
     )
-    assert found.hours == ["monday: 17:00-22:00"]
-    assert found.conflicts[0].official == "monday: 17:00-22:00"
+    assert found.hours == ["monday: 5:00 PM–10:00 PM"]
+    assert found.conflicts[0].official == "monday: 5:00 PM–10:00 PM"
     assert found.conflicts[0].community is not None
 
 
@@ -303,7 +303,7 @@ def _place(
         "price": price,
         "type": category,
         "language": language,
-        "operating_hours": {"monday": "17:00-22:00"},
+        "operating_hours": {"monday": "5:00 PM–10:00 PM"},
         "popular_times": {"monday": [{"time": "19:00"}]},
         "website": "https://example.com/venue",
         "link": "https://maps.google.com/?cid=1",
@@ -371,7 +371,7 @@ def test_a_later_candidate_with_stronger_fit_is_selected() -> None:
     """The first Maps row is not chosen when a later row is verified open."""
 
     weak = _row("First Counter", "first", hours={}, rating=4.9, website=None)
-    strong = _row("Verified Room", "verified", hours={"monday": "17:00-22:00"}, rating=4.0)
+    strong = _row("Verified Room", "verified", hours={"monday": "5:00 PM–10:00 PM"}, rating=4.0)
     with respx.mock, _client() as client:
         route = respx.get(_URL).mock(side_effect=_router([weak, strong]))
         result = discover_places(
@@ -397,7 +397,7 @@ def test_a_definitely_closed_first_result_is_skipped() -> None:
     later = _row("Open Later", "later", hours={}, rating=None, website=None)
     hours = {
         "shut": {"monday": "Closed"},
-        "later": {"monday": "17:00-22:00"},
+        "later": {"monday": "5:00 PM–10:00 PM"},
     }
     with respx.mock, _client() as client:
         respx.get(_URL).mock(side_effect=_router([shut, later], detail_hours=hours))
@@ -644,7 +644,7 @@ def _row(
     if website is not None:
         record["website"] = website
     if hours is None:
-        record["operating_hours"] = {"monday": "17:00-22:00"}
+        record["operating_hours"] = {"monday": "5:00 PM–10:00 PM"}
     elif hours:
         record["operating_hours"] = hours
     return record

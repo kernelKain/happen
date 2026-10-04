@@ -226,6 +226,7 @@ function searchKey(brief: PlanningBrief): string {
 }
 
 type StatusStop = {
+  position?: number;
   price?: string | null;
   busyness?: "listed" | "unknown";
   rating?: number | null;
@@ -259,6 +260,9 @@ export function ratingStatus(stop: StatusStop): string {
 
 export function hoursCopy(stop: StatusStop): string {
   if (stop.hours_status === "open") {
+    if ((stop.position ?? 1) > 1) {
+      return "Opening hours are listed. A separate arrival was not planned for this stop.";
+    }
     return "Opening hours cover this arrival.";
   }
   return "Opening hours were not listed.";

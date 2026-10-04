@@ -22,7 +22,7 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Apply planning constraints to deterministic scoring |
+| Last finished step | Normalize provider hours before feasibility checks |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -109,12 +109,40 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Python scores party size, budget, preferences, and accessibility from retrieved evidence. Unknown evidence adds nothing. Gemma claims stay off. |
-| Last finished step | Apply planning constraints to deterministic scoring |
+| Last finished step | Normalize provider hours before feasibility checks |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
 | Biggest blocker | Render services are still not created, and that deploy is not the current step. |
+
+## Provider hours
+
+`happen_api.domain.hours` is the only hours parser. It runs at the SerpApi boundary in `planning.discovery` and the historical `domain.timing` path calls the same functions, so there is no second parser to drift.
+
+`normalize_hours` accepts the shapes already observed in this repository:
+
+- a weekday dictionary under `operating_hours` or `hours`
+- a list of single-key weekday dictionaries
+- a list of `{"day": ..., "hours": ...}` records
+- a list of `Monday: 6:00 PM–11:00 PM` strings
+
+It returns a `ProviderHours` schedule keyed by `DayOfWeek`, plus the provider's own text on `original_text` and in `unrecognized`. The text also stays on `DiscoveredPlace.hours` and is emitted as Maps evidence for each stop.
+
+Supported interval text: `6:00 PM–11:00 PM`, `18:00-23:00`, `6 PM – 11 PM`, `6:00pm-11:00pm`, `6:00 PM to 11:00 PM`, several intervals on one day separated by commas, `Open 24 hours`, `Closed`, and any hyphen, en dash, em dash, or minus sign. Weekday labels are case-insensitive and accept the usual short forms. An interval is half-open, so `6:00 PM–1:00 AM` is open from 18:00 through 00:59 and the previous day is checked for that coverage.
+
+Rules the parser holds to:
+
+- Feasibility reads the canonical schedule. It never parses a display string.
+- A place that is definitely closed for that arrival is excluded. Hours that could not be read stay unknown and are kept, with lower confidence.
+- An unrecognized weekday label or time string is never translated into a day or an interval. It stays unknown and raises a structured reason.
+- A place assembled outside the provider boundary still normalizes its own display lines, so no caller silently loses its hours.
+
+`hours_reason` returns the reason behind each decision: `hours_covers_arrival`, `hours_closed`, `hours_outside_listed_hours`, `hours_day_not_listed`, `hours_missing`, `hours_unparseable`, `hours_day_value_unrecognized`, `hours_day_label_unrecognized`, `hours_shape_unrecognized`, or `hours_contradictory`. The stop's `hours` component carries that code, so an unreadable listing is reported as unreadable rather than as missing.
+
+The second stop no longer claims a verified arrival. Only the first stop asserts a planned arrival time; the second says that a separate arrival was not planned.
+
+Coverage lives in `tests/unit/test_hours_normalization.py` and the 12-hour strings in `tests/unit/test_scoring.py`. Test fixtures across the planner, discovery, and contract suites now use 12-hour SerpApi-shaped text instead of `17:00-22:00`.
 
 ## How branches and commits work
 

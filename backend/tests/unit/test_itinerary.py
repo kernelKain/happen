@@ -46,7 +46,7 @@ def _place(**updates: object) -> DiscoveredPlace:
         "latitude": 35.0,
         "longitude": 135.7,
         "maps_link": "https://maps.example/alpha",
-        "hours": ["monday: 17:00-22:00"],
+        "hours": ["monday: 5:00 PM–10:00 PM"],
         "unknown_fields": ["price", "popular_times"],
     }
     values.update(updates)
@@ -79,7 +79,7 @@ def test_timezone_changes_which_weekday_the_hours_use() -> None:
     for zone in ("Asia/Kolkata", "Europe/London", "America/New_York", "Asia/Tokyo"):
         local = moment.astimezone(ZoneInfo(zone))
         assert local_arrival(moment, zone) == (local.date(), local.timetz().replace(tzinfo=None))
-    place = _place(hours=["monday: 07:00-09:00"])
+    place = _place(hours=["monday: 7:00 AM–9:00 AM"])
     tokyo = assemble_itinerary(
         [place],
         [_intent()],
@@ -101,9 +101,9 @@ def test_timezone_changes_which_weekday_the_hours_use() -> None:
 
 
 def test_overnight_hours_cover_the_next_morning_only() -> None:
-    """Friday 18:00-02:00 is open late Friday and early Saturday, and closed after that."""
+    """Friday 6 PM–2 AM is open late Friday and early Saturday, and closed after."""
 
-    place = _place(hours=["friday: 18:00-02:00"])
+    place = _place(hours=["friday: 6:00 PM–2:00 AM"])
     friday = date(2026, 10, 2)
     saturday = date(2026, 10, 3)
     assert hours_status(place, friday, time(19, 0)) == "open"
@@ -115,7 +115,7 @@ def test_overnight_hours_cover_the_next_morning_only() -> None:
 def test_closed_places_are_excluded_and_unknown_hours_stay_with_a_warning() -> None:
     """A listed closed day is out. Missing hours stay, with lower confidence."""
 
-    closed = _place(name="Closed Room", place_id="closed", hours=["sunday: 17:00-22:00"])
+    closed = _place(name="Closed Room", place_id="closed", hours=["sunday: 5:00 PM–10:00 PM"])
     unknown = _place(
         name="Unlisted Room",
         place_id="unknown",
@@ -128,6 +128,7 @@ def test_closed_places_are_excluded_and_unknown_hours_stay_with_a_warning() -> N
     assert stop.hours_status == "unknown"
     assert stop.confidence == "low"
     assert stop.warnings == ["Opening hours were not listed, so this stop is less certain."]
+    assert stop.components[0].detail == ("Hours: opening hours were not listed (hours_missing).")
     assert "price" in stop.unknown_fields
     assert "popular_times" in stop.unknown_fields
 
@@ -221,7 +222,7 @@ def test_evidence_keeps_source_types_and_the_retrieval_time() -> None:
         website="https://alpha.example",
         community_notes=["Neighbors mention a quiet room."],
         conflicts=[
-            EvidenceConflict(official="monday: 17:00-22:00", community="Closed on Mondays.")
+            EvidenceConflict(official="monday: 5:00 PM–10:00 PM", community="Closed on Mondays.")
         ],
     )
     stop = _plan([place]).stops[0]
@@ -238,7 +239,7 @@ def test_no_places_and_all_closed_places_stay_explicit() -> None:
     """An empty search and a closed-only search do not invent a stop."""
 
     empty = _plan([])
-    closed = _plan([_place(hours=["sunday: 10:00-12:00"])])
+    closed = _plan([_place(hours=["sunday: 10:00 AM–12:00 PM"])])
     assert empty.outcome == "no_results"
     assert closed.outcome == "insufficient_evidence"
     assert empty.stops == []
@@ -301,7 +302,7 @@ def test_assembly_does_not_ask_a_model_to_choose() -> None:
     assert "gemma" not in text
     assert "llama" not in text
     assert "excerpt" not in text
-    closed = _place(name="Model Choice", hours=["sunday: 17:00-22:00"], highlights=["winner"])
+    closed = _place(name="Model Choice", hours=["sunday: 5:00 PM–10:00 PM"], highlights=["winner"])
     open_place = _place(name="Listed Room", place_id="listed")
     assert _plan([closed, open_place]).stops[0].name == "Listed Room"
 

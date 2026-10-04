@@ -870,3 +870,41 @@ Commands and results, from a clean `global-live-experience` tree at `4865815` be
 - The plan cache key stays the destination, the local evening, and the intents. Constraints are applied when that pool is scored.
 - The next action is a manual local test of one evening. The friend walkthrough, deployment, and submission stay user-owned and were not requested in this step.
 
+
+## Normalize provider hours before feasibility checks
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: The planner no longer keeps its own hours regex. `happen_api.domain.hours` is the single parser, and it runs at the SerpApi boundary in `planning.discovery`, so the canonical schedule is built once when a provider record becomes a place. The historical `domain.timing` path calls the same functions instead of its own private copies, so there is one parser to maintain. Before this step the planner's regex accepted only `day: HH:MM-HH:MM`; live SerpApi text such as `monday: 6:00 PM–11:00 PM` did not match, so every live place fell through to unknown hours, lost 80 fit points, and was shown as "opening hours were not listed" even though hours were listed. Feasibility now reads the canonical schedule and never a display string. The provider's original text is preserved and is still emitted as Maps evidence for each stop. A definitely closed place is excluded. An unrecognized format stays unknown, lowers confidence, and reports a structured reason instead of being translated into an interval. The second stop no longer claims a verified arrival time.
+- Product behavior changed: yes. Live 12-hour hours text is now read, so a listed-open place outranks a place with no hours and is no longer reported as unlisted. An unreadable or localized listing is reported as unreadable rather than as missing. This step did not deploy.
+- Cost changed: no. Tests use mocks and recorded provider shapes. This step did not call SerpApi.
+
+### Evidence
+
+- Every listed format normalizes to the same canonical interval: `6:00 PM–11:00 PM`, `18:00-23:00`, `6 PM – 11 PM`, `6:00pm-11:00pm`, `6:00 PM to 11:00 PM`, hyphen, en dash, em dash, and minus sign, with case-insensitive weekday names and short forms.
+- `12:00 PM–3:00 PM, 7:00 PM–11:00 PM` yields two intervals, and 15:00 between them is closed.
+- `6:00 PM–1:00 AM` is open from 18:00 through 00:59 and closed at 01:00. The previous day is checked for that overnight coverage.
+- `Open 24 hours` is open at 00:00, 12:00, and 23:59. `Closed` is closed, and the reason is `hours_closed`.
+- Overnight coverage holds on both sides of a DST change in the United States and across a month boundary, because the provider text describes local clock times rather than a fixed offset.
+- Each observed SerpApi shape normalizes identically: a weekday dictionary, a list of single-key dictionaries, `{"day": ..., "hours": ...}` records, and `Monday: 6:00 PM–11:00 PM` strings.
+- Unrecognized text stays unknown with a reason: `如下图`, `Horario variable`, `月〜金 18:00〜23:00`, `lundi`, `montag`, `18:00〜23:00`, `25:00-26:00`, `6:00 PM–13:00 PM`, and `ab:cdef–gh:ijkl` produce no interval on any day.
+- A localized weekday label does not close a known open day, and a localized day next to a readable one stays unknown.
+- A place that is definitely closed is excluded from the evening; a place with unreadable hours is kept with lower confidence and a reason.
+- Each provider shape still reaches the stop as Maps evidence with the original text.
+- The second stop says a separate arrival was not planned; only the first stop asserts a planned arrival time. The landing copy for the hours line is position-aware too, so stop two no longer reads "opening hours cover this arrival".
+- Test fixtures in the planner, discovery, and contract suites now use 12-hour SerpApi-shaped text instead of `17:00-22:00`.
+- `uv run ruff format --check src tests ../scripts/scan-secrets.py` and `uv run ruff check src tests ../scripts/scan-secrets.py` passed.
+- `uv run pytest` — 312 passed.
+- Frontend `npx biome check` passed. `npm test` — 42 passed. `npx tsc --noEmit` and `npx vite build` passed.
+- Playwright `npx playwright test` passed, 15 tests.
+- `python3 scripts/scan-secrets.py` — exit 0, no findings.
+
+### Decisions
+
+- Normalization happens at the provider boundary, not in the selection step, so a cached candidate pool keeps its schedule and selection does not re-parse text.
+- An interval is half-open. `closes_at <= opens_at` means the interval runs into the next day, which is how `Open 24 hours` and `6:00 PM–1:00 AM` share one rule.
+- A day with no entry in an otherwise readable listing is closed, matching the historical behavior that the closed-place exclusion depends on. Text that could not be read at all stays unknown instead.
+- Two different listings for one weekday are contradictory and that day stays unknown. Two identical listings are one schedule.
+- `24:00` is accepted only as a closing bound and resolves to midnight.
+- The `hours` component of a stop now carries the structured reason code, so an unreadable listing is distinguishable from an absent one.
+- The next action is a manual local test of one evening. Deployment and submission stay user-owned and were not requested in this step.

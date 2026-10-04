@@ -7,6 +7,7 @@ import {
   busynessStatus,
   canFindPlan,
   constraintCopy,
+  hoursCopy,
   moveIntent,
   needsAnotherSearch,
   needsRescore,
@@ -152,6 +153,21 @@ describe("planning flow", () => {
     expect(busynessStatus({ ...missing, busyness: "listed", unknown_fields: ["price"] })).toMatch(
       /not a live crowd/,
     );
+  });
+
+  it("does not claim a verified arrival for the second stop", () => {
+    const open = {
+      position: 1,
+      price: null,
+      busyness: "unknown" as const,
+      rating: null,
+      unknown_fields: [] as string[],
+      hours_status: "open" as const,
+    };
+    expect(hoursCopy(open)).toBe("Opening hours cover this arrival.");
+    expect(hoursCopy({ ...open, position: 2 })).toMatch(/separate arrival was not planned/);
+    expect(hoursCopy({ ...open, position: 2 })).not.toMatch(/cover this arrival/);
+    expect(hoursCopy({ ...open, hours_status: "unknown" })).toBe("Opening hours were not listed.");
   });
 
   it("hides stand-in plan notes", () => {

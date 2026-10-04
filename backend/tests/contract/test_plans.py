@@ -242,7 +242,7 @@ def test_resolve_tokyo_today_uses_the_destination_zone(settings: Settings) -> No
 def test_plan_selects_two_stops_and_an_unverified_transition(settings: Settings) -> None:
     """Discovery feeds Python selection. The response has evidence and no travel time."""
 
-    provider = ScriptedProvider(8, 14.0, hours={"monday": "17:00-22:00"})
+    provider = ScriptedProvider(8, 14.0, hours={"monday": "5:00 PM–10:00 PM"})
     with _app(settings, provider) as client:
         resolved = client.post("/api/v2/destinations/resolve", json={"query": "Tokyo"}).json()
         response = client.post(
@@ -270,7 +270,7 @@ def test_plan_reports_no_results_closed_hours_and_unknown_hours(settings: Settin
     """Empty, closed, and unlisted hours each stay explicit."""
 
     empty = ScriptedProvider(8, 14.0, empty=True)
-    closed = ScriptedProvider(8, 14.0, hours={"sunday": "17:00-22:00"})
+    closed = ScriptedProvider(8, 14.0, hours={"sunday": "5:00 PM–10:00 PM"})
     unknown = ScriptedProvider(8, 14.0, hours=None)
     with _app(settings, empty) as client:
         destination = client.post("/api/v2/destinations/resolve", json={"query": "Tokyo"}).json()[
@@ -316,7 +316,7 @@ def test_timeout_and_quota_are_safe_errors(settings: Settings) -> None:
 def test_a_spent_plan_budget_does_not_search(settings: Settings) -> None:
     """Eight earlier billed requests leave no allowance for another search."""
 
-    provider = ScriptedProvider(8, 14.0, hours={"monday": "17:00-22:00"})
+    provider = ScriptedProvider(8, 14.0, hours={"monday": "5:00 PM–10:00 PM"})
     application = create_app(settings)
     application.state.clock = CLOCK
     application.state.provider_factory = lambda _limit, _timeout: provider
@@ -376,7 +376,7 @@ def test_one_plan_stops_before_a_ninth_billed_request(settings: Settings) -> Non
 def test_a_repeated_plan_reuses_cached_places(settings: Settings) -> None:
     """The second identical plan does not send another provider request."""
 
-    provider = ScriptedProvider(8, 14.0, hours={"monday": "17:00-22:00"})
+    provider = ScriptedProvider(8, 14.0, hours={"monday": "5:00 PM–10:00 PM"})
     with _app(settings, provider) as client:
         destination = {"label": "Kyoto", "source_text": "Kyoto", "timezone_name": "Asia/Tokyo"}
         first = client.post("/api/v2/plans", json=_plan_body(destination))
