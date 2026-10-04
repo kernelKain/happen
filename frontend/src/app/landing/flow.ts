@@ -186,12 +186,33 @@ export function constraintCopy(item: {
   return null;
 }
 
-/** Another place search is needed only when the destination, date, time, or intents change. */
+/**
+ * How a refinement affects retrieval.
+ *
+ * `none` is only a hint for the user. Apply always sends the whole proposed
+ * brief to the server, which decides whether cached evidence is enough.
+ */
+export type RefinementRefresh = "retrieval" | "rescore";
+
+/** Whether the refinement needs new place evidence, or only new scoring. */
+export function refinementRefresh(
+  current: PlanningBrief,
+  proposed: PlanningBrief,
+): RefinementRefresh {
+  return needsAnotherSearch(current, proposed) ? "retrieval" : "rescore";
+}
+
+/**
+ * Whether the destination, local date, local time, or intents changed.
+ *
+ * That is the retrieval question. It says nothing about scoring: a preference
+ * change reuses the same evidence and is only rescored.
+ */
 export function needsAnotherSearch(current: PlanningBrief, proposed: PlanningBrief): boolean {
   return searchKey(current) !== searchKey(proposed);
 }
 
-/** Python scores again when party size, budget, preferences, or access needs change. */
+/** A preference, access, budget, or party change reuses retrieved evidence. */
 export function needsRescore(current: PlanningBrief, proposed: PlanningBrief): boolean {
   return (
     needsAnotherSearch(current, proposed) || constraintKey(current) !== constraintKey(proposed)

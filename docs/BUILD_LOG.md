@@ -951,3 +951,41 @@ Commands and results, from a clean `global-live-experience` tree at `4865815` be
 - An unknown phrase is not rejected and not resolved locally. It goes to the SerpApi resolver, which owns that judgment.
 - The gold label for `plan-019` was corrected from no destination to `reykjavik`, because the catalog is no longer the gate. `tests/unit/test_planning_interpret.py::test_lowercase_unknown_city_is_not_guessed` became `test_lowercase_destination_is_kept_for_the_resolver`.
 - The next action is a manual local test of one evening. Deployment and submission stay user-owned and were not requested in this step.
+
+## Recompute refinements from cached evidence
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: Apply now recomputes the plan instead of only rewriting the brief. Before this step Apply compared the proposed brief with the current one in the browser and, when it judged that no rescoring was needed, called `rememberBrief`, cleared the diff, and returned. The visible brief changed and the recommendation stayed exactly as it was. A failed Apply was worse: the brief was committed before the request was sent, so a failure left a new brief over an old plan. Every Apply now sends the complete proposed brief to `POST /api/v2/plans`, which rebuilds and revalidates the constraints from the request body and rescores. The brief, the plan, and the diff are updated together only after the server answers. The backend already keyed its candidate pool on the destination, local date, local time, and intents and left constraints out of that key, so a preference-only change was always free to rescore; this step makes the client actually take that path.
+- Product behavior changed: yes. A refinement now produces a newly computed recommendation or an explicit evidence outcome. A failed recomputation keeps the previous plan and shows the error. A preference-only change reuses the retrieved evidence and spends nothing. This step did not deploy.
+- Cost changed: no. Tests use an in-memory provider and count calls. This step did not call SerpApi.
+
+### Evidence
+
+- Applying a preference-only brief spends zero additional billed requests, and a second, differently constrained plan reuses the first search.
+- A verified better candidate replaces the previous stop: an unconstrained plan picks Loud Room, and the same evidence with `quiet` requested picks Quiet Room with the constraint met and its passage cited.
+- An unverifiable preference returns `insufficient_evidence` with the constraint reported as unknown and no evidence attached, instead of retaining the old plan.
+- One search serves a plain request, a quiet request, and a four-person request, because the cache key describes evidence requirements only.
+- A destination change, a local date change, and a second intent each spend a new request.
+- An invalid constraint is rejected with 422 before any request is sent, for a non-list preference, a lowercase currency, and a party size above the bound.
+- The refine route itself still retrieves nothing and marks the proposal as not applied.
+- `Make it livelier` asks for server-side recomputation; Apply sends the plan request a second time with preferences, party size, date, time, intents, and accessibility needs.
+- Cancel leaves the timeline on the page and sends no plan request.
+- A failed recomputation keeps the previous stop and does not advance the brief.
+- An unverified preference shows `romantic: unknown` and the brief still advances, because that is an explicit evidence outcome.
+- A change naming another place resolves that place again before requesting the plan.
+- `uv run ruff format --check src tests ../scripts/scan-secrets.py` and `uv run ruff check src tests ../scripts/scan-secrets.py` passed.
+- `uv run pytest` — 355 passed.
+- Frontend `npx biome check`, `npx tsc --noEmit`, and `npm run build` passed. `npm test` — 46 passed.
+- Playwright `npx playwright test` passed, 15 tests.
+- `python3 scripts/scan-secrets.py` — exit 0, no findings.
+
+### Decisions
+
+- Apply always calls the server. `needsAnotherSearch` and the new `refinementRefresh` describe intent and drive nothing on their own; they exist so the UI can talk about the two questions, not so the client can skip a recomputation.
+- The visible brief advances only after a response. Previously it advanced optimistically, which is what let a failed Apply corrupt the page.
+- The cache key stays evidence-only. Putting constraints in it would have made each preference its own search and spent credits for nothing.
+- The recomputation is trusted only because the server rebuilds the constraints from the request body. The browser brief is a payload, not an authority.
+- An unverifiable new constraint produces `insufficient_evidence`. Keeping the previous plan and reporting success would be the exact failure this step removes.
+- The earlier browser test asserted that Apply sends no plan request. It encoded the bug, so it was rewritten to assert the recomputation, and four tests were added for the brief payload, a failed Apply, an unverified preference, and a destination change.
+- The next action is a manual local test of one evening. Deployment and submission stay user-owned and were not requested in this step.

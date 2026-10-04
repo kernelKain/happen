@@ -423,7 +423,7 @@ describe("landing", () => {
     expect(screen.queryByRole("heading", { name: "1. Kura" })).toBeNull();
   });
 
-  it("reviews a change without replacing the plan until Apply, and skips a repeat search", async () => {
+  it("reviews a change without replacing the plan until Apply", async () => {
     let planCalls = 0;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -439,12 +439,12 @@ describe("landing", () => {
           version: "2",
           applied: false,
           current: brief,
-          proposed: { ...brief, raw_prompt: body.revision, preferences: ["quiet"] },
+          proposed: { ...brief, raw_prompt: body.revision, preferences: ["quiet", "lively"] },
           follow_up: null,
           diff: {
             added: [],
             removed: [],
-            changed: [{ field: "preferences", before: "quiet", after: "lively" }],
+            changed: [{ field: "preferences", before: "quiet", after: "quiet, lively" }],
           },
           message: "The current plan was not changed.",
         });
@@ -458,24 +458,229 @@ describe("landing", () => {
     expect(await screen.findByRole("heading", { name: "1. Kura" })).toBeTruthy();
     expect(planCalls).toBe(1);
     fireEvent.change(screen.getByLabelText("Change this evening"), {
-      target: { value: "Make it lively" },
+      target: { value: "Make it livelier" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
     expect(await screen.findByRole("heading", { name: "Review the change" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
-    expect(screen.getByText(/Preferences: quiet to lively/)).toBeTruthy();
+    expect(screen.getByText(/Preferences: quiet to quiet, lively/)).toBeTruthy();
+    // Reviewing alone must not recompute.
     expect(planCalls).toBe(1);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("heading", { name: "Review the change" })).toBeNull();
     expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Change this evening"), {
-      target: { value: "Make it lively" },
+      target: { value: "Make it livelier" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
     await screen.findByRole("button", { name: "Apply" });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(await screen.findByRole("heading", { name: "This evening" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Review the change" })).toBeNull();
+    // Apply recomputes from the server, so the plan request happens again.
+    expect(planCalls).toBe(2);
+  });
+
+  it("sends the complete proposed brief to the server on Apply", async () => {
+    const sent: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/briefs/interpret")) {
+        return json(interpreted());
+      }
+      if (url.endsWith("/api/v2/destinations/resolve")) {
+        return json(resolved);
+      }
+      if (url.endsWith("/api/v2/plans/refine")) {
+        return json({
+          version: "2",
+          applied: false,
+          current: brief,
+          proposed: {
+            ...brief,
+            raw_prompt: "Make it quieter",
+            preferences: ["quiet", "romantic"],
+            party_size: 4,
+          },
+          follow_up: null,
+          diff: {
+            added: [],
+            removed: [],
+            changed: [{ field: "preferences", before: "quiet", after: "quiet, romantic" }],
+          },
+          message: "The current plan was not changed.",
+        });
+      }
+      sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return json(eveningPlan);
+    });
+    render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
+    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.change(screen.getByLabelText("Change this evening"), {
+      target: { value: "Make it quieter" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
+    await screen.findByRole("button", { name: "Apply" });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(sent).toHaveLength(2));
+    const recomputed = sent[1];
+    expect(recomputed.preferences).toEqual(["quiet", "romantic"]);
+    expect(recomputed.party_size).toBe(4);
+    expect(recomputed.local_date).toBe("2026-10-05");
+    expect(recomputed.local_start).toBe("19:00:00");
+    expect(recomputed.intents).toHaveLength(2);
+    expect(recomputed.accessibility_needs).toEqual([]);
+  });
+
+  it("keeps the previous plan when the recomputation fails", async () => {
+    let planCalls = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/briefs/interpret")) {
+        return json(interpreted());
+      }
+      if (url.endsWith("/api/v2/destinations/resolve")) {
+        return json(resolved);
+      }
+      if (url.endsWith("/api/v2/plans/refine")) {
+        return json({
+          version: "2",
+          applied: false,
+          current: brief,
+          proposed: { ...brief, raw_prompt: "Make it quieter", preferences: ["quiet", "spicy"] },
+          follow_up: null,
+          diff: { added: [], removed: [], changed: [] },
+          message: "The current plan was not changed.",
+        });
+      }
+      planCalls += 1;
+      if (planCalls === 1) {
+        return json(eveningPlan);
+      }
+      return json(
+        {
+          error: {
+            code: "PLANNING_FAILED",
+            message: "The plan could not be recomputed.",
+            retryable: true,
+            next_action: "Try again.",
+          },
+        },
+        503,
+      );
+    });
+    render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
+    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.change(screen.getByLabelText("Change this evening"), {
+      target: { value: "Make it quieter" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
+    await screen.findByRole("button", { name: "Apply" });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    // The old plan is still on the page, and the brief was not advanced.
     expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
-    expect(planCalls).toBe(1);
+    expect(screen.getByLabelText("Preferences")).toHaveProperty("value", "quiet");
+  });
+
+  it("shows an honest result when a new preference cannot be verified", async () => {
+    const unverified = {
+      ...eveningPlan,
+      outcome: "insufficient_evidence",
+      stops: [
+        {
+          ...eveningPlan.stops[0],
+          confidence: "low",
+          constraints: [{ constraint: "romantic", status: "unknown", evidence: [] }],
+        },
+      ],
+    };
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/briefs/interpret")) {
+        return json(interpreted());
+      }
+      if (url.endsWith("/api/v2/destinations/resolve")) {
+        return json(resolved);
+      }
+      if (url.endsWith("/api/v2/plans/refine")) {
+        return json({
+          version: "2",
+          applied: false,
+          current: brief,
+          proposed: { ...brief, raw_prompt: "Make it romantic", preferences: ["romantic"] },
+          follow_up: null,
+          diff: { added: [], removed: [], changed: [] },
+          message: "The current plan was not changed.",
+        });
+      }
+      return json(unverified);
+    });
+    render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
+    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.change(screen.getByLabelText("Change this evening"), {
+      target: { value: "Make it romantic" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
+    await screen.findByRole("button", { name: "Apply" });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(await screen.findByText(/romantic: unknown/)).toBeTruthy();
+    expect(screen.getByLabelText("Preferences")).toHaveProperty("value", "romantic");
+  });
+
+  it("resolves the destination again when the change names another place", async () => {
+    const osaka = {
+      ...destination,
+      label: "Osaka, Osaka, Japan",
+      source_text: "Osaka",
+      locality: "Osaka",
+      serpapi_location: "Osaka,Osaka,Japan",
+    };
+    let resolveCalls = 0;
+    let planCalls = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/briefs/interpret")) {
+        return json(interpreted());
+      }
+      if (url.endsWith("/api/v2/destinations/resolve")) {
+        resolveCalls += 1;
+        return json(resolveCalls === 1 ? resolved : { ...resolved, destination: osaka });
+      }
+      if (url.endsWith("/api/v2/plans/refine")) {
+        return json({
+          version: "2",
+          applied: false,
+          current: brief,
+          proposed: { ...brief, raw_prompt: "Move this to Osaka", destination_text: "Osaka" },
+          follow_up: null,
+          diff: { added: [], removed: [], changed: [] },
+          message: "The current plan was not changed.",
+        });
+      }
+      planCalls += 1;
+      return json(eveningPlan);
+    });
+    render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
+    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    await screen.findByRole("heading", { name: "1. Kura" });
+    expect(resolveCalls).toBe(1);
+    fireEvent.change(screen.getByLabelText("Change this evening"), {
+      target: { value: "Move this to Osaka" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
+    await screen.findByRole("button", { name: "Apply" });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(planCalls).toBe(2));
+    // The new place needs its own resolution before the plan can be requested.
+    expect(resolveCalls).toBe(2);
+    expect(screen.getByLabelText("Destination")).toHaveProperty("value", "Osaka");
   });
 });

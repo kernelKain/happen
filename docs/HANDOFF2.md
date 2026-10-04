@@ -22,7 +22,7 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Parse global destination phrases without a city catalog |
+| Last finished step | Recompute refinements from cached evidence |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -109,7 +109,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Python scores party size, budget, preferences, and accessibility from retrieved evidence. Unknown evidence adds nothing. Gemma claims stay off. |
-| Last finished step | Parse global destination phrases without a city catalog |
+| Last finished step | Recompute refinements from cached evidence |
 | Next step | user manual test of one evening |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
@@ -166,6 +166,37 @@ The known-city list still exists, but only as an optional ambiguity hint. A shar
 Two things Happen does not do: it does not decide whether an arbitrary phrase names a real place, and it does not add a geocoder or a model call. An unknown phrase such as `somewheretown, nowherecounty` is passed to the resolver, which returns its own unsupported or ambiguous outcome. A prompt with no location marker still asks the destination question.
 
 `tests/unit/test_planning_destination_phrase.py` covers this behavior. The gold label for `plan-019` was updated: `dinner in reykjavik` now reads as `reykjavik` rather than as no destination.
+
+## Refinements
+
+The proposal and diff interaction is unchanged. **Review this change** prepares a proposal and the current plan stays on the page. **Cancel** drops the proposal and leaves both the brief and the timeline as they were. **Apply** now always sends the complete proposed brief to `POST /api/v2/plans`.
+
+Before this step Apply compared the two briefs in the browser and, when it decided nothing needed rescoring, committed the new brief and closed the diff without contacting the server. The visible brief changed and the recommendation did not. A preference-only Apply was also the one case that was guaranteed to look like it worked while doing nothing.
+
+Apply now behaves like this:
+
+1. The current plan stays visible. Nothing is committed yet.
+2. A destination change resolves the new place first, so the local zone is known.
+3. The whole proposed brief is sent to `POST /api/v2/plans`.
+4. On a response the brief, the plan, and the diff are all updated together.
+5. On a failure the previous brief and the previous plan both stay, and the error is shown.
+
+### Evidence refresh and recomputation
+
+The two questions are separate, and the server owns both.
+
+`discovery_cache_key` is built from the resolved destination, the local date, the local time, and the intents. Constraints are deliberately not part of it, so a stored pool can be scored against any set of constraints. The key therefore describes what evidence must be retrieved, not how it is judged.
+
+| Change | Retrieval | Recomputation |
+|---|---|---|
+| destination, local date, local time, intents | new search | yes |
+| preferences, accessibility needs, budget, party size | reuse the cached pool | yes |
+
+`needsAnotherSearch` answers the first question and `refinementRefresh` names both. Neither is a licence to skip the server: Apply sends the brief regardless, and Python rebuilds and revalidates the constraints from the request body. Nothing about scoring is trusted from the browser.
+
+A cached rescore can still change the answer. A better-evidenced place may now outrank the one that was previously selected, and it does. When the cached evidence cannot verify a new constraint, the result is `insufficient_evidence` with that constraint reported as unknown, which is an explicit outcome rather than a stale success.
+
+`tests/contract/test_plan_refinement.py` covers the cache behavior with a counting in-memory provider.
 
 ## How branches and commits work
 
@@ -871,3 +902,5 @@ Your side:
 | Global live experience verified | Done. README, automated checks, secret scan, and one Jaipur live smoke. | `Document and verify the global live experience.` | Ranking fix below. Do not push. Do not deploy. |
 | Rank live candidates | Done. Python compares up to five places per intent. Provider order is only the tie-breaker. | `Rank a bounded set of live candidates.` | Constraint scoring below. Do not push. Do not deploy. |
 | Planning constraints | Done. Party size, budget, preferences, and accessibility reach Python scoring. Unknown evidence adds nothing. | `Apply planning constraints to deterministic scoring.` | Manual test of one evening. Do not push. Do not deploy. |
+
+| Recomputed refinements | Done. Apply sends the whole proposed brief to the server, the cached pool is rescored without a new billed request, and a failure keeps the previous plan. | `Recompute refinements from cached evidence.` | Manual test of one evening. Do not push. Do not deploy. |

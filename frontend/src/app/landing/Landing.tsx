@@ -23,7 +23,6 @@ import {
   clockForInput,
   EVENING_TEXT_LIMIT,
   moveIntent,
-  needsRescore,
   partySizeIssue,
   preferenceIssue,
   preferenceList,
@@ -552,21 +551,14 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     }
     const proposed = restorePrompt(proposal.proposed, originalPrompt);
     const baseline = searchSnapshot ?? brief;
-    if (!needsRescore(baseline, proposed)) {
-      rememberBrief(proposed);
-      setProposal(null);
-      setRevision("");
-      return;
-    }
+    const samePlace =
+      (baseline.destination_text ?? "").trim() === (proposed.destination_text ?? "").trim();
     const id = begin();
     if (id === null) {
       return;
     }
-    setProposal(null);
-    setRevision("");
-    rememberBrief(proposed);
-    const samePlace =
-      (baseline.destination_text ?? "").trim() === (proposed.destination_text ?? "").trim();
+    // The visible brief and the plan stay as they are until the recomputation
+    // has actually succeeded or has returned an explicit evidence outcome.
     try {
       let place = destination;
       let prior = 0;
@@ -621,6 +613,8 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
         return;
       }
       setBusy("finding");
+      // The whole proposed brief goes to the server. Python revalidates it and
+      // decides whether the cached evidence is enough or a new retrieval is due.
       const eveningPlan = await requestPlan(planQuery(proposed, place, prior), {
         signal: abortRef.current?.signal,
         fetchImpl,
@@ -628,12 +622,16 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       if (id !== generation.current) {
         return;
       }
+      rememberBrief(proposed);
       setPlan(eveningPlan);
       setSearchSnapshot(proposed);
+      setProposal(null);
+      setRevision("");
     } catch (error) {
       if (id !== generation.current) {
         return;
       }
+      // The previous brief and the previous plan both stay visible.
       const nextFailure = settle(error, "plan");
       if (nextFailure) {
         setFailure(nextFailure);
