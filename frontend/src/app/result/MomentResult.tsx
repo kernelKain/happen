@@ -65,10 +65,23 @@ export function MomentResult({
         </p>
       ))}
 
+      {result.outcome === "partial_evidence" && result.recommendation ? (
+        <p className="disclaimer" role="status">
+          Partial result. Unknown intervals stay visible. They are not a recommendation.
+        </p>
+      ) : null}
+      {provenance.data_label === "captured_fixture" ? (
+        <p className="disclaimer" role="note">
+          Captured fixture. This is saved place evidence, not a live search. Choose Start over to
+          plan again.
+        </p>
+      ) : null}
+
       {result.outcome === "insufficient_evidence" || !result.recommendation ? (
         <div className="moment-card moment-empty">
           <h3>No moment selected</h3>
           <p>Fewer than two restaurants have enough comparable evidence.</p>
+          <p>Choose Start over to restore the verified demo preset.</p>
         </div>
       ) : (
         <div className="decision">

@@ -14,6 +14,7 @@ import {
   requestLiveRecommendation,
 } from "../lib/api/recommendation";
 import { formatClock, labelFor, moveItem } from "../lib/labels";
+import { errorTitle, fieldLabel } from "../lib/resultStates";
 import { MomentResult } from "./result/MomentResult";
 import { SAMPLE_RESULT } from "./result/sample";
 
@@ -31,8 +32,12 @@ type JourneyState =
   | { status: "result"; result: RecommendationResult }
   | {
       status: "error";
+      code: string;
       message: string;
       nextAction: string;
+      retryable: boolean;
+      fields: { field: string; message: string }[];
+      retryAfterSeconds: number | null;
       source: EvidenceSource;
       offerCaptured: boolean;
     };
@@ -108,6 +113,7 @@ export function App() {
       const timedOut = error instanceof DOMException && error.name === "TimeoutError";
       setJourney({
         status: "error",
+        code: known ? error.code : timedOut ? "PROCESSING_TIMEOUT" : "INTERNAL_ERROR",
         message: known
           ? error.message
           : timedOut
@@ -118,6 +124,9 @@ export function App() {
           : timedOut
             ? "Try again. The next request is faster once the model is loaded."
             : "Try again in a moment.",
+        retryable: known ? error.retryable : true,
+        fields: known ? error.fields : [],
+        retryAfterSeconds: known ? error.retryAfterSeconds : null,
         source: chosen,
         offerCaptured: known && chosen === "live" && error.fixtureAvailable,
       });
@@ -157,6 +166,7 @@ export function App() {
       </section>
 
       <ShellNotice shell={shell} onRetry={() => setReloadKey((value) => value + 1)} />
+      <ModelNotice shell={shell} onRetry={() => setReloadKey((value) => value + 1)} />
 
       <form
         className="planner"
@@ -265,7 +275,7 @@ export function App() {
 
         <p className="mode-copy">{evidenceCopy(shell)}</p>
         <p id={statusId} className="submit-reason" role={gathering ? "status" : undefined}>
-          {gathering ? "Gathering evidence." : submitReason(shell)}
+          {gathering ? "Gathering evidence. Wait for this request to finish." : submitReason(shell)}
         </p>
 
         <div className="actions">
@@ -284,11 +294,26 @@ export function App() {
 
       {journey.status === "error" ? (
         <div className="notice notice-error" role="alert">
+          <p>{errorTitle(journey.code)}</p>
           <p>{journey.message}</p>
           <p>{journey.nextAction}</p>
-          <button type="button" onClick={() => void submitPlanner(journey.source)}>
-            Retry
-          </button>
+          {journey.retryAfterSeconds !== null && journey.retryAfterSeconds > 0 ? (
+            <p>Wait {journey.retryAfterSeconds} seconds before trying again.</p>
+          ) : null}
+          {journey.fields.length > 0 ? (
+            <ul>
+              {journey.fields.map((field) => (
+                <li key={field.field}>
+                  {fieldLabel(field.field)}: {field.message}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {journey.retryable ? (
+            <button type="button" onClick={() => void submitPlanner(journey.source)}>
+              Retry
+            </button>
+          ) : null}
           {journey.offerCaptured ? (
             <button type="button" onClick={() => void submitPlanner("fixture")}>
               Use captured evidence
@@ -318,7 +343,11 @@ export function App() {
         <section className="matrix-frame" aria-labelledby="matrix-heading">
           <div className="matrix-heading">
             <h2 id="matrix-heading">Tonight&apos;s moment</h2>
-            <p>{gathering ? "Gathering evidence." : "Nothing has been recommended yet."}</p>
+            <p>
+              {gathering
+                ? "Gathering evidence. Wait for this request to finish."
+                : "Nothing has been recommended yet."}
+            </p>
           </div>
           <ul className="legend">
             <li>
@@ -388,6 +417,36 @@ function ShellNotice({ shell, onRetry }: { shell: ShellState; onRetry: () => voi
         <p>Refresh the page so the planner matches the service. Submission stays off.</p>
         <button type="button" onClick={() => window.location.reload()}>
           Refresh the page
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
+/** Name a model dependency failure and give the next action. */
+function ModelNotice({ shell, onRetry }: { shell: ShellState; onRetry: () => void }) {
+  if (shell.status !== "ready") {
+    return null;
+  }
+  if (shell.meta.model_status === "loading") {
+    return (
+      <div className="notice" role="status">
+        <p>The evidence model is waking up.</p>
+        <p>Wait, then choose Find the moment. Happen will not use another extractor.</p>
+      </div>
+    );
+  }
+  if (shell.meta.model_status === "unavailable") {
+    return (
+      <div className="notice notice-error" role="alert">
+        <p>The evidence model is unavailable.</p>
+        <p>
+          Retry the connection after the model file is installed. No recommendation will be
+          invented.
+        </p>
+        <button type="button" onClick={onRetry}>
+          Retry
         </button>
       </div>
     );

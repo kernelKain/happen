@@ -12,11 +12,11 @@ Find the moment scores the captured Indiranagar fixture for Bombay Brasserie, Tr
 
 | | |
 |---|---|
-| Current phase | Live sponsor Hook |
-| Phase complete | No. The code is merged. The public smoke is not done. |
-| Last finished step | Evaluate and optionally tune Gemma |
-| Next step | Deploy and smoke the sponsor vertical slice. This is blocked on creating the Render services. |
-| Branch | `demo-experience` at `91b7b94`, the same commit as `origin/main`. No commits of its own yet. Working tree was clean before this note. |
+| Current phase | Complete demo experience |
+| Phase complete | No. Result states are in the working tree. The public smoke is still not done. |
+| Last finished step | Complete all visible result states |
+| Next step | Finish evidence and methodology experience. Deploy and smoke stays open until the Render URLs exist. |
+| Branch | `demo-experience`. `1a9803b` records the deploy check. Result-state edits are uncommitted. |
 | Pull request | https://github.com/kernelKain/happen/pull/7 merged `live-sponsor` into `main`. https://github.com/kernelKain/happen/pull/5 merged the fixture Hook. |
 | Remote | `origin/main` is at `91b7b94`. `live-sponsor` is at `d05d024`. Those two commits contain the same files. |
 | Live URL | Not deployed |
@@ -100,13 +100,13 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the captured Indiranagar fixture. Live mode stays explicit. The Gemma baseline and the Colab adapter estimate both missed the extraction gate. No adapter was selected. The sponsor slice is on `main`. Render services are still not created. |
-| Last finished step | Evaluate and optionally tune Gemma |
-| Next step | Deploy and smoke the sponsor vertical slice |
-| Branch | `demo-experience` at `91b7b94` (`origin/main`) |
+| Status | Find the moment scores the captured Indiranagar fixture. Result states now name partial evidence, insufficient evidence, timeout, quota, model failure, invalid input, and the captured fixture. Render services are still not created. |
+| Last finished step | Complete all visible result states |
+| Next step | Finish evidence and methodology experience |
+| Branch | `demo-experience`. Latest commit is `1a9803b`. Result-state edits are uncommitted. |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | Render services are still not created. Do not start the demo-experience work until the public fixture path is up. |
+| Biggest blocker | Render services are still not created. Local result states continued after the deploy step stayed blocked. |
 
 ## How branches and commits work
 
@@ -521,11 +521,17 @@ Goal: every visible state, the evidence view, and the 1280px and 390px layouts. 
 
 ### Complete all visible result states
 
-Status: **Not started.**
+Status: **Done** on October 4, 2026. Not committed.
 
-Cursor adds specific copy and a next action for loading, partial, insufficient evidence, timeout, quota, model failure, and fixture mode.
+Loading says to wait for the request. An insufficient result tells the user to start over and restore the demo preset. A partial result keeps three timelines and says Unknown intervals are not a recommendation. A captured-fixture result says it is saved evidence, not a live search. Quota and invalid-input errors keep Retry off. A model-unavailable page names that dependency and retries metadata. Contract mismatch still asks for a refresh.
 
-Your side after Cursor finishes: click one error state if a local page is running, and say if the next action is unclear.
+Checks that passed:
+
+- `npm test` — 9 tests.
+- `npm run check` and `npm run build`.
+- `npx playwright test` — 16 tests, including partial, quota, invalid input, model unavailable, the fixture Hook, and the 1280 and 390 shell checks.
+
+Your side after this step: optional. If a local page is running, trigger one error and say if the next action is unclear. The public Render deploy is still waiting.
 
 ### Finish evidence and methodology experience
 
@@ -770,7 +776,8 @@ Your side:
 | Capture and verify canonical fixture | Done | `Save the sanitized Indiranagar capture and verify its replay matches the live decision.` | Skim the sanitized fixture and say if anything private must be removed. |
 | Evaluate and optionally tune Gemma | Done. Baseline and Colab estimate both miss the gate. No adapter selected. | `Keep the untuned model after the adapter estimate missed the baseline.` | Disconnect the Colab runtime. |
 | Deploy and smoke the sponsor slice | Blocked on Render. Code is on `main` at `91b7b94`. Local tests passed. | `91b7b94` | Create the Blueprint, paste both public URLs, then allow one live run. |
-| Result states, evidence, and responsive reveal | Not started | — | Look at the states and the 1280px screen. |
+| Result states | Done locally. Not committed. | — | Optional: say if one error's next action is unclear. |
+| Evidence and responsive reveal | Not started | — | Look at the states and the 1280px screen. |
 | Friend walkthrough | Not started | — | Friend walkthrough. You send the paraphrase. |
 | Security, performance, and pre-freeze verification | Not started | — | Read the verification list. Rotate a secret if one is found. |
 | Review and freeze the MVP | Not started | — | Review and merge. That is feature freeze. |
