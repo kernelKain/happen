@@ -6,7 +6,9 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-The current branch is `global-live-experience`. The current work is the Global Live Experience redesign. Section 30 of `docs/HANDOFF.md` is the approved contract: a global, prompt-led, live evening planner, one evening, at most two stops, SerpApi as the only external place and supporting-web source, Python validation and selection, and live retrieval only. Captured fixtures stay test data. Application code has not been changed for this redesign. The running application is still the earlier Indiranagar planner until a later implementation change.
+The current branch is `global-live-experience`. The current work is the Global Live Experience redesign. Section 30 of `docs/HANDOFF.md` is the approved contract: a global, prompt-led, live evening planner, one evening, at most two stops, SerpApi as the only external place and supporting-web source, Python validation and selection, and live retrieval only. Captured fixtures stay test data.
+
+The planning records and a deterministic prompt parser are in `backend/src/happen_api/planning/`. A prompt becomes a brief with at most one follow-up. The parser does not call SerpApi or load Gemma. The existing v1 recommendation API is unchanged, and the running page is still the earlier Indiranagar planner.
 
 `global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
 
@@ -15,9 +17,9 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. The contract is recorded. Implementation has not started. |
-| Last finished step | Record the approved global live planning contract |
-| Next step | Implement section 30. Keep captured fixtures out of the user-facing path. |
+| Phase complete | No. The planning brief parser is in place. Live retrieval and the user-facing flow are not. |
+| Last finished step | Parse planning prompts into structured briefs |
+| Next step | Serve the brief and one follow-up without SerpApi, Gemma, or a fixture fallback. |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
@@ -102,13 +104,13 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | The approved global live planning contract is recorded in `docs/HANDOFF.md` section 30. Application code is unchanged. The running page is still the earlier Indiranagar planner. |
-| Last finished step | Record the approved global live planning contract |
-| Next step | Implement section 30 |
+| Status | Planning prompts parse into structured briefs. The v1 API and the Indiranagar page are unchanged. Live retrieval has not started. |
+| Last finished step | Parse planning prompts into structured briefs |
+| Next step | Serve the brief and one follow-up without SerpApi, Gemma, or a fixture fallback. |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
-| Biggest blocker | Implementation of the new contract has not started. Render services are still not created, and that deploy is not the current step. |
+| Biggest blocker | The brief is not on a user-facing route yet. Render services are still not created, and that deploy is not the current step. |
 
 ## How branches and commits work
 
@@ -800,4 +802,5 @@ Your side:
 | Production deploy, smoke, and runbook | Not started | — | Deploy, smoke the public page, name the rollback revision. |
 | README, media, sessions, article, and packet | Not started | — | Read claims, approve media and sessions, keep the article as a draft. |
 | Audit, publish, and submit | Not started | — | Merge, publish, submit, and paste the confirmation. |
-| Global live planning contract | Recorded. Implementation has not started. | `Update the contract for global live planning.` | Nothing until implementation starts. Do not push. |
+| Global live planning contract | Recorded | `Update the contract for global live planning.` | Nothing for that record. |
+| Planning prompt parser | Done. v1 API unchanged. No SerpApi or Gemma call. | `Parse planning prompts into structured briefs.` | Nothing. Do not push. |

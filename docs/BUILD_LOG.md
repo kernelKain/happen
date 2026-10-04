@@ -549,3 +549,28 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Required acceptance criteria are GL-01 through GL-12. Automated tests cover those criteria. The user holds secrets, approves live credit spend, tests locally when asked, and controls deploy and publish.
 - These decisions control where they disagree with sections 1–29. Those sections were not deleted.
 
+## Parse planning prompts into structured briefs
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: Planning records and a deterministic prompt parser are in `backend/src/happen_api/planning/`. The existing v1 recommendation routes were not changed.
+- Product behavior changed: no user-facing behavior. The new parser is not wired to an endpoint.
+- Cost changed: no. No SerpApi request was made, and Gemma was not loaded.
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src`, `backend/tests`, and `scripts/scan-secrets.py`.
+- `uv run pytest` passed, 175 tests.
+- `python3 scripts/scan-secrets.py` reported nothing.
+- The parser reads explicit dates, times, party size, budget currency, destination phrases, and one or two intents. Relative dates use a clock argument.
+- One follow-up is selected, in order: destination, date, time, primary intent. Preferences do not block.
+- Instruction-like prompt text is ignored and is not stored as a destination or a budget.
+- Cities covered by the tests include places in India, the UK, the US, and Japan. Unqualified shared names stay unresolved.
+
+### Decisions
+
+- Prompt text is data. A prompt longer than 2,000 characters, a blank prompt, or a prompt with disallowed control characters returns a fixed user-safe error and does not echo the prompt.
+- A recognized city name stays text. The parser does not add a country, a timezone, or a resolved destination.
+- `¥` without the word yen or yuan does not become a currency. Two named currencies do not collapse into one budget.
+- A third evening activity is kept as an unplanned note and does not become a third stop or a follow-up question.
+
