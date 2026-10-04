@@ -308,6 +308,20 @@ def test_malformed_json_is_an_invalid_dependency_response() -> None:
     assert len(route.calls) == 1
 
 
+def test_a_cancelled_search_is_not_sent() -> None:
+    """A cancellation stops the request before a credit is spent."""
+
+    with respx.mock, SerpApiClient(_KEY, cancelled=lambda: True) as client:
+        route = respx.get(_URL).mock(return_value=httpx.Response(200, json=_search_body(_KEY)))
+        with pytest.raises(SerpApiFailure) as caught:
+            client.search_places("restaurants in Indiranagar, Bengaluru")
+
+    assert caught.value.code == "TRANSIENT_DEPENDENCY"
+    assert client.credits_charged == 0
+    assert route.calls == []
+    assert _KEY not in str(caught.value)
+
+
 def test_redirect_is_not_followed() -> None:
     """Verify a redirect is rejected so the key is not sent to another host."""
 

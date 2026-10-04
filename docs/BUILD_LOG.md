@@ -761,3 +761,27 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Production cannot turn those routes back on with a request flag.
 - Health may still report that the fixture file verifies. That status is not a plan.
 
+## Harden the global live planning workflow
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: Planning requests reject a body over 16 KB and a prompt over 2,000 characters without echoing the text. SerpApi calls stay on `https://serpapi.com`, do not follow redirects, and stop before the next billed request when the caller disconnects. CORS allows only the configured origins and does not send credentials. One process keeps caller timestamps in memory, admits at most three billed plans at once, and answers HTTP 429 with a retry delay. Place lists are cached for 15 minutes only under a 64-character hash, at most 32 entries, and a repeat plan does not call the provider again. The process closes the HTTP client and releases a loaded model on shutdown. A production plan failure does not include fixture names, a model prompt, or a stack trace. Scoring stays in Python. One plan still cannot spend a ninth billed SerpApi request.
+- Product behavior changed: yes. A too-long evening is refused in the composer. A burst of planning requests can receive HTTP 429. An identical plan can be served from memory. This step did not deploy.
+- Cost changed: no. Tests use mocks. This step did not call SerpApi.
+
+### Evidence
+
+- `POST /api/v2/briefs/interpret` returns HTTP 422 for a prompt over 2,000 characters and HTTP 413 for a body over 16 KB. Neither response contains the submitted text.
+- With `HAPPEN_RATE_LIMIT=2`, the third interpret returns HTTP 429 `RATE_LIMITED` and a `retry_after_seconds` value.
+- A plan with `prior_billed_requests` of 7 sends one search and does not send a details lookup. A second identical plan does not increase the provider call count.
+- A cancelled SerpApi search charges zero credits and sends no request.
+- A production `POST /api/v2/plans` returns HTTP 503 “Live place evidence is not configured.” and omits fixture names.
+- `local_arrival` matches `zoneinfo` for Asia/Kolkata, Europe/London, America/New_York, and Asia/Tokyo at 2026-10-04 22:00 UTC.
+- Backend `uv run ruff format --check` and `uv run ruff check` passed. `uv run pytest` passed, 239 tests. Frontend `npx biome check` passed. `npm test` passed, 40 tests. `npx tsc --noEmit` and `npx vite build` passed. `npm run test:shell` passed, 15 Playwright tests, including axe and the 1280 and 390 viewports.
+
+### Decisions
+
+- The throttle stores timestamps for one process. It resets when that process stops.
+- Quota, timeout, and empty searches are not cached, so a later plan can try again.
+- An unconfigured live provider keeps the existing HTTP 503 message. The page shows that sentence.
+

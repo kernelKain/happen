@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from urllib.parse import unquote
+from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic import ValidationError
@@ -65,6 +66,9 @@ def test_timezone_changes_which_weekday_the_hours_use() -> None:
     york_date, york_time = local_arrival(moment, "America/New_York")
     assert (tokyo_date, tokyo_time) == (date(2026, 10, 5), time(7, 0))
     assert (york_date, york_time) == (date(2026, 10, 4), time(18, 0))
+    for zone in ("Asia/Kolkata", "Europe/London", "America/New_York", "Asia/Tokyo"):
+        local = moment.astimezone(ZoneInfo(zone))
+        assert local_arrival(moment, zone) == (local.date(), local.timetz().replace(tzinfo=None))
     place = _place(hours=["monday: 07:00-09:00"])
     tokyo = assemble_itinerary(
         [place],

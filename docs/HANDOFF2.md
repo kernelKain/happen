@@ -12,7 +12,7 @@ The planning records, a deterministic prompt parser, and destination resolution 
 
 Local Gemma was measured and missed the planning and review gates. Model claims stay off. The customer page does not score a captured fixture. The deterministic parser remains the planning reader.
 
-Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents, reuses inline place evidence, and keeps details, reviews, and at most two web searches inside the same eight billed requests as destination resolution. `POST /api/v2/plans` uses that discovery, then Python selects one or two stops. The customer page is the landing composer. It interprets a prompt, shows one follow-up when needed, resolves the destination, and calls place discovery only after Find the plan. The result is a vertical timeline of at most two stops. A later change shows a diff and waits for Apply or Cancel. A change that keeps the destination, date, and intents reuses the plan already on the page. It does not offer a fixture or a sample plan. A layout query stays on that page. When `APP_ENV` is production, the process does not mount the historical recommendation routes, and metadata does not publish the Indiranagar preset or a fixed timezone. Development still mounts those routes so tests can replay captured fixtures. A live failure does not tell the visitor to use captured evidence.
+Global place discovery is in `backend/src/happen_api/planning/discovery.py`. It builds up to two Maps queries from the resolved destination and the ordered intents, reuses inline place evidence, and keeps details, reviews, and at most two web searches inside the same eight billed requests as destination resolution. `POST /api/v2/plans` uses that discovery, then Python selects one or two stops. The customer page is the landing composer. It interprets a prompt, shows one follow-up when needed, resolves the destination, and calls place discovery only after Find the plan. The result is a vertical timeline of at most two stops. A later change shows a diff and waits for Apply or Cancel. A change that keeps the destination, date, and intents reuses the plan already on the page. It does not offer a fixture or a sample plan. A layout query stays on that page. When `APP_ENV` is production, the process does not mount the historical recommendation routes, and metadata does not publish the Indiranagar preset or a fixed timezone. Development still mounts those routes so tests can replay captured fixtures. A live failure does not tell the visitor to use captured evidence. Planning requests are limited to 16 KB and 2,000 characters. Identical place lists are cached in memory for 15 minutes under a hash key. One process admits at most three billed plans at once and returns HTTP 429 when the rate window is full. A cancelled search is not sent. The HTTP client and any loaded model are released when the process stops. Production plan errors do not contain fixture names, a model prompt, or a stack trace.
 
 `global-live-experience` started from `c0bc793`, the merge of pull request 8. `origin/main` is at that same commit. This branch has no upstream. Do not push, merge, deploy, or publish unless asked.
 
@@ -22,7 +22,7 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. The landing shows a live timeline and a refinement diff. The model quality gate failed, so claims stay off. |
-| Last finished step | Remove demo-only production paths |
+| Last finished step | Harden the global live planning workflow |
 | Next step | Ask the user to try one evening locally. Do not deploy. |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -46,7 +46,7 @@ Still open from the walking skeleton, and not the current step:
 
 ## How to run what exists today
 
-The page can be opened. The customer page interprets one evening, keeps the original wording on an editable brief, and retrieves live places only after Find the plan. If the place, date, or time is missing, it asks one question. An ambiguous destination stays a choice. A failure stays on the page and does not substitute a sample plan. A `layout` query does not open another page. The customer page does not link to the repository, show a neighbourhood preset, or offer captured evidence. The API serves health, metadata, `POST /api/v2/briefs/interpret`, `POST /api/v2/destinations/resolve`, `POST /api/v2/plans`, and `POST /api/v2/plans/refine`. A development process also mounts `POST /api/v1/demo-recommendations` and `POST /api/v1/recommendations` so tests can replay fixtures. Production does not mount those routes. `model_status` is file integrity: `ready` when the pinned GGUF is present and its checksum matches, otherwise `not_loaded` or `unavailable`. `model_quality` and `model_claims_enabled` are separate. The checked-in report marks the pinned 270M artifact `failed` and leaves claims off. Overall health stays `ok` when the file and the captured fixture are both ready. Health can report that the fixture file verifies. That report is not a user-facing plan.
+The page can be opened. The customer page interprets one evening of at most 2,000 characters, keeps the original wording on an editable brief, and retrieves live places only after Find the plan. If the place, date, or time is missing, it asks one question. An ambiguous destination stays a choice. A failure stays on the page and does not substitute a sample plan. A `layout` query does not open another page. The customer page does not link to the repository, show a neighbourhood preset, or offer captured evidence. The API serves health, metadata, `POST /api/v2/briefs/interpret`, `POST /api/v2/destinations/resolve`, `POST /api/v2/plans`, and `POST /api/v2/plans/refine`. A development process also mounts `POST /api/v1/demo-recommendations` and `POST /api/v1/recommendations` so tests can replay fixtures. Production does not mount those routes. `model_status` is file integrity: `ready` when the pinned GGUF is present and its checksum matches, otherwise `not_loaded` or `unavailable`. `model_quality` and `model_claims_enabled` are separate. The checked-in report marks the pinned 270M artifact `failed` and leaves claims off. Overall health stays `ok` when the file and the captured fixture are both ready. Health can report that the fixture file verifies. That report is not a user-facing plan.
 
 Frontend, from the repository root:
 
@@ -108,8 +108,8 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | The customer page shows a live timeline. Production does not serve a sample layout, a captured-evidence action, or the historical recommendation routes. Gemma claims stay off. |
-| Last finished step | Remove demo-only production paths |
+| Status | The customer page shows a live timeline. Production does not serve a sample layout, a captured-evidence action, or the historical recommendation routes. Planning requests are size-limited, throttled in memory, and cached by a hash. Gemma claims stay off. |
+| Last finished step | Harden the global live planning workflow |
 | Next step | Ask the user to try one evening locally. Do not deploy. |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
@@ -816,3 +816,4 @@ Your side:
 | Prompt-led planning | Done. The landing interprets, asks one question, resolves a destination, and retrieves only after Find the plan. | `Build the prompt-led planning flow.` | Nothing. Do not push. |
 | Live timeline and refinement | Done. The result is a two-stop timeline. A change shows a diff before Apply. `?layout=sample` is no longer the old winner. | `Present and refine live evening plans.` | Nothing. Do not push. |
 | Demo paths removed from production | Done. Production does not mount the historical recommendation routes. The customer page has no sample layout or captured-evidence action. | `Remove demo-only production paths.` | Nothing. Do not push. Do not deploy. |
+| Global live planning hardened | Done. Body and prompt limits, explicit CORS, in-memory throttling, cancellation, cache bounds, and fixture isolation are covered by tests. | `Harden the global live planning workflow.` | Nothing. Do not push. Do not deploy. |

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import date, time
 
+import anyio
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -24,12 +26,13 @@ from happen_api.planning.destination import (
     ResolutionStatus,
     resolve_destination,
 )
-from happen_api.planning.discovery import DiscoveryStatus, discover_places
+from happen_api.planning.discovery import DiscoveryStatus, discover_places, discovery_cache_key
 from happen_api.planning.interpret import interpret
 from happen_api.planning.itinerary import (
     assemble_itinerary,
     propose_revision,
 )
+from happen_api.planning.limits import PlanCache, PlanningThrottle
 from happen_api.providers.serpapi.client import SerpApiClient, SerpApiFailure
 
 router = APIRouter(prefix="/api/v2", tags=["plans"])
@@ -114,6 +117,9 @@ class _Spent:
 def interpret_brief(body: PlanningPromptRequest, request: Request) -> object:
     """Read one prompt. This route does not retrieve places."""
 
+    rejected = _begin(request, billed=False)
+    if rejected is not None:
+        return rejected
     try:
         return interpret(body.prompt, _clock(request))
     except PlanningInputError as exc:
@@ -131,8 +137,12 @@ def interpret_brief(body: PlanningPromptRequest, request: Request) -> object:
 def resolve_place(body: ResolveRequest, request: Request) -> object:
     """Resolve one destination. Several matches stay as choices."""
 
+    rejected = _begin(request, billed=True)
+    if rejected is not None:
+        return rejected
     client, owned = _client(request, PLAN_BILLED_REQUEST_LIMIT)
     if isinstance(client, _Unavailable):
+        _end(request, billed=True)
         return client.response
     try:
         pending = PendingDate(phrase=body.pending_date) if body.pending_date else None
@@ -148,6 +158,7 @@ def resolve_place(body: ResolveRequest, request: Request) -> object:
         return _provider_failure(request, exc)
     finally:
         _close(client, owned)
+        _end(request, billed=True)
     if resolution.status is ResolutionStatus.ambiguous:
         return _json(resolution, 409)
     if resolution.status is ResolutionStatus.budget_exhausted:
@@ -166,8 +177,12 @@ def resolve_place(body: ResolveRequest, request: Request) -> object:
 def create_plan(body: PlanRequest, request: Request) -> object:
     """Discover places and select one or two stops. A model does not choose."""
 
+    rejected = _begin(request, billed=True)
+    if rejected is not None:
+        return rejected
     remaining = PLAN_BILLED_REQUEST_LIMIT - body.prior_billed_requests
     if remaining < 1:
+        _end(request, billed=True)
         return _failure(
             request,
             503,
@@ -176,8 +191,26 @@ def create_plan(body: PlanRequest, request: Request) -> object:
             "Try again later.",
             retryable=False,
         )
+    cache_key = discovery_cache_key(
+        body.destination,
+        local_date=body.local_date,
+        start_time=body.local_start,
+        end_time=body.local_end,
+        intents=body.intents,
+    )
+    cached = _plan_cache(request).get(cache_key)
+    if cached is not None:
+        _end(request, billed=True)
+        return assemble_itinerary(
+            cached,
+            body.intents,
+            local_date=body.local_date,
+            local_start=body.local_start,
+            retrieved_at=_clock(request).now(),
+        )
     client, owned = _client(request, remaining)
     if isinstance(client, _Unavailable):
+        _end(request, billed=True)
         return client.response
     viewed = _Spent(client, body.prior_billed_requests)
     try:
@@ -194,6 +227,9 @@ def create_plan(body: PlanRequest, request: Request) -> object:
         return _provider_failure(request, exc)
     finally:
         _close(client, owned)
+        _end(request, billed=True)
+    if found.places and found.stopped not in {DiscoveryStatus.timeout, DiscoveryStatus.quota}:
+        _plan_cache(request).put(cache_key, found.places)
     if found.status is DiscoveryStatus.timeout and not found.places:
         return _failure(
             request,
@@ -230,6 +266,9 @@ def create_plan(body: PlanRequest, request: Request) -> object:
 def refine_plan(body: RefineRequest, request: Request) -> object:
     """Return a proposed brief and a diff. The current brief stays as sent."""
 
+    rejected = _begin(request, billed=False)
+    if rejected is not None:
+        return rejected
     try:
         return propose_revision(body.current, body.revision, _clock(request))
     except PlanningInputError as exc:
@@ -241,6 +280,49 @@ def refine_plan(body: RefineRequest, request: Request) -> object:
             exc.error.next_action,
             retryable=exc.error.retryable,
         )
+
+
+def _begin(request: Request, *, billed: bool) -> object | None:
+    settings = request.app.state.settings
+    throttle: PlanningThrottle = request.app.state.planning_throttle
+    retry_after = throttle.start(
+        _caller(request),
+        limit=settings.recommendation_rate_limit,
+        window_seconds=settings.recommendation_rate_window_seconds,
+        billed=billed,
+    )
+    if retry_after is None:
+        return None
+    return _failure(
+        request,
+        429,
+        "RATE_LIMITED",
+        "Happen is handling too many planning requests.",
+        "Wait and try again.",
+        retryable=True,
+        retry_after_seconds=retry_after,
+    )
+
+
+def _end(request: Request, *, billed: bool) -> None:
+    throttle: PlanningThrottle = request.app.state.planning_throttle
+    throttle.finish(billed)
+
+
+def _plan_cache(request: Request) -> PlanCache:
+    return request.app.state.plan_cache
+
+
+def _caller(request: Request) -> str:
+    host = request.client.host if request.client is not None else "unknown"
+    return hashlib.sha256(host.encode("utf-8")).hexdigest()
+
+
+def _disconnected(request: Request) -> bool:
+    try:
+        return bool(anyio.from_thread.run(request.is_disconnected))
+    except RuntimeError:
+        return False
 
 
 def _clock(request: Request) -> Clock:
@@ -274,6 +356,7 @@ def _client(request: Request, credit_limit: int) -> tuple[object, bool]:
         settings.serpapi_api_key.get_secret_value(),
         credit_limit=credit_limit,
         http_client=http_client,
+        cancelled=lambda: _disconnected(request),
     )
     return client, http_client is None
 
@@ -329,6 +412,7 @@ def _failure(
     next_action: str,
     *,
     retryable: bool,
+    retry_after_seconds: int | None = None,
 ) -> object:
     return error_response(
         status_code=status_code,
@@ -338,6 +422,7 @@ def _failure(
         retryable=retryable,
         next_action=next_action,
         fixture_available=bool(request.app.state.fixture_available),
+        retry_after_seconds=retry_after_seconds,
     )
 
 

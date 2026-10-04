@@ -124,7 +124,10 @@ describe("landing", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
       "One evening, held to two stops.",
     );
-    expect(screen.getByRole("textbox", { name: "Describe the evening" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Describe the evening" })).toHaveProperty(
+      "maxLength",
+      2000,
+    );
     expect(screen.getByRole("button", { name: "Plan this evening" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "How it works" })).toBeTruthy();
     expect(screen.getByText(/live SerpApi results/)).toBeTruthy();

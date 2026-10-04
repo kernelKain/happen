@@ -243,6 +243,9 @@ def test_plan_selects_two_stops_and_an_unverified_transition(settings: Settings)
     assert "duration" not in body["transition"]
     assert "score" not in response.text
     assert "weight" not in response.text
+    assert "Courtyard" not in response.text
+    assert "captured_fixture" not in response.text
+    assert "llama" not in response.text.casefold()
     _safe(response.text)
 
 
@@ -333,6 +336,103 @@ def test_refine_returns_a_proposal_without_replacing_the_plan(settings: Settings
     assert body["diff"]["changed"]
     assert provider.calls == []
     _safe(response.text)
+
+
+def test_one_plan_stops_before_a_ninth_billed_request(settings: Settings) -> None:
+    """Seven earlier requests leave room for one search and not the detail lookup."""
+
+    provider = ScriptedProvider(8, 14.0, hours=None)
+    application = create_app(settings)
+    application.state.clock = CLOCK
+    application.state.provider_factory = lambda _limit, _timeout: provider
+    body = _plan_body({"label": "Kyoto", "source_text": "Kyoto", "timezone_name": "Asia/Tokyo"})
+    body["prior_billed_requests"] = 7
+    with TestClient(application) as client:
+        response = client.post("/api/v2/plans", json=body)
+    assert response.status_code == 200
+    assert provider.credits_charged == 1
+    assert len(provider.calls) == 1
+    assert all(not call.startswith("details:") for call in provider.calls)
+    _safe(response.text)
+
+
+def test_a_repeated_plan_reuses_cached_places(settings: Settings) -> None:
+    """The second identical plan does not send another provider request."""
+
+    provider = ScriptedProvider(8, 14.0, hours={"monday": "17:00-22:00"})
+    with _app(settings, provider) as client:
+        destination = {"label": "Kyoto", "source_text": "Kyoto", "timezone_name": "Asia/Tokyo"}
+        first = client.post("/api/v2/plans", json=_plan_body(destination))
+        spent = len(provider.calls)
+        second = client.post("/api/v2/plans", json=_plan_body(destination))
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["stops"][0]["name"] == "Kura"
+    assert len(provider.calls) == spent
+    assert spent > 0
+
+
+def test_prompt_length_and_body_size_stay_bounded(settings: Settings) -> None:
+    """A long prompt and an oversized body are refused without echoing the text."""
+
+    marker = "NOT-ECHOED-PROMPT"
+    with _app(settings) as client:
+        prompt = client.post(
+            "/api/v2/briefs/interpret",
+            json={"prompt": f"Dinner in Tokyo {marker} " + ("z" * 2000)},
+        )
+        oversized = client.post(
+            "/api/v2/briefs/interpret",
+            content=b"x" * (16 * 1024 + 1),
+            headers={"content-type": "application/json"},
+        )
+    assert prompt.status_code == 422
+    assert marker not in prompt.text
+    assert oversized.status_code == 413
+    assert "xxxx" not in oversized.text
+
+
+def test_planning_requests_are_throttled(settings_factory: object) -> None:
+    """The third planning request inside a tiny window waits instead of running."""
+
+    settings = settings_factory(HAPPEN_RATE_LIMIT=2, HAPPEN_RATE_WINDOW_SECONDS=60)
+    prompt = {"prompt": "Dinner in Kyoto on 2026-10-05 at 7pm"}
+    with _app(settings) as client:
+        first = client.post("/api/v2/briefs/interpret", json=prompt)
+        second = client.post("/api/v2/briefs/interpret", json=prompt)
+        third = client.post("/api/v2/briefs/interpret", json=prompt)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 429
+    assert third.json()["error"]["code"] == "RATE_LIMITED"
+    assert third.json()["error"]["retry_after_seconds"] >= 1
+    assert "Kyoto" not in third.text
+
+
+def test_production_plan_does_not_return_a_fixture(
+    settings_factory: object,
+) -> None:
+    """A production plan failure stays a live-configuration error and omits fixture names."""
+
+    settings = settings_factory(
+        APP_ENV="production",
+        CORS_ALLOWED_ORIGINS="https://happen.example",
+    )
+    with _app(settings) as client:
+        response = client.post(
+            "/api/v2/plans",
+            json=_plan_body(
+                {"label": "Kyoto", "source_text": "Kyoto", "timezone_name": "Asia/Tokyo"}
+            ),
+        )
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == "Live place evidence is not configured."
+    folded = response.text.casefold()
+    assert "courtyard" not in folded
+    assert "bombay" not in folded
+    assert "captured_fixture" not in folded
+    assert "llama" not in folded
+    assert "traceback" not in folded
 
 
 def test_live_planning_without_configuration_is_a_safe_error(settings: Settings) -> None:

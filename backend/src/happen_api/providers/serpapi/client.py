@@ -103,6 +103,7 @@ class SerpApiClient:
         now: Callable[[], float] | None = None,
         transport: httpx.BaseTransport | None = None,
         http_client: httpx.Client | None = None,
+        cancelled: Callable[[], bool] | None = None,
     ) -> None:
         if credit_limit < 1:
             raise ValueError("credit_limit must be at least 1")
@@ -121,6 +122,7 @@ class SerpApiClient:
         self._credits_charged = 0
         self.live_enabled = True
         self.disabled_code: str | None = None
+        self._cancelled = cancelled or (lambda: False)
         self._owns_http = http_client is None
         self._http = http_client or httpx.Client(
             transport=transport,
@@ -240,6 +242,12 @@ class SerpApiClient:
         params = {"q": cleaned, "limit": str(bounded)}
         last_failure: SerpApiFailure | None = None
         for _attempt in (1, 2):
+            if self._cancelled():
+                raise SerpApiFailure(
+                    "TRANSIENT_DEPENDENCY",
+                    "The place search was cancelled.",
+                    retryable=True,
+                )
             try:
                 response = self._http.get(
                     _LOCATIONS_URL,
@@ -332,6 +340,12 @@ class SerpApiClient:
         started = self._mark_started()
         last_failure: SerpApiFailure | None = None
         for attempt in (1, 2):
+            if self._cancelled():
+                raise SerpApiFailure(
+                    "TRANSIENT_DEPENDENCY",
+                    "The place search was cancelled.",
+                    retryable=True,
+                )
             remaining = self._remaining(started)
             if remaining <= 0:
                 break

@@ -152,6 +152,9 @@ def test_chicago_cache_key_changes_with_the_evening_and_intent() -> None:
     )
     assert first != later
     assert first != coffee
+    assert len(first) == 64
+    assert "Chicago" not in first
+    assert all(character in "0123456789abcdef" for character in first)
     with respx.mock, _client() as client:
         route = respx.get(_URL).mock(return_value=_response({"local_results": []}))
         result = discover_places(

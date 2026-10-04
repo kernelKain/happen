@@ -83,6 +83,19 @@ def _model_generate(settings: Settings) -> Callable[[str], str]:
     return generate
 
 
+def release_model() -> None:
+    """Drop a loaded model when the process stops. Nothing happens if none was loaded."""
+
+    global _MODEL, _LOAD_SECONDS
+    with _LOCK:
+        model = _MODEL
+        _MODEL = None
+        _LOAD_SECONDS = None
+    close = getattr(model, "close", None)
+    if callable(close):
+        close()
+
+
 def _load_model(settings: Settings) -> object:
     global _MODEL, _LOAD_SECONDS
     if _MODEL is not None:

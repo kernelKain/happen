@@ -21,6 +21,7 @@ import {
   budgetIssue,
   canFindPlan,
   clockForInput,
+  EVENING_TEXT_LIMIT,
   moveIntent,
   needsAnotherSearch,
   partySizeIssue,
@@ -504,6 +505,14 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     if (!cleaned) {
       return;
     }
+    if (cleaned.length > EVENING_TEXT_LIMIT) {
+      setFailure({
+        message: "That change is too long to review.",
+        next: "Shorten it and try again.",
+        retry: null,
+      });
+      return;
+    }
     const id = begin();
     if (id === null) {
       return;
@@ -671,6 +680,10 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       setComposerError("Describe the evening before Happen can plan it.");
       return;
     }
+    if (cleaned.length > EVENING_TEXT_LIMIT) {
+      setComposerError("That evening is too long to plan.");
+      return;
+    }
     void interpretPrompt(cleaned);
   }
 
@@ -706,6 +719,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
               id="evening"
               name="evening"
               rows={5}
+              maxLength={EVENING_TEXT_LIMIT}
               value={evening}
               disabled={busy !== null}
               aria-invalid={composerError !== null}
@@ -1075,6 +1089,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
               <textarea
                 id="revision"
                 rows={3}
+                maxLength={EVENING_TEXT_LIMIT}
                 value={revision}
                 disabled={busy !== null}
                 onChange={(event) => setRevision(event.target.value)}

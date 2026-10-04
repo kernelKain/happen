@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from happen_api import __version__
+from happen_api.ai.extractor import release_model
 from happen_api.api.demo import router as demo_router
 from happen_api.api.health import router
 from happen_api.api.plans import router as plan_router
@@ -21,6 +22,7 @@ from happen_api.config import Settings, get_settings
 from happen_api.errors import error_response, message_for, public_field_errors
 from happen_api.logging import configure_logging, get_logger
 from happen_api.middleware import BodyLimitMiddleware, RequestContextMiddleware, current_request_id
+from happen_api.planning.limits import PlanCache, PlanningThrottle
 from happen_api.providers.serpapi.guard import LiveGuard
 from happen_api.readiness import captured_fixture_status
 from happen_api.recommendations.memory import RecommendationMemory
@@ -36,6 +38,7 @@ async def _lifespan(application: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         client.close()
+        release_model()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -57,6 +60,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Production does not advertise a captured fixture as a user-facing fallback.
     application.state.fixture_available = fixture_ready and resolved.app_env != "production"
     application.state.recommendation_memory = RecommendationMemory()
+    application.state.planning_throttle = PlanningThrottle()
+    application.state.plan_cache = PlanCache()
     application.state.live_guard = LiveGuard(budget=resolved.serpapi_search_budget)
     application.state.excerpt_generate = None
     application.state.provider_factory = None

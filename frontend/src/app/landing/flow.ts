@@ -2,6 +2,9 @@ import type { FollowUp, PlanningBrief } from "../../lib/api/plan";
 
 const DESTINATION_QUESTION = "Which place should this evening be in?";
 
+/** Matches the planning prompt limit. Longer text is refused before a request. */
+export const EVENING_TEXT_LIMIT = 2000;
+
 /** Keep the visitor's original wording when a revision replaces the stored prompt. */
 export function restorePrompt(brief: PlanningBrief, original: string): PlanningBrief {
   return { ...brief, raw_prompt: original };
