@@ -1,0 +1,141 @@
+{
+  "fixture_id": "indiranagar-dinner",
+  "schema_version": "1.0.0",
+  "data_label": "synthetic_development",
+  "visit_date": "2026-10-03",
+  "timezone": "Asia/Kolkata",
+  "captured_at": "2026-10-03T12:00:00+05:30",
+  "request": {
+    "neighborhood": "indiranagar",
+    "restaurant_category": "restaurants",
+    "arrival_start": "18:00",
+    "arrival_end": "21:00",
+    "desired_experience": "easier_conversation",
+    "priorities": ["conversation", "short_wait", "seating"]
+  },
+  "places": [
+    {
+      "candidate_id": "north-gallery",
+      "provider_place_id": "synthetic:north-gallery",
+      "name": "North Gallery Supper",
+      "category_tags": ["restaurants"],
+      "source_url": "https://example.com/happen/synthetic/north-gallery",
+      "opening_intervals": [
+        {
+          "date": "2026-10-03",
+          "opens_at": "18:00:00",
+          "closes_at": "23:00:00",
+          "source_url": "https://example.com/happen/synthetic/north-gallery",
+          "confidence": "verified"
+        }
+      ],
+      "busyness_observations": [
+        {
+          "day_of_week": "saturday",
+          "hour_start": "19:00:00",
+          "relative_popularity": 20,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://example.com/happen/synthetic/north-gallery",
+          "captured_at": "2026-10-03T12:00:00+05:30"
+        }
+      ],
+      "review_excerpts": [
+        {
+          "excerpt_id": "north-gallery-1",
+          "candidate_id": "north-gallery",
+          "text": "Synthetic note: conversation was easy around 7 pm at the quiet tables.",
+          "published_at": "2026-09-01",
+          "captured_at": "2026-10-03T12:00:00+05:30",
+          "source_url": "https://example.com/happen/synthetic/north-gallery",
+          "language": "en",
+          "truncated": false
+        }
+      ],
+      "eligibility_reasons": ["synthetic_candidate"],
+      "warnings": ["synthetic_development"]
+    },
+    {
+      "candidate_id": "courtyard-lantern",
+      "provider_place_id": "synthetic:courtyard-lantern",
+      "name": "Courtyard Lantern",
+      "category_tags": ["restaurants"],
+      "source_url": "https://example.com/happen/synthetic/courtyard-lantern",
+      "opening_intervals": [
+        {
+          "date": "2026-10-03",
+          "opens_at": "18:00:00",
+          "closes_at": "23:00:00",
+          "source_url": "https://example.com/happen/synthetic/courtyard-lantern",
+          "confidence": "verified"
+        }
+      ],
+      "busyness_observations": [
+        {
+          "day_of_week": "saturday",
+          "hour_start": "19:00:00",
+          "relative_popularity": 80,
+          "observation_kind": "typical_popularity",
+          "source_url": "https://example.com/happen/synthetic/courtyard-lantern",
+          "captured_at": "2026-10-03T12:00:00+05:30"
+        }
+      ],
+      "review_excerpts": [
+        {
+          "excerpt_id": "courtyard-lantern-1",
+          "candidate_id": "courtyard-lantern",
+          "text": "Synthetic note: the wait was shorter before 8 pm and longer later.",
+          "published_at": "2026-08-15",
+          "captured_at": "2026-10-03T12:00:00+05:30",
+          "source_url": "https://example.com/happen/synthetic/courtyard-lantern",
+          "language": "en",
+          "truncated": false
+        }
+      ],
+      "eligibility_reasons": ["synthetic_candidate"],
+      "warnings": ["synthetic_development"]
+    },
+    {
+      "candidate_id": "platform-seats",
+      "provider_place_id": "synthetic:platform-seats",
+      "name": "Platform Seats",
+      "category_tags": ["restaurants"],
+      "source_url": "https://example.com/happen/synthetic/platform-seats",
+      "opening_intervals": [
+        {
+          "date": "2026-10-03",
+          "opens_at": "18:00:00",
+          "closes_at": "23:00:00",
+          "source_url": "https://example.com/happen/synthetic/platform-seats",
+          "confidence": "verified"
+        }
+      ],
+      "busyness_observations": [],
+      "review_excerpts": [
+        {
+          "excerpt_id": "platform-seats-1",
+          "candidate_id": "platform-seats",
+          "text": "Synthetic note: the side seating stayed comfortable through the middle of the evening.",
+          "published_at": "2026-09-20",
+          "captured_at": "2026-10-03T12:00:00+05:30",
+          "source_url": "https://example.com/happen/synthetic/platform-seats",
+          "language": "en",
+          "truncated": false
+        }
+      ],
+      "eligibility_reasons": ["synthetic_candidate"],
+      "warnings": ["synthetic_development", "missing_busyness"]
+    }
+  ],
+  "source_urls": [
+    "https://example.com/happen/synthetic/north-gallery",
+    "https://example.com/happen/synthetic/courtyard-lantern",
+    "https://example.com/happen/synthetic/platform-seats"
+  ],
+  "safe_request_ids": ["synthetic-indiranagar-dinner"],
+  "attribution": "Synthetic development fixture. Restaurant names, hours, typical busyness, and review notes are fictional and are not a SerpApi capture.",
+  "disclaimer": "Synthetic development evidence. Planning evidence—not live occupancy.",
+  "expected_structure": {
+    "candidate_count": 3,
+    "labeled_synthetic": true
+  }
+}

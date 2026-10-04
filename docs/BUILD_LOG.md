@@ -218,3 +218,93 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - CORS and `VITE_API_BASE_URL` reference the other service's `RENDER_EXTERNAL_URL`. No wildcard and no content-security-policy header until the real hosts exist.
 - The Hook characterization test is not part of this tree. The backend job runs the full pytest suite, so the test joins CI when it is added. Browser tests stay out of this workflow.
 
+## Domain contracts and scoring
+
+- Date: 2026-10-04
+- Queue step: P2.1
+- Result: hours, windows, temporal mapping, and scoring policy v1 pass locally. No recommendation endpoint yet.
+- Product behavior changed: the backend can score normalized evidence. The page still cannot request a recommendation.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src` and `backend/tests`.
+- `uv run pytest` passed, 51 tests, including repeated identical decisions and the locked label boundaries.
+- No threshold was relaxed. No secret was printed.
+
+### Decisions
+
+- Evening bands use the window start in `Asia/Kolkata`: early 17:00–19:00, mid 19:00–21:00, late 21:00–23:00. Saturday and Sunday are the weekend.
+- A verified window exists only when the full 30 minutes sit inside both the request and a verified opening interval. Closed, missing, unparseable, and contradictory hours produce no verified window.
+- Short wait keeps the ordinary weights when one source is missing: popularity 0.60, wait reviews 0.40. Fit always divides by six.
+- Confidence uses the locked weights. Coverage counts a priority only when applicable evidence exists, and short wait counts only the sources that are present. Temporal specificity, quality, agreement, and freshness are means over applicable evidence. No applicable evidence scores confidence 0 and the fit label unknown.
+- A recommendation requires two supported candidates. A third unsupported candidate stays a partial result. Selection order is fit, confidence, first-priority dimension, earlier arrival, then normalized name.
+- `docs/HANDOFF.md` stays the locked plan. Progress for this step is recorded here and in `docs/HANDOFF2.md`.
+
+## Fixture schema and adapter
+
+- Date: 2026-10-04
+- Queue step: P2.2
+- Result: a labeled synthetic Indiranagar dinner fixture loads through a checksummed adapter. Missing, checksum, and schema failures use different error codes.
+- Product behavior changed: the backend can load fictional normalized places. The page still cannot request a recommendation, and metadata does not call this file a captured fixture.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src` and `backend/tests`.
+- `uv run pytest` passed, 60 tests.
+- `python3 scripts/scan-secrets.py` passed.
+- The installed scenario checksum is `e5168468129b4e2a8acf76db1014c7778cc4ee3a8985c0d520fe87265bcc2ad6`.
+
+### Decisions
+
+- The development fixture uses `data_label=synthetic_development`. It is not `live` and not a verified SerpApi capture. Excerpts start with `Synthetic note:`.
+- The loader returns normalized places, hours, busyness, and excerpts. It does not store a winning window. Runtime scoring still has to calculate the result.
+- A checksum or schema failure stops the load. Evidence older than seven days still loads with `stale=true`.
+- `/api/v1/meta` keeps `fixture_available=false` until a recommendation response can show this label. Reporting it as a captured fixture on the current page would be inaccurate.
+
+## Gemma extraction and validation
+
+- Date: 2026-10-04
+- Queue step: P2.3
+- Result: the validator keeps exact spans and drops the rest. One local extraction of the synthetic north-gallery excerpt was partially accepted on attempt 1, with 0 signals, 2 rejected signals, and all three dimensions unknown.
+- Product behavior changed: extraction can run in-process when called. The page and health endpoint still report the model as not loaded.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src` and `backend/tests`.
+- `uv run pytest` passed, 68 tests, including the local extraction test.
+- `python3 scripts/scan-secrets.py` passed.
+- The real run did not put a quoted span into scoring. Raw model text was not copied here.
+
+### Decisions
+
+- One markdown fence is stripped, and integer schema version 1 is read as `"1"`. A signal that fails the schema is dropped. A missing dimension becomes unknown. A non-list or more than six signals makes the document malformed.
+- A malformed document gets one retry. A parsed document, including an all-unknown result, does not.
+- The model loads on first extraction, after a checksum check, and is not loaded at health startup. `fixture_available` stays false.
+- The real extraction used the synthetic fixture excerpt. Untuned 270M output stayed behind the validator.
+
+## Fixture recommendation API
+
+- Date: 2026-10-04
+- Queue step: P2.4
+- Result: `POST /api/v1/demo-recommendations` returns three timelines. Accepted evidence selects one moment and a different-restaurant fallback. An all-unknown extraction returns insufficient evidence and no winner.
+- Product behavior changed: the fixture endpoint scores in process. The page still leaves Find the moment off, and metadata still reports the fixture as unavailable.
+- Cost changed: no
+
+### Evidence
+
+- `uv run ruff format --check` and `uv run ruff check` passed for `backend/src` and `backend/tests`.
+- `uv run pytest` passed, 77 tests.
+- `python3 scripts/scan-secrets.py` passed.
+- The characterization test uses exact quoted spans and does not load the model. The installed fixture with no accepted review evidence does not invent a recommendation.
+
+### Decisions
+
+- Provenance mode is `captured_fixture`. The response also carries `data_label=synthetic_development` and the planning disclaimer, because this file is not a SerpApi capture.
+- `/api/v1/meta` keeps `fixture_available=false`, so the current page does not describe the synthetic file as captured evidence.
+- A completed identical idempotency key replays the decision with a new request id and generation time. A different payload for that key returns `IDEMPOTENCY_CONFLICT`. Errors are not stored as successes.
+- The rolling recommendation limit defaults to 30 requests per 60 seconds, with at most three active recommendations. Health checks are not counted.
+- The model still loads only when an extraction has no scripted substitute. A missing model file returns `MODEL_UNAVAILABLE` without importing the runtime.
+

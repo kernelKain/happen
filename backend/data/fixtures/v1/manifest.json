@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_version": "1.0.0",
+  "scenarios": [
+    {
+      "scenario_id": "indiranagar-dinner",
+      "path": "scenarios/indiranagar-dinner.json",
+      "sha256": "e5168468129b4e2a8acf76db1014c7778cc4ee3a8985c0d520fe87265bcc2ad6"
+    }
+  ]
+}
