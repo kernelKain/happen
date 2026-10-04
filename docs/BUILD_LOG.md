@@ -438,3 +438,25 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Excerpts that contained a phone-number pattern would have been dropped. None of the kept excerpts matched that pattern.
 - Review-source links that point at a contributor profile are replaced with the restaurant's Maps URL. This capture did not need that replacement.
 
+## Gemma baseline
+
+- Date: 2026-10-04
+- Queue step: P3.5
+- Result: The untuned 270M model missed the held-out extraction gate. No tuned adapter was selected.
+- Product behavior changed: no. Find the moment still scores the synthetic fixture.
+- Cost changed: no
+
+### Evidence
+
+- Training examples: 100. Held-out examples: 30. The splits do not share text. Fourteen held-out examples are negative, unsupported, conflicting, or injection-oriented.
+- Sampling locked in the report: temperature 0, seed 0, 384 tokens, repeat penalty 1, one schema retry.
+- Parse rate: 2/30 = 6.7%. Dimension-plus-polarity accuracy: 4/90 = 4.4%. Required gate: 95% parse and 80% accuracy.
+- The two parsed excerpts were `hold-005` and `hold-027`, with 2 of 3 pairs correct on each. A failed reply used a fenced object that was not the extraction schema.
+- Report: `ml/reports/baseline-270m.json`. `uv run pytest` passed, 118 tests.
+- No SerpApi search was spent. The 1B fallback was not downloaded.
+
+### Decisions
+
+- The shipping artifact stays `google_gemma-3-270m-it-Q4_K_M.gguf`. An adapter is selected only after a measured held-out gain of at least five percentage points without more invalid outputs.
+- The Colab notebook trains a short QLoRA adapter and prints an estimate. It does not merge, quantize, or replace the manifest.
+

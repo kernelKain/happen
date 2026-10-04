@@ -6,7 +6,7 @@ This is the running notebook for the build. A new chat must read this file befor
 
 ## Resume for the next chat
 
-Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. A sanitized SerpApi snapshot for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar is saved separately and is not wired to the page. Replay of that snapshot matched the live decision: insufficient evidence and no winner. The public Render URL is still missing.
+Find the moment still scores the synthetic fixture. A real submit returns three timelines and no winner, because the installed model kept no review spans. The labeled winner layout remains at `/?layout=sample`. A sanitized SerpApi snapshot for Bombay Brasserie, Truffles - Indiranagar, and Chianti, Indiranagar is saved separately and is not wired to the page. Replay of that snapshot matched the live decision: insufficient evidence and no winner. The untuned Gemma baseline parsed 2 of 30 held-out excerpts and scored 4.4% dimension-plus-polarity accuracy, so it does not meet the extraction gate. No tuned adapter has been measured. The public Render URL is still missing.
 
 `docs/HANDOFF.md` section 27 still says the build has not started. That section is the locked planning snapshot. This file is the progress log.
 
@@ -100,7 +100,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Find the moment scores the synthetic fixture. A sanitized SerpApi snapshot is saved and is not wired to the page. The public URL is still not deployed. |
+| Status | Find the moment scores the synthetic fixture. The Gemma baseline missed the extraction gate. Tuning waits on a Colab run. The public URL is still not deployed. |
 | Last finished step | Capture and verify canonical fixture |
 | Next step | Evaluate and optionally tune Gemma |
 | Branch | `live-sponsor` |
@@ -472,14 +472,16 @@ Your side after this step:
 
 ### Evaluate and optionally tune Gemma
 
-Status: **Not started.**
+Status: **Baseline recorded** on October 4, 2026. The extraction gate did not pass. No adapter was selected.
 
-Cursor builds the held-out set, measures the base 270M model, and keeps a tuned adapter only if it is better. If tuning does not improve the locked scores, the untuned model ships.
+The held-out set has 30 authored examples, and the training set has 100. They do not share text. At least 20% of the held-out examples are negative, unsupported, conflicting, or injection-oriented. The installed untuned `google_gemma-3-270m-it-Q4_K_M.gguf` was measured with temperature 0, seed 0, and one schema retry. It parsed 2 of 30 excerpts (6.7%) and scored 4 of 90 dimension-plus-polarity pairs (4.4%). The required gate is 95% parse and 80% accuracy. The two parsed excerpts still missed one pair each. Replies that failed were not valid schema JSON. The report is `ml/reports/baseline-270m.json`. The shipping artifact stays the untuned 270M file until a measured adapter improves held-out accuracy by at least five percentage points without increasing invalid outputs.
 
-Your side after Cursor finishes:
+`uv run pytest` passed, 118 tests. Ruff passed. No SerpApi search was spent.
 
-1. For the training attempt, open a free Colab T4 notebook from `ml/` and let it run, or say that Colab is unavailable.
-2. Read the evaluation numbers. Do not publish a score that is not in the evaluation report.
+Your side:
+
+1. Open `ml/tune_extraction.ipynb` on a free Colab T4 and let it run, or say that Colab is unavailable. The base model is gated, so Colab needs a read-only `HF_TOKEN` in secrets. Upload `ml/extraction/train.jsonl` and `ml/extraction/held_out.jsonl` if Colab cannot see the repository.
+2. Paste the two printed Colab estimate lines. Do not publish any score that is not in the baseline report or in that Colab output.
 
 ### Deploy and smoke the sponsor vertical slice
 
@@ -750,7 +752,7 @@ Your side:
 | Normalize and select candidates | Done | `Normalize provider places into three candidates or an insufficiency result.` | Nothing. |
 | Live orchestration | Done | `Serve live recommendations without substituting fixture evidence.` | Nothing. |
 | Capture and verify canonical fixture | Done | `Save the sanitized Indiranagar capture and verify its replay matches the live decision.` | Skim the sanitized fixture and say if anything private must be removed. |
-| Evaluate and optionally tune Gemma | Not started | — | Colab T4, then read the scores. |
+| Evaluate and optionally tune Gemma | Baseline recorded | `Record the untuned Gemma baseline that misses the extraction gate.` | Run `ml/tune_extraction.ipynb` on a free Colab T4, or say Colab is unavailable. Paste the two printed estimate lines. |
 | Deploy and smoke the sponsor slice | Not started | — | Deploy and open the public URL. |
 | Result states, evidence, and responsive reveal | Not started | — | Look at the states and the 1280px screen. |
 | Friend walkthrough | Not started | — | Friend walkthrough. You send the paraphrase. |

@@ -16,6 +16,10 @@ from happen_api.domain.models import ReviewExcerpt
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _LOCK = threading.Lock()
 _MODEL: object | None = None
+TEMPERATURE = 0.0
+MAX_TOKENS = 384
+REPEAT_PENALTY = 1.0
+SEED = 0
 
 
 class ExtractionError(Exception):
@@ -55,10 +59,10 @@ def _model_generate(settings: Settings) -> Callable[[str], str]:
             model = _load_model(settings)
             response = model.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=384,
-                repeat_penalty=1.0,
-                seed=0,
+                temperature=TEMPERATURE,
+                max_tokens=MAX_TOKENS,
+                repeat_penalty=REPEAT_PENALTY,
+                seed=SEED,
             )
         return _message_text(response)
 
