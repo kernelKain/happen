@@ -1,0 +1,61 @@
+Read the project instructions and current progress documents first. Confirm the branch is global-live-experience and do not push or deploy.
+
+Implement destination resolution using SerpAPI only for external location data.
+
+Requirements:
+
+- Use SerpAPI’s free Locations API for canonical location matching where it fits.
+- Use a bounded Maps Autocomplete or Maps lookup only when the free lookup cannot resolve enough information.
+- A paid fallback must consume the same eight-request budget used by the later plan request.
+- Return up to three disambiguation choices rather than guessing.
+- Store the canonical display name, country/region, latitude, longitude, SerpAPI location value when available, confidence, and resolution source.
+- Do not add another geocoder or place-data provider.
+- Add an exact compatible timezonefinder dependency and update the lockfile.
+- Derive the IANA timezone offline from resolved coordinates and use Python zoneinfo for date/time logic.
+- Resolve relative dates only after the destination timezone is known.
+- Represent DST gaps, ambiguous local times, unsupported locations, and missing coordinates explicitly.
+- Do not retain or log raw provider payloads.
+- Extend the existing SerpAPI client instead of creating a disconnected second client.
+- Mock every provider call in normal tests.
+
+Test Jaipur, London, New York, Tokyo, an ambiguous Springfield query, an invalid location, DST boundaries, and destination-local “today” or “tomorrow.”
+
+Update progress documentation and run backend checks and the secret scanner.
+
+Commit exactly:
+
+Resolve destinations in their local time.
+
+Stop after the commit and report the hash, tests, and git status.
+
+---
+
+Read AGENTS.md and the product/progress contracts first. Confirm the correct branch. Do not push, deploy, use hosted inference, or commit a model binary.
+
+Build a reproducible quality gate for local Gemma rather than assuming that a valid GGUF file is a capable model.
+
+Requirements:
+
+- Preserve and report the current Gemma 3 270M baseline.
+- Add a planning-interpretation evaluation dataset covering multiple countries, currencies, local dates, two-intent prompts, missing information, ambiguity, and adversarial prompt text.
+- Measure strict JSON/schema parse rate and essential-field accuracy for planning interpretation.
+- Continue measuring review evidence extraction using the existing held-out dataset.
+- Record model load time, inference latency, file size, and peak memory where the local environment can measure them.
+- Evaluate a publicly downloadable Gemma 3 1B instruction-tuned Q4 GGUF only if a trustworthy source, immutable filename, and checksum can be pinned without requiring HF_TOKEN.
+- If that artifact cannot be verified or does not fit the project’s resource constraints, document the reason and continue safely with deterministic interpretation.
+- Never commit *.gguf files. Update scripts/download-model.py and ml/model-manifest.json only for a verified selected artifact.
+- Selection gates are at least 95% strict schema parsing, 90% essential planning-field accuracy, and 80% review dimension-plus-polarity accuracy.
+- A failed model gate must disable model-derived claims. The deterministic parser remains usable.
+- Separate artifact integrity from measured quality in readiness and health metadata.
+- Gemma may propose structured preferences only. It must never choose the winning place, invent place facts, or bypass validation.
+- Tests must mock inference and must work without the GGUF present.
+
+Store reproducible aggregate reports under ml/reports without personal data, raw provider payloads, or secrets. Update HANDOFF2 and BUILD_LOG honestly, including failed gates.
+
+Run all relevant backend tests, evaluation commands that are feasible locally, and the secret scanner.
+
+Commit exactly:
+
+Measure local model quality for planning.
+
+Stop after the commit and report the selected fallback, measured results, hash, and git status.

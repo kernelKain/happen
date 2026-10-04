@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M4472FECZHQ5W7ZHMYWESCVE",
+  "strategy": "manual-commit",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "backend/src/happen_api/ai/evaluate.py",
+    "backend/src/happen_api/ai/extractor.py",
+    "backend/src/happen_api/ai/measure.py",
+    "backend/src/happen_api/ai/planning_dataset.py",
+    "backend/src/happen_api/ai/planning_proposal.py",
+    "backend/src/happen_api/ai/quality.py",
+    "backend/src/happen_api/api/health.py",
+    "backend/src/happen_api/recommendations/service.py",
+    "backend/tests/contract/test_demo_recommendations.py",
+    "backend/tests/contract/test_health_meta.py",
+    "backend/tests/unit/test_planning_quality.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "ml/reports/model-quality.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ]
+}

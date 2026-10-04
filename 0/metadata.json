@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M4472FECZHQ5W7ZHMYWESCVE",
+  "session_id": "8139fa1d-a298-4685-87a0-02a5b1e7be94",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-04T19:43:21.79646252Z",
+  "branch": "global-live-experience",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "backend/src/happen_api/ai/evaluate.py",
+    "backend/src/happen_api/ai/extractor.py",
+    "backend/src/happen_api/ai/measure.py",
+    "backend/src/happen_api/ai/planning_dataset.py",
+    "backend/src/happen_api/ai/planning_proposal.py",
+    "backend/src/happen_api/ai/quality.py",
+    "backend/src/happen_api/api/health.py",
+    "backend/src/happen_api/recommendations/service.py",
+    "backend/tests/contract/test_demo_recommendations.py",
+    "backend/tests/contract/test_health_meta.py",
+    "backend/tests/unit/test_planning_quality.py",
+    "docs/BUILD_LOG.md",
+    "docs/HANDOFF2.md",
+    "ml/reports/model-quality.json"
+  ],
+  "agent": "Cursor",
+  "model": "grok-4.7-high",
+  "turn_id": "f53ab5710a83",
+  "checkpoint_transcript_start": 52,
+  "transcript_lines_at_start": 52,
+  "compact_transcript_start": 6,
+  "session_metrics": {
+    "turn_count": 3,
+    "context_tokens": 242060,
+    "context_window_size": 256000
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-04T19:43:21.766683162Z",
+    "agent_lines": 1721,
+    "agent_removed": 47,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1721,
+    "total_lines_changed": 1768,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
