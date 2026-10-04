@@ -24,7 +24,7 @@ from happen_api.domain.models import (
 )
 from happen_api.domain.scoring import decide
 from happen_api.domain.timing import KOLKATA, generate_arrival_windows, temporal_relevance
-from happen_api.fixtures.loader import load_fixture
+from happen_api.fixtures.loader import captured_fixture_root, load_fixture
 from happen_api.fixtures.schema import FixtureError, FixtureRequest, LoadedFixture
 from happen_api.recommendations.contracts import (
     NormalizedInput,
@@ -75,7 +75,12 @@ def recommend_demo(
     """Load the matching fixture, reuse a cached result, or score it."""
 
     try:
-        loaded = load_fixture(_fixture_request(body), visit_date=body.visit_date, as_of=now)
+        loaded = load_fixture(
+            _fixture_request(body),
+            visit_date=body.visit_date,
+            root=captured_fixture_root(),
+            as_of=now,
+        )
     except FixtureError as exc:
         raise _fixture_failure(exc) from None
     cache_key = _cache_key(body, loaded, settings)
@@ -430,7 +435,7 @@ def _selected(
 
 
 def _fixture_notices(loaded: LoadedFixture) -> list[WarningItem]:
-    notices = [WarningItem(code="synthetic_development", message=loaded.disclaimer)]
+    notices = [WarningItem(code=loaded.data_label, message=loaded.disclaimer)]
     if loaded.stale:
         notices.append(
             WarningItem(

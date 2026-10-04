@@ -47,10 +47,16 @@ def test_matching_fixture_returns_three_rows_and_no_invented_winner(
     assert body["fallback"] is None
     assert len(body["candidates"]) == 3
     assert body["provenance"]["mode"] == "captured_fixture"
-    assert body["provenance"]["data_label"] == "synthetic_development"
+    assert body["provenance"]["data_label"] == "captured_fixture"
     assert body["provenance"]["adapter_id"] == "none"
     assert "Planning evidence—not live occupancy." in body["warnings"][0]["message"]
-    assert body["input"]["visit_date"] == "2026-10-03"
+    assert body["input"]["visit_date"] == "2026-10-04"
+    assert {candidate["name"] for candidate in body["candidates"]} == {
+        "Bombay Brasserie",
+        "Truffles - Indiranagar",
+        "Chianti, Indiranagar",
+    }
+    assert "synthetic" not in response.text.lower()
     labels = [
         window["fit_label"] for candidate in body["candidates"] for window in candidate["windows"]
     ]
@@ -94,9 +100,10 @@ def test_repeated_key_reuses_the_decision_and_refreshes_the_clock(demo_client: T
         json=CANONICAL_PRESET,
     )
     assert first.status_code == 200
+    assert calls["count"] == 9
     assert second.status_code == 200
     assert replay.status_code == 200
-    assert calls["count"] == 3
+    assert calls["count"] == 9
     assert first.json()["outcome"] == replay.json()["outcome"]
     assert first.json()["request_id"] != replay.json()["request_id"]
 

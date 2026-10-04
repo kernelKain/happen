@@ -18,6 +18,7 @@ from happen_api.errors import error_response, message_for, public_field_errors
 from happen_api.logging import configure_logging, get_logger
 from happen_api.middleware import BodyLimitMiddleware, RequestContextMiddleware, current_request_id
 from happen_api.providers.serpapi.guard import LiveGuard
+from happen_api.readiness import captured_fixture_status
 from happen_api.recommendations.memory import RecommendationMemory
 
 
@@ -35,7 +36,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.state.settings = resolved
     application.state.started_at = time.monotonic()
-    application.state.fixture_available = False
+    _, fixture_available = captured_fixture_status()
+    application.state.fixture_available = fixture_available
     application.state.recommendation_memory = RecommendationMemory()
     application.state.live_guard = LiveGuard(budget=resolved.serpapi_search_budget)
     application.state.excerpt_generate = None
@@ -43,7 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.clock = None
     application.state.monotonic = None
 
-    application.add_middleware(BodyLimitMiddleware, fixture_available=False)
+    application.add_middleware(BodyLimitMiddleware, fixture_available=fixture_available)
     application.add_middleware(RequestContextMiddleware)
     application.add_middleware(
         CORSMiddleware,

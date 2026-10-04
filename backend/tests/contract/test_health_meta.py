@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -55,12 +57,16 @@ def client(settings: Settings) -> TestClient:
     return TestClient(create_app(settings), raise_server_exceptions=False)
 
 
-def test_health_is_degraded_without_loading_the_model(client: TestClient) -> None:
+def test_health_is_degraded_without_loading_the_model(
+    settings_factory: Callable[..., Settings],
+) -> None:
     """Verify health responds quickly with degraded readiness without importing the model runtime."""
 
+    missing = settings_factory(MODEL_FILENAME="missing-evidence-model.gguf")
+    missing_client = TestClient(create_app(missing), raise_server_exceptions=False)
     assert "llama_cpp" not in sys.modules
     started = time.perf_counter()
-    response = client.get("/healthz")
+    response = missing_client.get("/healthz")
     elapsed = time.perf_counter() - started
 
     assert elapsed < 1
@@ -71,16 +77,51 @@ def test_health_is_degraded_without_loading_the_model(client: TestClient) -> Non
     assert body["service_version"] == __version__
     assert body["contract_version"] == CONTRACT_VERSION
     assert body["model_status"] == "not_loaded"
-    assert body["fixture_status"] == "unavailable"
+    assert body["fixture_status"] == "ready"
     assert body["uptime_seconds"] >= 0
     assert response.headers["x-content-type-options"] == "nosniff"
     assert "llama_cpp" not in sys.modules
 
 
-def test_metadata_exposes_the_canonical_preset(client: TestClient) -> None:
+def test_matching_model_file_is_ready_without_loading_llama(
+    settings_factory: Callable[..., Settings],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify a checksum match reports the model ready without importing the runtime."""
+
+    blob = b"not-a-real-model"
+    path = tmp_path / "tiny.gguf"
+    path.write_bytes(blob)
+    monkeypatch.setattr("happen_api.readiness.model_file", lambda _settings: path)
+    ready = settings_factory(
+        MODEL_FILENAME="tiny.gguf", MODEL_SHA256=hashlib.sha256(blob).hexdigest()
+    )
+    ready_client = TestClient(create_app(ready), raise_server_exceptions=False)
+    response = ready_client.get("/healthz")
+    body = response.json()
+    assert response.status_code == 200
+    assert body["model_status"] == "ready"
+    assert body["fixture_status"] == "ready"
+    assert body["status"] == "ok"
+    assert "llama_cpp" not in sys.modules
+
+    mismatch = settings_factory(MODEL_FILENAME="tiny.gguf", MODEL_SHA256="0" * 64)
+    mismatch_client = TestClient(create_app(mismatch), raise_server_exceptions=False)
+    rejected = mismatch_client.get("/healthz")
+    assert rejected.status_code == 200
+    assert rejected.json()["model_status"] == "unavailable"
+    assert rejected.json()["status"] == "degraded"
+    assert "llama_cpp" not in sys.modules
+
+
+def test_metadata_exposes_the_canonical_preset(
+    settings_factory: Callable[..., Settings],
+) -> None:
     """Verify metadata matches the locked planner preset, choices, and availability contract."""
 
-    response = client.get("/api/v1/meta")
+    missing = settings_factory(MODEL_FILENAME="missing-evidence-model.gguf")
+    response = TestClient(create_app(missing)).get("/api/v1/meta")
     assert response.status_code == 200
     body = response.json()
     assert set(body) == META_FIELDS
@@ -96,7 +137,7 @@ def test_metadata_exposes_the_canonical_preset(client: TestClient) -> None:
         "desired_experience": "easier_conversation",
         "priorities": ["conversation", "short_wait", "seating"],
     }
-    assert body["fixture_available"] is False
+    assert body["fixture_available"] is True
     assert body["live_available"] is False
     assert body["model_status"] == "not_loaded"
     assert body["scoring_policy_version"] == SCORING_POLICY_VERSION
@@ -156,7 +197,7 @@ def test_unknown_path_uses_the_error_envelope(client: TestClient) -> None:
     assert body["contract_version"] == CONTRACT_VERSION
     assert set(body["error"]) == ERROR_FIELDS
     assert body["error"]["code"] == "NOT_FOUND"
-    assert body["error"]["fixture_available"] is False
+    assert body["error"]["fixture_available"] is True
     assert "Traceback" not in response.text
 
 

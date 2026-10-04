@@ -175,7 +175,7 @@ def test_live_mode_disabled_does_not_call_a_provider_or_the_fixture(
     assert response.status_code == 503
     body = response.json()
     assert body["error"]["code"] == "LIVE_MODE_DISABLED"
-    assert body["error"]["fixture_available"] is False
+    assert body["error"]["fixture_available"] is True
     assert "North Gallery" not in response.text
     assert "captured_fixture" not in response.text
     assert "live-key-value" not in response.text
@@ -231,7 +231,7 @@ def test_provider_failure_stays_an_error_and_opens_the_circuit(settings_factory)
     assert statuses == [503, 503, 503]
     assert blocked.status_code == 503
     assert blocked.json()["error"]["code"] == "SERPAPI_UNAVAILABLE"
-    assert blocked.json()["error"]["fixture_available"] is False
+    assert blocked.json()["error"]["fixture_available"] is True
     assert "North Gallery" not in blocked.text
     assert len(providers) == 3
 
@@ -289,7 +289,7 @@ def test_deadline_expires_before_a_provider_call(settings_factory) -> None:
 
     assert response.status_code == 504
     assert response.json()["error"]["code"] == "PROCESSING_TIMEOUT"
-    assert response.json()["error"]["fixture_available"] is False
+    assert response.json()["error"]["fixture_available"] is True
     assert providers == []
     assert "North Gallery" not in response.text
 
@@ -319,7 +319,7 @@ def test_unreadable_search_stays_an_invalid_response(settings_factory) -> None:
 
     assert response.status_code == 502
     assert response.json()["error"]["code"] == "SERPAPI_INVALID_RESPONSE"
-    assert response.json()["error"]["fixture_available"] is False
+    assert response.json()["error"]["fixture_available"] is True
     assert "North Gallery" not in response.text
 
 

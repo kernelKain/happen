@@ -60,7 +60,7 @@ export const recommendationSchema = z.object({
   contract_version: z.string().min(1),
   outcome: z.enum(["recommendation", "partial_evidence", "insufficient_evidence"]),
   provenance: z.object({
-    mode: z.literal("captured_fixture"),
+    mode: z.enum(["live", "captured_fixture"]),
     captured_at: z.string().min(1),
     generated_at: z.string().min(1),
     timezone: z.string().min(1),
@@ -71,7 +71,7 @@ export const recommendationSchema = z.object({
     fixture_version: z.string().min(1),
     contract_version: z.string().min(1),
     stale: z.boolean(),
-    data_label: z.literal("synthetic_development"),
+    data_label: z.enum(["synthetic_development", "captured_fixture", "live"]),
   }),
   candidates: z.array(candidateSchema).length(3),
   recommendation: selectedMomentSchema.nullable(),
@@ -89,29 +89,54 @@ const errorSchema = z.object({
     code: z.string().min(1),
     message: z.string().min(1),
     next_action: z.string().min(1),
+    fixture_available: z.boolean().optional(),
   }),
 });
 
 export class RecommendationRequestError extends Error {
   readonly code: string;
   readonly nextAction: string;
+  readonly fixtureAvailable: boolean;
 
-  constructor(code: string, message: string, nextAction: string) {
+  constructor(code: string, message: string, nextAction: string, fixtureAvailable = false) {
     super(message);
     this.name = "RecommendationRequestError";
     this.code = code;
     this.nextAction = nextAction;
+    this.fixtureAvailable = fixtureAvailable;
   }
 }
 
-/** Ask the fixture endpoint to score the planner request. Each call uses a new idempotency key. */
+/** Ask the captured-fixture endpoint to score the planner request. */
 export async function requestDemoRecommendation(
   body: CanonicalPreset,
   fetchImpl: typeof fetch = fetch,
   options: { origin?: string; timeoutMs?: number; idempotencyKey?: string } = {},
 ): Promise<RecommendationResult> {
+  return requestRecommendation(body, "/api/v1/demo-recommendations", fetchImpl, {
+    ...options,
+    timeoutMs: options.timeoutMs ?? 90_000,
+  });
+}
+
+/** Ask SerpApi for a live recommendation. This does not fall back to the fixture. */
+export async function requestLiveRecommendation(
+  body: CanonicalPreset,
+  fetchImpl: typeof fetch = fetch,
+  options: { origin?: string; timeoutMs?: number; idempotencyKey?: string } = {},
+): Promise<RecommendationResult> {
+  return requestRecommendation(body, "/api/v1/recommendations", fetchImpl, options);
+}
+
+/** Post one planner request and parse either a recommendation or the public error envelope. */
+async function requestRecommendation(
+  body: CanonicalPreset,
+  path: string,
+  fetchImpl: typeof fetch,
+  options: { origin?: string; timeoutMs?: number; idempotencyKey?: string },
+): Promise<RecommendationResult> {
   const origin = options.origin ?? apiOrigin();
-  const response = await fetchImpl(`${origin}/api/v1/demo-recommendations`, {
+  const response = await fetchImpl(`${origin}${path}`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -129,6 +154,7 @@ export async function requestDemoRecommendation(
         parsed.data.error.code,
         parsed.data.error.message,
         parsed.data.error.next_action,
+        parsed.data.error.fixture_available ?? false,
       );
     }
     throw new RecommendationRequestError(

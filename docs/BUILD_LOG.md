@@ -480,3 +480,23 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - The shipping artifact stays `google_gemma-3-270m-it-Q4_K_M.gguf`.
 - This estimate is not a local held-out measurement and does not replace `ml/reports/baseline-270m.json`.
 
+## Wire the captured fixture and report installed artifacts
+
+- Date: 2026-10-04
+- Result: Find the moment scores the captured Indiranagar fixture. Health and metadata report that fixture and the model file that is actually on disk. The extraction gate is still missed.
+- Product behavior changed: yes. The page no longer scores the synthetic fixture. Live requests stay on the live route until the user chooses captured evidence.
+- Cost changed: no. No new provider and no hosted model API.
+
+### Evidence
+
+- `POST /api/v1/demo-recommendations` loads `backend/data/fixtures/captured/v1` and labels the result `captured_fixture`.
+- `/healthz` and `/api/v1/meta` no longer hardcode `not_loaded` and `fixture_available=false`. A missing model file stays `not_loaded`. A checksum match is `ready`. The captured fixture verifies as `ready`.
+- The page accepts `live` and `captured_fixture` provenance. A live failure can offer **Use captured evidence**. It does not call the fixture by itself.
+- Fence stripping keeps a valid extraction when explanation text follows the closing fence. The held-out baseline remains 6.7% parse and 4.4% accuracy. No adapter was selected.
+- `render.yaml` points `happen-web` and `happen-api` at `live-sponsor`. The backend build runs `scripts/download-model.py`. The public GGUF does not need a Hugging Face token. The running public site stays on the older deploy until Render is updated.
+
+### Decisions
+
+- Keep the untuned 270M file. Do not treat the failed fine-tune as a passing model, and do not add another model API.
+- The synthetic fixture remains in the repository for the earlier labeled tests. It is not the page source.
+

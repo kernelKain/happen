@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { SAMPLE_RESULT } from "../../app/result/sample";
 import { LOCAL_PRESET } from "./meta";
-import { recommendationSchema, requestDemoRecommendation } from "./recommendation";
+import {
+  recommendationSchema,
+  requestDemoRecommendation,
+  requestLiveRecommendation,
+} from "./recommendation";
 
 describe("recommendation result", () => {
   it("renders the canonical sample as three rows, one primary, and a different fallback", () => {
@@ -13,6 +17,20 @@ describe("recommendation result", () => {
     expect(result.recommendation?.fit_label).toBe("strong");
     expect(result.recommendation?.confidence_label).toBe("high");
     expect(result.provenance.data_label).toBe("synthetic_development");
+    const live = recommendationSchema.parse({
+      ...SAMPLE_RESULT,
+      provenance: { ...SAMPLE_RESULT.provenance, mode: "live", data_label: "live" },
+    });
+    expect(live.provenance.mode).toBe("live");
+    const captured = recommendationSchema.parse({
+      ...SAMPLE_RESULT,
+      provenance: {
+        ...SAMPLE_RESULT.provenance,
+        mode: "captured_fixture",
+        data_label: "captured_fixture",
+      },
+    });
+    expect(captured.provenance.data_label).toBe("captured_fixture");
     expect(result.provenance.scoring_policy_version).toBe("v1");
     expect(result.evidence.every((item) => item.quoted_span.length > 0)).toBe(true);
   });
@@ -42,6 +60,25 @@ describe("recommendation result", () => {
         body: JSON.stringify(LOCAL_PRESET),
       },
     ]);
+  });
+
+  it("posts a live request without calling the captured fixture", async () => {
+    const calls: string[] = [];
+    await requestLiveRecommendation(
+      LOCAL_PRESET,
+      async (input) => {
+        calls.push(String(input));
+        return new Response(
+          JSON.stringify({
+            ...SAMPLE_RESULT,
+            provenance: { ...SAMPLE_RESULT.provenance, mode: "live", data_label: "live" },
+          }),
+          { status: 200 },
+        );
+      },
+      { origin: "http://example.test", idempotencyKey: "22222222-2222-4222-8222-222222222222" },
+    );
+    expect(calls).toEqual(["http://example.test/api/v1/recommendations"]);
   });
 
   it("raises the public error message when the fixture endpoint rejects the request", async () => {
