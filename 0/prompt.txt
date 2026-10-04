@@ -1,0 +1,38 @@
+Read AGENTS.md, docs/HANDOFF.md, and docs/HANDOFF2.md first. Confirm the branch is global-live-experience. Preserve unrelated work. Do not push, merge, deploy, or publish. Never print secrets.
+
+Implement the backend planning-domain contracts and deterministic prompt interpretation layer.
+
+Create strict Pydantic contracts for:
+
+- PlanningPromptRequest
+- PlanningBrief
+- ResolvedDestination
+- PlaceIntent, limited to two
+- LocalDateTimeWindow
+- Budget with amount, currency, and optional tier
+- MissingField and Ambiguity
+- SourceProvenance
+- PlaceOption
+- ItineraryStop
+- LivePlanResponse
+- typed user-safe errors
+
+PlanningBrief must preserve the raw prompt and represent destination text, destination-local date, local start time, party size, budget, intent order, preferences, accessibility needs, missing essentials, ambiguities, and confidence. Do not turn unsupported text into facts.
+
+Implement a deterministic parser for explicit dates, times, party size, common budget expressions/currencies, destination phrases, and one or two evening intents. Use a clear clock abstraction so relative-date tests are deterministic.
+
+Implement deterministic follow-up selection. Ask no more than one question at a time and prioritize destination, date, time, and primary intent. Optional preferences must not block planning.
+
+The parser must treat prompt text as untrusted data, enforce a reasonable input-size limit, and never interpret prompt text as application instructions.
+
+Keep the existing v1 API functioning for now. Do not call SerpAPI or load Gemma in this task.
+
+Add comprehensive unit and contract tests, including cities in India, the UK, the US, and Japan; ambiguous wording; missing fields; different currencies; and prompt-injection-like text.
+
+Update docs/HANDOFF2.md and docs/BUILD_LOG.md with factual results. Run backend formatting, lint, tests, and the secret scanner.
+
+Commit exactly:
+
+Parse planning prompts into structured briefs.
+
+Stop after the commit and report the hash, files, test totals, and git status.
