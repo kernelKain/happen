@@ -785,3 +785,35 @@ Add `@types/react==19.3.0` and `@types/react-dom==19.3.0` because `react==19.3.0
 - Quota, timeout, and empty searches are not cached, so a later plan can try again.
 - An unconfigured live provider keeps the existing HTTP 503 message. The page shows that sentence.
 
+## Document and verify the global live experience
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: `README.md` now explains the prompt-led one-evening workflow, the Gemma and Python boundary, the measured quality result, SerpApi provenance and the eight-request cap, local setup, the model download, exact test commands, known limitations, and the remaining user-owned audit, walkthrough, deployment, and submission work. Automated checks passed. One live Jaipur plan spent 1 billed SerpApi request and stayed inside the cap of 8. No raw payload or review text was recorded.
+- Product behavior changed: no application behavior change. Documentation and the `.env.example` comment now distinguish the older live-guard budget from the eight-request plan cap.
+- Cost changed: yes, by one billed SerpApi request for the Jaipur smoke. No other live calls were made.
+
+### Evidence
+
+Commands and results, from a clean `global-live-experience` tree at `4865815` before this documentation:
+
+- `cd backend && uv sync` — resolved 51 packages, checked 49, success.
+- `uv run ruff format --check src tests ../scripts/scan-secrets.py` — 75 files already formatted.
+- `uv run ruff check src tests ../scripts/scan-secrets.py` — all checks passed.
+- `uv run pytest` — 239 passed.
+- `python3 scripts/scan-secrets.py` — exit 0, no findings.
+- `cd frontend && npm ci` — 119 packages added, 0 vulnerabilities.
+- `npm run check` — Biome checked 36 files, no fixes.
+- `npm test` — 40 passed.
+- `npm run build` — `tsc --noEmit` and the Vite build passed.
+- `npm run test:shell` — 15 Playwright tests passed, including axe and the 1280 and 390 viewports.
+
+`SERPAPI_API_KEY` was present in the ignored `.env` and absent from the process environment. One smoke resolved `Jaipur, Rajasthan, India` to timezone `Asia/Kolkata`, discovered with status `partial_evidence` (1 place), and assembled outcome `planned` with 1 stop whose hours were unknown. Credits charged: 1. `within_cap` was true. The summary contained no review text and no key.
+
+`git ls-files '*.gguf'` returned no tracked model files. `.env`, `ml/.cache/`, and `*.gguf` are ignored. The secret scanner reported nothing.
+
+### Decisions
+
+- The next action is an independent local audit. Manual testing, the friend walkthrough, deployment, and submission stay user-owned and were not requested in this step.
+- The 1B candidate stays unselected. The pinned artifact stays the 270M file, and the deterministic parser stays the reader.
+
