@@ -1,0 +1,361 @@
+hi
+
+---
+
+pull latest changes from github repo to lcoal repo
+
+---
+
+Implement an evidence-first redesign of Happen’s landing page, planning brief, and result experience so a first-time visitor immediately understands what the product does, why it is useful, and how its recommendation is supported.
+
+Repository: /home/kernel-kain/Documents/Github/happen
+
+Read and follow these sources before changing anything:
+
+1. AGENTS.md
+2. docs/HANDOFF2.md — read this first and follow its current next-step gate.
+3. Section 30 of docs/HANDOFF.md — this is the authoritative product contract.
+4. Existing frontend and backend tests relevant to the landing, timeline, plans, evidence, and refinements.
+
+Do not implement if HANDOFF2 still requires a user-owned local test and no later entry confirms that test is complete. In that case, stop and provide the exact frontend and backend commands needed for the test. Before beginning a new implementation phase, incorporate the latest landed CodeRabbit changes as required by the repository instructions.
+
+Once the gate is satisfied, create or use one appropriately named branch such as `evidence-first-interface`. Do not use phase or step numbers in branch names, commit messages, or code comments.
+
+# Product objective
+
+Happen should be positioned as a constrained, auditable evening-planning workflow:
+
+- The user describes one evening in natural language.
+- Happen converts it into an editable brief.
+- It retrieves live place information through SerpApi.
+- Python checks feasibility and deterministically selects at most two stops.
+- The interface clearly separates confirmed facts, unsupported details, and source evidence.
+- The result should feel like a usable itinerary, not an API response or a long chatbot answer.
+
+Do not claim Happen is universally better than ChatGPT. Demonstrate its task-specific advantage: it turns exploration into one constrained, source-audited decision.
+
+# Non-negotiable constraints
+
+- Python remains the only backend language.
+- The frontend remains React and TypeScript.
+- SerpApi remains the only external provider for place and supporting web data.
+- Do not add OpenRouter, `deepseek/deepseek-v4.1-flash`, or any hosted model API.
+- Do not add another place provider, paid service, database, authentication system, or persistent user data.
+- Gemma remains local and limited by the existing contract and quality gate.
+- Python continues to perform feasibility checks, scoring, and final selection.
+- Missing evidence remains unknown and must never be treated as favorable.
+- Production remains live-only; fixtures remain test data.
+- Do not push, merge, deploy, publish, or spend SerpApi credits unless explicitly requested.
+- Preserve existing user changes and unrelated untracked files.
+- Do not expose secrets or print `.env` values.
+
+# Landing-page copy
+
+Replace the current main proposition with:
+
+Headline:
+“Turn your evening into a checked plan.”
+
+Supporting sentence:
+“Describe your evening. Happen checks live place listings and returns one source-backed plan with up to two stops.”
+
+Composer label:
+“What would you like to do?”
+
+Primary action:
+“Build my evening”
+
+Live-search note:
+“Searches live place listings through SerpApi when you continue.”
+
+Use these three concise product promises:
+
+- “Live when you search” — “Place listings are retrieved through SerpApi for this evening.”
+- “Feasibility first” — “Opening hours and requested constraints are checked before a stop is chosen.”
+- “No hidden guesses” — “Anything the sources do not confirm is clearly marked.”
+
+Add a compact differentiation section below the primary composer:
+
+Heading:
+“Built to finish the decision”
+
+Copy:
+“General chat helps you explore possibilities. Happen narrows them into one feasible sequence, shows what was checked, and keeps unsupported details unknown.”
+
+Keep the initial desktop hero focused enough that the proposition, composer, primary action, and product promises are visible at 1280×800 without scrolling. Preserve a clean mobile experience at 390×844.
+
+# Stage-based experience
+
+Organize the customer journey into three visible states:
+
+- Describe
+- Review
+- Plan
+
+The interface does not need URL routing for these stages.
+
+Once the user reaches Review or Plan:
+
+- Collapse the large marketing hero into a compact application header.
+- Do not force the user to scroll past the landing content again.
+- Preserve the original prompt and existing state behavior.
+- Keep follow-up questions and ambiguous destination selection accessible.
+
+Desktop layout:
+
+- A sticky brief/controls rail.
+- A main stage or itinerary panel.
+- An optional evidence panel for the selected stop.
+- Avoid making the entire experience one long vertical document.
+
+Mobile layout:
+
+- A compact progress indicator.
+- Clear navigation between Plan, Brief, and Sources when a result exists.
+- Evidence may use an accessible disclosure or focused sheet.
+- Avoid horizontal overflow and oversized sticky elements.
+
+Use semantic HTML and accessible state attributes. Do not add a UI framework unless there is a demonstrated need; prefer the existing stack.
+
+# Compact planning brief
+
+Replace the always-expanded wall of fields with a compact review summary, for example:
+
+“Mexico City · Wed, Oct 14 · 6:00 PM”
+“Coffee → Museum · 2 people · USD 50,000”
+“Times shown in Mexico City local time.”
+
+Provide:
+
+- “Edit details”
+- “Check live places”
+
+Reveal the complete editable form only after “Edit details” is selected or when a missing/invalid value requires attention.
+
+Retain all existing capabilities:
+
+- destination editing and resolution;
+- local date and time;
+- party size;
+- budget and currency;
+- accessibility needs;
+- preferences;
+- intent ordering;
+- validation;
+- at most one active essential follow-up;
+- cancellation behavior;
+- refinement review and apply/cancel semantics.
+
+Replace “This looks up live places again for this evening” with:
+
+“This refreshes the live place evidence through SerpApi.”
+
+# Decision-ready result
+
+Redesign the result as an itinerary rather than a series of equal-weight paragraphs.
+
+Result summary example:
+
+“Your Wednesday evening in Mexico City”
+“Two stops · Starts at 6:00 PM · Live listings checked through SerpApi”
+
+Each stop should display this hierarchy:
+
+1. Sequence marker, activity type, and meaningful time label.
+2. Place name and address.
+3. Clear timing status.
+4. Two or three concise reasons it was selected.
+5. Compact known facts such as listed price or Maps rating.
+6. One consolidated “Couldn’t confirm” area.
+7. Official site and directions actions.
+8. One “View sources” action.
+
+First-stop presentation example:
+
+“6:00 PM · Coffee”
+“Latido café”
+“Open at your planned arrival”
+
+“Why it fits”
+- “Opening hours cover 6:00 PM.”
+- “An official website was found.”
+- “Google Maps lists a 4.9 rating.”
+
+“Listing details: $100–200 · Currency not stated”
+“Couldn’t confirm: current crowd level, seating for two, or USD budget fit.”
+
+Second-stop presentation example:
+
+“Then · Museum”
+“Iturbide’s Palace”
+“Listed open until 7:00 PM”
+
+“Exact arrival is not calculated because travel time is unavailable.”
+“Open directions between stops”
+
+Do not imply that the second stop has a calculated arrival when it does not. Avoid repeating the same warning in the explanation, arrival, and hours fields.
+
+Do not invent travel duration, current busyness, capacity, currency, reservations, or price conversion.
+
+# User-facing language
+
+Do not render raw internal values such as:
+
+- `popular_times`
+- `hours_covers_arrival`
+- `not_applicable`
+- snake_case field names
+- internal scoring identifiers
+- raw ISO timestamps
+
+Map them to clear language, for example:
+
+- `popular_times` → “current crowd level”
+- `party_size` → “space for your group”
+- `hours_covers_arrival` → “Open at your planned arrival”
+- unknown → “Not confirmed by the retrieved listings”
+
+Do not render every missing optional field as a separate paragraph. Consolidate relevant missing information under “Couldn’t confirm.”
+
+Only show a missing fact prominently when it affects the requested evening or the confidence of the recommendation. The full audit can still expose all unknown fields.
+
+Display dates and times in a readable destination-local format. Use semantic `<time datetime="...">` elements where appropriate.
+
+# Evidence and SerpApi presentation
+
+Create an evidence experience with these sections:
+
+- What was checked
+- Sources
+- What remains unknown
+
+Requirements:
+
+- Clearly state that place information was retrieved through SerpApi.
+- Distinguish the underlying source type, such as a Maps listing, official website, or community text.
+- Do not imply SerpApi authored the underlying facts.
+- Show the plan-level retrieval time once in the main summary.
+- Preserve exact per-claim timestamps in the detailed audit where required.
+- Deduplicate repeated source links, labels, and timestamps.
+- Show the weekday hours relevant to the planned local date first.
+- Do not show the first three arbitrary weekday rows when they do not include the requested day.
+- Put a full weekly schedule behind a secondary disclosure if it is available.
+- Clearly label community statements as unverified context.
+- Do not prominently render empty evidence groups; mention them only in the complete audit.
+- Preserve safe-link validation and existing provenance guarantees.
+
+The default result should answer “What should I do?” The evidence panel should answer “Why should I trust this?”
+
+# Structured presentation boundary
+
+Prefer deriving customer-facing copy from typed facts rather than displaying backend prose directly.
+
+Review these files and refactor responsibly where appropriate:
+
+- frontend/src/app/landing/Landing.tsx
+- frontend/src/app/landing/timeline.tsx
+- frontend/src/app/landing/flow.ts
+- frontend/src/app/landing/landing.css
+- frontend/src/lib/evidenceView.ts
+- frontend/src/lib/api/plan.ts
+- backend/src/happen_api/planning/itinerary.py
+- backend/src/happen_api/planning/contracts.py
+
+If the frontend cannot reliably distinguish a machine reason from display text, add a backward-compatible typed code to the API contract and map that code to friendly frontend copy. Do not move scoring or recommendation decisions into the browser.
+
+Keep backend changes minimal. Do not use a model to write display copy.
+
+# Refinement experience
+
+Keep the current safe proposal workflow:
+
+- Review does not immediately replace the current plan.
+- Show a clear added/removed/changed summary.
+- Apply sends the complete proposed brief to the server.
+- Cancel preserves the current brief and timeline.
+- A failure preserves the previous plan.
+
+Present refinement changes using friendly field labels and readable before/after values. Do not show internal identifiers.
+
+# Loading, empty, and failure states
+
+Improve the visible states without fabricating progress.
+
+Loading example:
+“Checking live listings and opening hours through SerpApi…”
+
+Partial result:
+“We found a usable plan, but some requested details could not be confirmed.”
+
+Insufficient evidence:
+“We couldn’t verify enough information to recommend a stop for this evening.”
+
+No results:
+“No live places matched this evening.”
+
+Live failure:
+“We couldn’t retrieve a live plan right now. Your evening details are still here.”
+
+Preserve retry and cancellation behavior. Never offer fixture data as a customer fallback.
+
+# Testing
+
+Update or add unit, integration, accessibility, and Playwright coverage for the new behavior.
+
+At minimum, verify:
+
+- The new headline and supporting sentence.
+- The proposition, composer, CTA, and promises fit in the initial desktop viewport.
+- The full marketing hero collapses after moving to Review or Plan.
+- The compact brief displays destination, date, time, intent order, party size, and budget correctly.
+- Full fields remain editable.
+- All existing validation and destination-resolution behavior survives.
+- A two-stop plan renders as a timeline with a meaningful transition.
+- The second stop does not claim a verified arrival.
+- Missing facts appear as friendly consolidated copy.
+- No raw snake_case names or reason codes appear in customer-visible output.
+- SerpApi’s role is visible in search, loading, result, and source-audit states.
+- Relevant-day hours are prioritized over unrelated weekday rows.
+- Duplicate source links and timestamps are removed from the default view.
+- Evidence is closed or out of the primary path by default and remains keyboard accessible.
+- Partial, empty, insufficient, cancelled, timeout, and retryable states remain honest.
+- Refinement review, Apply, and Cancel retain their current semantics.
+- The page has no horizontal overflow at 390×844.
+- Focus visibility, landmarks, labels, `aria-expanded`, `aria-controls`, and live status announcements remain correct.
+- Reduced-motion behavior remains supported.
+- Production does not expose fixture results.
+- No additional external API or hosted model dependency is introduced.
+
+Run the repository’s documented verification suite:
+
+Backend:
+- formatting check;
+- lint;
+- full pytest suite;
+- secret scan.
+
+Frontend:
+- Biome check;
+- Vitest suite;
+- TypeScript/Vite production build;
+- Playwright tests.
+
+Do not spend SerpApi credits for automated verification. Use fakes or fixtures only in tests.
+
+# Completion conditions
+
+The work is complete when:
+
+- A first-time visitor can understand the product from the headline and supporting sentence.
+- The interface visibly proves the task-specific advantage without making unsupported competitor claims.
+- The planning brief is compact by default but fully editable.
+- The recommendation reads as an actionable evening itinerary.
+- Confirmed facts, unknowns, and source evidence are visually distinct.
+- The default result contains no internal coding vocabulary.
+- SerpApi’s role is clear and accurate.
+- Existing product-contract behavior remains intact.
+- All required automated checks pass.
+- The user receives exact local test commands and a short manual walkthrough covering the Mexico City coffee-and-museum example.
+- No push, merge, deployment, publication, or live paid request has occurred.
+
+In the final response, lead with what changed, list any backend contract changes, report the exact checks and results, identify any remaining limitations, and provide the local manual-test commands. Do not claim success for checks that were not run. After completing this modify readme file make it easy to read with no unnnecary content, this is final commit after this i will just submit project by writing dev article and creating demo, i don't have much time so you have at most 1hr to imeplent this an dpolish the frotedn and make bacned betetr where neeed. AFter this commit all changes to github and push
