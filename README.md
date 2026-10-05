@@ -1,56 +1,154 @@
-# Happen
+# 🌙 Happen
+
+### *Evidence-First Evening Planning That Is Allowed To Say It Doesn't Know*
+
+[![Hacktoberfest 2026](https://img.shields.io/badge/Hacktoberfest-Weekend_Challenge_2026-ff7a59?style=for-the-badge)](https://dev.to/challenges/hacktoberfest-weekend-2026-10-01)
+[![Gemma](https://img.shields.io/badge/Model-Gemma_3_270M-00e599?style=for-the-badge)](https://ai.google.dev/gemma)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/Frontend-React_19_%2B_TS-61dafb?style=for-the-badge&logo=react)](https://react.dev)
+[![SerpApi](https://img.shields.io/badge/Data-SerpApi-ff7a59?style=for-the-badge)](https://serpapi.com/search-api)
+[![License: MIT](https://img.shields.io/badge/License-MIT-00e599?style=for-the-badge)](LICENSE)
+
+<br/>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/kernelKain/happen/main/docs/press/cover.png" alt="Happen — turn your evening into a checked plan" width="100%">
 </p>
 
-Describe one evening in your own words. Happen checks live place listings through SerpApi and returns one source-backed plan with up to two stops. Anything the sources do not confirm is marked as unknown.
+> **Built for a Friend:** Handcrafted for **Arun**, a friend who plans every evening the same way — ten browser tabs, a screenshot of opening hours that might be from last year, and a chatbot paragraph that reads finished. Last month one of those answers sent him to a bar that was shut that weekday, because the text had sounded sure of itself. So I built him a planner that is allowed to say "I don't know."
 
-General chat helps you explore possibilities. Happen narrows them into one feasible sequence, shows what was checked, and keeps unsupported details unknown.
+> **Challenge Categories Submitted:**
+> * 🏆 **Best Use of Gemma** (Google open-weight model, run locally and gated in code)
+> * 🏆 **Best Use of SerpApi** (the only place-data provider, with a hard per-plan budget)
+> * 🏆 **Best Use of Entire** (agent sessions checkpointed throughout the build)
+> * 🏆 **Best Use of Render** (one-click blueprint, both services defined in `render.yaml`)
 
-**[Try it live](https://happen-web.onrender.com/)**
+---
 
-| | |
-|---|---|
-| **Live app** | [happen-web.onrender.com](https://happen-web.onrender.com/) |
-| **API health** | [happen-api.onrender.com/healthz](https://happen-api.onrender.com/healthz) |
-| **Build log** | [entire.io/gh/kernelKain/happen/sessions](https://entire.io/gh/kernelKain/happen/sessions) |
-| **License** | MIT — see [LICENSE](LICENSE) |
+## 📌 The Problem
 
-The live app spends real SerpApi credits on every uncached search. There is no login and no database, so nothing you type is stored.
+Every evening planner will confidently give you three places and a paragraph about the lighting. The problem isn't that there are no options. It's that **you cannot tell which details anyone actually checked.** A place gets recommended because its listing said nothing about the thing you asked for, and a made-up walking time is printed with the same confidence as a phone number.
 
-## Screenshots
+So I built the opposite: a planner that would rather show you a blank than invent a detail. Every claim is either backed by a source link and a retrieval time, or it is visibly marked **Couldn't confirm.**
 
-| Landing | Review | Result |
-|---|---|---|
-| ![Landing page](https://raw.githubusercontent.com/kernelKain/happen/main/docs/press/landing.png) | ![Review step](https://raw.githubusercontent.com/kernelKain/happen/main/docs/press/review.png) | ![A checked Lisbon plan](https://raw.githubusercontent.com/kernelKain/happen/main/docs/press/plan.png) |
+## ⚡ Key Features
 
-## How it works
+1. **Evidence-first planning.** Every fact on screen traces to a Google Maps listing, an official website, or community text, with the retrieval time attached.
+2. **Explicit unknowns.** Each stop carries one **Couldn't confirm** line generated from whatever was actually *missing* — not from a template. Missing evidence never counts in a place's favour.
+3. **Ambiguity gets a question, not a guess.** "At 9" could mean 9am or 9pm. Happen stops and asks before spending a single credit, rather than quietly picking one.
+4. **A hard, server-enforced request budget.** Eight billed SerpApi requests per plan maximum. The ninth is refused before it is sent. Identical searches cache for 15 minutes.
+5. **Change without losing the current plan.** Type a refinement and choose **Review this change**. The plan stays on screen until you press **Apply**.
+6. **The open model is gated in code, not promised.** A local Gemma build was measured against held-out gates and failed, so a deterministic parser reads the prompt instead. The gate is enforced by hash at startup, and `/healthz` reports `model_claims_enabled` honestly.
+7. **No accounts, no database, no tracking.** Close the tab and it's gone.
 
-1. **Describe.** Write the evening, for example: *Coffee in Mexico City on Wednesday at 6 pm, then a museum, for two.*
-2. **Review.** Happen turns it into a short brief: place, date, time, stop order, group size, and budget. If something essential is missing or ambiguous — "at 9" could mean morning or evening — it asks one question instead of guessing. You can edit any detail.
-3. **Plan.** **Check live places** searches SerpApi. Python checks opening hours and your requested details, then picks at most two stops.
+---
 
-Each stop shows its time, why it was chosen, the listing details, and one **Couldn't confirm** line. **View sources** opens what was checked, the planned day's hours, the source links, and a full audit with retrieval times.
+## 🏗️ Architectural Overview
 
-To change the plan, type the change and choose **Review this change**. Your current plan stays until you choose **Apply**.
+```
+   "Drinks in Lisbon on Friday at 9 for two."   (or anything natural)
+                            │
+                            ▼
+        ┌──────────────────────────────────────┐
+        │  Brief  (deterministic parser)      │
+        │  place · date · time · stops · party │
+        │  ONE question if anything is unclear │
+        │  → 0 requests spent so far           │
+        └──────────────────┬───────────────────┘
+                           ▼
+        ┌──────────────────────────────────────┐
+        │  SerpApi  (only data source)         │
+        │  Google Maps · official sites ·      │
+        │  community text                      │
+        │  hard cap 8 billed requests / plan   │
+        │  15-minute cache                     │
+        └──────────────────┬───────────────────┘
+                           ▼
+        ┌──────────────────────────────────────┐
+        │  Feasibility + evidence scoring     │
+        │  open that day at that time?         │
+        │  does any listing support the ask?   │
+        │  MISSING EVIDENCE = NO CREDIT        │
+        └──────────────────┬───────────────────┘
+                           ▼
+        ┌──────────────────────────────────────┐
+        │  One plan, at most two stops         │
+        │  ├── why each stop was chosen        │
+        │  ├── one "Couldn't confirm" line     │
+        │  ├── sources + audit trail           │
+        │  └── NO pad to look complete         │
+        └──────────────────────────────────────┘
+```
 
-## What runs
+---
 
-- **SerpApi** is the only external data source. It delivers Google Maps listings, official websites, and community text. The facts come from those sources, not from SerpApi.
-- **Python** reads the prompt with a deterministic parser, checks feasibility, and chooses the stops. Missing evidence never counts in a place's favour.
-- **The customer path loads no model.** A local Gemma model was measured against held-out gates and failed them (`ml/reports/model-quality.json`), so it stays off. No hosted model API is called. The gate is enforced in code: the backend hashes the model file at startup and only allows model-derived claims when the report for that exact hash says it passed. `/healthz` reports `model_claims_enabled` honestly, and it is currently `false`.
-- **Each plan makes at most eight billed SerpApi requests.** The server keeps the count and refuses the ninth before it is sent. Identical searches are cached in memory for 15 minutes.
+## 📁 Repository Structure
 
-There is no database, no account, and no paid service besides SerpApi.
+```
+happen/
+├── backend/                   # Python + FastAPI
+│   ├── src/happen_api/
+│   │   ├── planning/          # prompt → brief → evidence → itinerary
+│   │   │   ├── interpret.py   # deterministic parser + ambiguity rules
+│   │   │   ├── itinerary.py   # plans, checks, provenance contracts
+│   │   │   ├── evidence.py    # one fact, one source, one timestamp
+│   │   │   └── limits.py      # the 8-request per-plan allowance
+│   │   ├── recommendations/   # scoring and ranking
+│   │   ├── providers/serpapi/ # the only external data provider
+│   │   ├── ai/                # extraction, quality gates, measurement
+│   │   └── readiness.py       # model hash + gate enforcement
+│   ├── tests/                 # 466 tests, no credit is ever spent
+│   └── pyproject.toml
+├── frontend/                  # React 19 + TypeScript + Vite
+│   ├── src/app/landing/       # describe → review → result flow
+│   ├── src/app/result/        # plan view + sources/audit panel
+│   ├── src/lib/               # API client, result state, evidence view
+│   └── tests/                 # unit + Playwright/axe
+├── ml/
+│   ├── reports/               # model-quality.json  ← the gate
+│   ├── extraction/            # held-out + train jsonl
+│   └── tune_extraction.ipynb  # the QLoRA experiment that failed
+├── docs/
+│   ├── HANDOFF.md             # the product contract
+│   ├── Dev-post.md            # the DEV submission
+│   └── press/                 # screenshots used by the README + post
+├── scripts/
+│   ├── download-model.py      # pinned, SHA-256 verified
+│   └── scan-secrets.py        # runs in CI
+├── render.yaml                # both services, one-click deploy
+└── LICENSE                    # MIT
+```
 
-### Why the model is off, not missing
+---
 
-The original design had Gemma 3 270M extracting structured evidence from listings and reviews. It could not clear the gates, so a deterministic parser reads the prompt instead. The code, the held-out set, the quality report, and the gate are all still in the repo, because turning the model back on is a config change once a build passes. The [build log](https://entire.io/gh/kernelKain/happen/sessions) has the full session.
+## 🧪 Why the Open Model Is Gated Off
 
-## Run it locally
+This is the part I'd rather explain than let you assume, because a planner built on "never claim what you didn't check" shouldn't ship an unchecked model.
 
-Requires Python 3.13 and Node.js 20 or newer. Python 3.14 is not supported yet.
+The original design had **Gemma 3 270M** extracting structured evidence from listings and reviews, running locally on CPU through `llama.cpp` from a pinned public quantized build, verified by SHA-256 before load, at temperature 0 with a fixed seed. No GPU, no hosted inference, no Hugging Face token.
+
+I wrote a held-out set — 30 review excerpts and 24 planning prompts — and set gates before letting any of its output reach a user:
+
+| Gate | Required | Gemma 3 270M | Gemma 3 1B |
+|---|---:|---:|---:|
+| Valid JSON on review extraction | 95% | **6.7%** | 100% |
+| Right dimension + polarity on reviews | 80% | **4.4%** | 67.8% |
+| Valid JSON on planning prompts | 95% | 91.7% | 100% |
+| Essential planning fields correct | 90% | 66.7% | 79.2% |
+
+The 270M model mostly couldn't produce valid JSON for my schema. I tried to fix it the way open weights allow: 100 training examples with no overlap with the held-out set, then a short QLoRA adapter on a free Colab T4. It came back **worse** than the untuned baseline. My rule was that an adapter ships only if it beats baseline by five points without adding invalid output, so it didn't ship.
+
+The 1B build was a real step up — about 1.3 GB peak RSS, 0.7s to load — but it still got review polarity wrong about a third of the time. For this product that's worse than no model at all.
+
+So the deterministic parser reads the prompt, and the gate is **code, not a promise**. [`ml/reports/model-quality.json`](ml/reports/model-quality.json) records the verdict and the measured SHA-256. At startup the backend hashes the model file and only permits model-derived claims when the report for *that exact hash* says it passed. It currently says it didn't, and `/healthz` reports `model_claims_enabled: false`.
+
+The open path is still what shaped the product: it's the reason there's a schema, a validator, a held-out set, and a gate at all. The moment a Gemma build clears those gates, turning it on is a config change.
+
+---
+
+## 🚀 Quickstart
+
+Requires **Python 3.13** (3.14 isn't supported yet) and **Node.js 20.19+ or 22.12+**, which is what Vite 8 asks for.
 
 ```bash
 git clone https://github.com/kernelKain/happen.git
@@ -59,7 +157,7 @@ cp .env.example .env
 # set SERPAPI_API_KEY and HAPPEN_LIVE_ENABLED=true
 ```
 
-Backend:
+**Backend** — http://127.0.0.1:8000
 
 ```bash
 cd backend
@@ -67,7 +165,7 @@ uv sync
 uv run uvicorn happen_api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Frontend, in a second terminal:
+**Frontend** — in a second terminal, http://127.0.0.1:5173
 
 ```bash
 cd frontend
@@ -75,72 +173,100 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. Health is at `http://127.0.0.1:8000/healthz`.
+Then type an evening, or tap a starter:
+
+> *Drinks in Lisbon on Friday at 9 for two.*
 
 The model file is optional and only used for evaluation: `python3 scripts/download-model.py`. Do not commit `*.gguf` files.
 
-## Tests
+### Tests
 
-Automated tests use mocks and fixtures. They never spend SerpApi credits.
+All mocked and fixture-backed, so they never spend a SerpApi credit:
 
 ```bash
 cd backend
 uv run ruff format --check src tests ../scripts/scan-secrets.py
 uv run ruff check src tests ../scripts/scan-secrets.py
 uv run pytest
-cd ..
-python3 scripts/scan-secrets.py
-cd frontend
+cd ../frontend
 npm run check
 npm test
 npm run build
 npm run test:shell   # Playwright and axe at 1280px and 390px
+cd ..
+python3 scripts/scan-secrets.py
 ```
 
-Current suite: 466 backend tests, 68 frontend unit tests, and 22 Playwright tests with automated accessibility checks.
+466 backend tests · 68 frontend unit tests · 22 Playwright tests with automated accessibility checks.
 
-## Deploying
+---
+
+## ☁️ Deploying on Render
 
 `render.yaml` defines both services, so the app deploys straight from the repository:
 
-- `happen-web` — the built frontend as a static site.
-- `happen-api` — the FastAPI backend, deployed in `singapore`.
+- **`happen-web`** — the built frontend as a static site.
+- **`happen-api`** — the FastAPI backend in `singapore`.
 
-Both track `main` and deploy only after CI passes. The backend build downloads the pinned public Gemma build and verifies its SHA-256; no Hugging Face token is needed.
+Both track `main` and deploy only after CI passes. The backend build downloads the pinned public Gemma build and verifies its SHA-256 — no Hugging Face token needed.
 
-Set these in the Render dashboard, never in the repository:
+To deploy your own:
 
-| Variable | Service | Notes |
+1. Push or fork this repository.
+2. Create a new Blueprint in the Render dashboard and point it at the repo.
+3. Set `SERPAPI_API_KEY` in the dashboard. Never put it in `render.yaml`.
+4. Render builds both services and serves them over HTTPS.
+
+---
+
+## 📸 Screenshots
+
+| Landing | Review | Result |
 |---|---|---|
-| `SERPAPI_API_KEY` | `happen-api` | The only required secret. |
-| `HAPPEN_LIVE_ENABLED` | `happen-api` | `true` for live retrieval. |
+| ![Landing page](https://raw.githubusercontent.com/kernelKain/happen/main/docs/press/landing.png) | ![Review step](https://raw.githubusercontent.com/kernelKain/happen/main/docs/press/review.png) | ![A checked Lisbon plan](https://raw.githubusercontent.com/kernelKain/happen/main/docs/press/plan.png) |
 
-## Limits
+The middle screenshot is from a mid-build run, and it caught a real bug: that build read "at 9" as 9 **in the morning** and "Friday" as the coming **Wednesday**, then carried both forward silently. The parser now treats a bare time as ambiguous and stops to ask. That one fix is most of the difference between a confident plan and a true one.
 
-- One evening, at most two stops.
-- No travel time. The second stop shows its listed hours and a directions link, not a calculated arrival.
-- No live crowd levels, reservations, capacity checks, or price conversion.
-- No stop swapping or alternative stops once a plan is built.
+---
+
+## 🚫 What It Deliberately Doesn't Do
+
+A smaller plan that is true beats a bigger one you have to double-check yourself.
+
+- One evening, two stops at most — and it won't pad to look complete.
+- No travel time. A second stop shows its own hours and a directions link, not a made-up arrival.
+- No live crowd levels, reservations, capacity checks, or price conversion. Those are exactly what the Lisbon plan refuses to invent.
+- No stop swapping once a plan is built.
 - The request count and cache live in one process and reset when it restarts.
 - Production never serves captured fixtures. They exist only for tests.
 
-## Contributing
+---
 
-Issues and pull requests are welcome. Please read [`docs/HANDOFF.md`](docs/HANDOFF.md) first — it is the product contract, and changes are checked against it. Small pull requests with one clear purpose are easiest to review.
+## 🤝 Contributing
 
-Run the full check suite above before opening a pull request. Please never commit a SerpApi key, and do not add a database, an authentication layer, or a hosted model API.
+Issues and pull requests are welcome. Please read [`docs/HANDOFF.md`](docs/HANDOFF.md) first — it's the product contract, and changes are checked against it. Small pull requests with one clear purpose are easiest to review.
 
-## Security
+Please never commit a SerpApi key, and do not add a database, an authentication layer, or a hosted model API. Run the full check suite above before opening a pull request.
 
-Do not open a public issue for a leaked credential. If you find a vulnerability, report it privately to the maintainer. SerpApi keys are read from the environment only, and `scripts/scan-secrets.py` runs over the whole tree and the production bundle in CI.
+## 🛡️ Security
 
-## Acknowledgements
+Don't open a public issue for a leaked credential — report it privately to the maintainer. Keys are read from the environment only, and `scripts/scan-secrets.py` runs over tracked files *and* the production bundle in CI.
+
+## 🙏 Acknowledgements
 
 - [SerpApi](https://serpapi.com/search-api) — the only place-data provider.
 - [Gemma](https://ai.google.dev/gemma) — Google's open-weight models, evaluated locally.
-- [Entire](https://entire.io/) — agent session checkpoints throughout the build.
+- [Entire](https://entire.io/) — agent sessions checkpointed throughout the build.
 - [Render](https://render.com) — hosting for the live app.
 
-## License
+## 📄 License
 
-MIT. See [LICENSE](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
+
+*Disclaimer: Happen is an experimental open-source project built for Hacktoberfest 2026. Plans reflect what its sources actually said at the time of retrieval. It is not a booking service and does not guarantee that a place will be open, available, or suitable.*
+
+---
+
+**Author:** Kshitij Jain ([@kernelKain](https://github.com/kernelKain))
+
+*Built for Arun, who now has one fewer reason to open ten tabs and still end up at the usual place.*
