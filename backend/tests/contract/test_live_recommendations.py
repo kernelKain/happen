@@ -176,6 +176,8 @@ def test_live_mode_disabled_does_not_call_a_provider_or_the_fixture(
     body = response.json()
     assert body["error"]["code"] == "LIVE_MODE_DISABLED"
     assert body["error"]["fixture_available"] is True
+    assert body["error"]["next_action"] == "Try again after live evidence is configured."
+    assert "captured" not in body["error"]["next_action"].lower()
     assert "North Gallery" not in response.text
     assert "captured_fixture" not in response.text
     assert "live-key-value" not in response.text
@@ -272,6 +274,8 @@ def test_soft_budget_stops_a_later_live_request(settings_factory) -> None:
 
     assert first.status_code == 503
     assert first.json()["error"]["code"] == "SERPAPI_QUOTA_EXHAUSTED"
+    assert first.json()["error"]["next_action"] == "Try again later."
+    assert "captured" not in first.json()["error"]["next_action"].lower()
     assert second.status_code == 503
     assert second.json()["error"]["code"] == "SERPAPI_QUOTA_EXHAUSTED"
     assert len(providers) == 1

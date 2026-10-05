@@ -199,10 +199,10 @@ def test_rate_limit_reports_when_to_retry(settings_factory: Callable[..., Settin
     assert second.json()["error"]["retry_after_seconds"] >= 1
 
 
-def test_missing_model_file_is_unavailable_without_loading_llama(
+def test_failed_model_gate_scores_without_loading_llama(
     settings_factory: Callable[..., Settings],
 ) -> None:
-    """Verify a missing artifact returns the model error and does not import llama."""
+    """A failed quality gate does not load Gemma or turn its output into claims."""
 
     unavailable = settings_factory(MODEL_FILENAME="missing-evidence-model.gguf")
     application = create_app(unavailable)
@@ -213,10 +213,12 @@ def test_missing_model_file_is_unavailable_without_loading_llama(
         headers={"Idempotency-Key": KEY},
         json=CANONICAL_PRESET,
     )
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "MODEL_UNAVAILABLE"
+    body = response.json()
+    assert response.status_code == 200
+    assert body["outcome"] == "insufficient_evidence"
+    assert body["recommendation"] is None
+    assert any(item["code"] == "model_claims_disabled" for item in body["warnings"])
     assert "llama_cpp" not in sys.modules
-    assert "/" not in response.json()["error"]["message"]
 
 
 def _unknown(prompt: str) -> str:

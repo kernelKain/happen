@@ -69,8 +69,8 @@ def test_search_redacts_the_key_and_counts_one_credit() -> None:
     assert sent["api_key"] == _KEY
     assert sent["engine"] == "google_maps"
     assert sent["type"] == "search"
-    assert sent["hl"] == "en"
-    assert sent["gl"] == "in"
+    assert "hl" not in sent
+    assert "gl" not in sent
     assert sent["output"] == "json"
     assert "no_cache" not in sent
     assert _KEY not in repr(client)
@@ -308,6 +308,20 @@ def test_malformed_json_is_an_invalid_dependency_response() -> None:
     assert len(route.calls) == 1
 
 
+def test_a_cancelled_search_is_not_sent() -> None:
+    """A cancellation stops the request before a credit is spent."""
+
+    with respx.mock, SerpApiClient(_KEY, cancelled=lambda: True) as client:
+        route = respx.get(_URL).mock(return_value=httpx.Response(200, json=_search_body(_KEY)))
+        with pytest.raises(SerpApiFailure) as caught:
+            client.search_places("restaurants in Indiranagar, Bengaluru")
+
+    assert caught.value.code == "TRANSIENT_DEPENDENCY"
+    assert client.credits_charged == 0
+    assert route.calls == []
+    assert _KEY not in str(caught.value)
+
+
 def test_redirect_is_not_followed() -> None:
     """Verify a redirect is rejected so the key is not sent to another host."""
 
@@ -389,3 +403,75 @@ def test_logs_omit_the_api_key() -> None:
     assert payload["message"] == "serpapi request finished"
     assert payload["endpoint"] == "serpapi"
     assert payload["status_code"] == 200
+
+
+def test_locations_lookup_is_free_and_discards_the_payload() -> None:
+    """The Locations API does not spend a credit, send the key, or keep the raw document."""
+
+    body = [
+        {
+            "id": "raw-payload-marker",
+            "google_id": 1,
+            "name": "Jaipur",
+            "canonical_name": "Jaipur,Rajasthan,India",
+            "country_code": "IN",
+            "target_type": "City",
+            "reach": 10,
+            "gps": [75.7872709, 26.9124336],
+        }
+    ]
+    records: list[str] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record.getMessage())
+
+    logger = get_logger()
+    handler = _Capture()
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        with respx.mock, _client() as client:
+            route = respx.get("https://serpapi.com/locations.json").mock(
+                return_value=httpx.Response(200, json=body)
+            )
+            found = client.supported_locations("Jaipur")
+            charged = client.credits_charged
+    finally:
+        logger.removeHandler(handler)
+
+    assert charged == 0
+    assert "api_key" not in str(route.calls[0].request.url)
+    assert found[0].name == "Jaipur"
+    assert found[0].latitude == pytest.approx(26.9124336)
+    assert found[0].longitude == pytest.approx(75.7872709)
+    rendered = found[0].model_dump_json()
+    assert "raw-payload-marker" not in rendered
+    assert "raw-payload-marker" not in "\n".join(records)
+
+
+def test_maps_coordinate_lookup_is_billed_and_keeps_only_coordinates() -> None:
+    """A Maps lookup counts as one search and does not return the provider document."""
+
+    body = {
+        "search_metadata": _metadata(_KEY),
+        "search_parameters": {"api_key": _KEY, "engine": "google_maps"},
+        "place_results": {
+            "title": "Jaipur",
+            "gps_coordinates": {"latitude": 26.9124336, "longitude": 75.7872709},
+            "secret_blob": "raw-payload-marker",
+        },
+    }
+    with respx.mock, _client() as client:
+        route = respx.get(_URL).mock(return_value=httpx.Response(200, json=body))
+        points = client.lookup_maps_coordinates("Jaipur,Rajasthan,India")
+
+    assert client.credits_charged == 1
+    sent = _params(route.calls[0].request)
+    assert sent["engine"] == "google_maps"
+    assert sent["type"] == "search"
+    assert "hl" not in sent
+    assert "gl" not in sent
+    assert points[0].latitude == pytest.approx(26.9124336)
+    assert "raw-payload-marker" not in points[0].model_dump_json()
+    assert _KEY not in points[0].model_dump_json()

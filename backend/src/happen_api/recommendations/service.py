@@ -9,6 +9,7 @@ from datetime import date, datetime, time
 
 from happen_api.ai.extractor import ExtractionError, extract_excerpt
 from happen_api.ai.prompt import EXTRACTION_SCHEMA_VERSION
+from happen_api.ai.quality import model_claims_enabled
 from happen_api.ai.validation import ValidatedExtraction, accepted_scoring_signals
 from happen_api.catalog import CONTRACT_VERSION, SCORING_POLICY_VERSION
 from happen_api.config import Settings
@@ -142,13 +143,22 @@ def score_places(
     evidence: list[PublicEvidence] = []
     rejected = 0
     remaining = _EXCERPTS_PER_RECOMMENDATION
+    skip_model = generate is None and not model_claims_enabled(settings)
+    if skip_model:
+        notices = [
+            *notices,
+            WarningItem(
+                code="model_claims_disabled",
+                message="Model claims are off. The plan uses deterministic checks only.",
+            ),
+        ]
     extracted: list[
         tuple[NormalizedPlace, ReviewExcerpt, ValidatedExtraction, list[AcceptedSignal]]
     ] = []
     for place in places:
         collected: list[AcceptedSignal] = []
         for excerpt in place.review_excerpts[:_EXCERPTS_PER_CANDIDATE]:
-            if remaining == 0:
+            if skip_model or remaining == 0:
                 break
             if before_excerpt is not None:
                 before_excerpt()

@@ -1,6 +1,6 @@
 # HANDOFF.md
 
-> Review status: Sections 1–29 are approved. Final validation: PASSED.
+> Review status: Sections 1–29 remain the historical plan approved on October 3, 2026. Section 30 is the current product contract, approved on October 4, 2026. Where they disagree, section 30 controls. Sections 1–29 were kept as historical context.
 
 ## 1. Document Control
 
@@ -4045,3 +4045,154 @@ update HANDOFF.md, then continue according to Prompt 2.
 5. State the desired autonomy if different from the locked default.
 6. Begin with the exact Next step.
 7. Do not continue implementation in the planning chat.
+
+## 30. Approved Contract Addendum — Global Live Experience
+
+- Approval date: October 4, 2026
+- Branch: `global-live-experience`
+- Status: approved product contract
+- Implementation: not started. This section does not change application code.
+
+### 30.1 Authority
+
+Sections 1–29 stay in this file as the historical plan approved on October 3, 2026.
+
+This section is the current product contract. Where this section and sections 1–29 disagree about the product, this section controls. Where this section is silent, the historical rules still apply. Those continuing rules include:
+
+- Python is the only backend language. The frontend is React and TypeScript.
+- Happen adds no database, authentication, persistent personal data, extra paid service, or hosted model API.
+- Out-of-pocket spend stays $0. Existing free credits may be used.
+- Secrets stay in an ignored `.env` file.
+- Inference stays on local Gemma. Happen does not call a hosted model API.
+- Missing evidence stays unknown. Unknown is not treated as favorable.
+- Push, merge, deploy, and publish wait for an explicit user request.
+
+`docs/HANDOFF2.md` remains the progress log. This file does not track step-by-step progress.
+
+### 30.2 Product
+
+Happen is a global, prompt-led, live evening planner.
+
+The user describes an evening in their own words. Happen turns that prompt into one live plan for that evening. The plan contains no more than two stops.
+
+Happen states coverage only for the destination and facts supported by the SerpApi responses retrieved for that plan. It does not claim that every city, venue, language, or evening can be planned. When a destination or fact is outside the retrieved evidence, the result says it is unknown or unavailable.
+
+This replaces the historical product identity in section 3, which scoped Happen to a Bengaluru restaurant comparison and a three-restaurant Moment Matrix. That earlier plan remains historical context for the build already completed. It is not the current product.
+
+### 30.3 One plan
+
+- One submitted plan covers one evening.
+- That evening contains at most two stops.
+- The plan does not span multiple dates.
+- When a prompt asks for more than one evening or more than two stops, Happen keeps the returned plan inside this limit and states the scope it left unplanned.
+
+### 30.4 External data
+
+SerpApi is the only external source of place data and of supporting web data.
+
+Place identity, hours, reviews, and any supporting web fact used in a user-facing plan come from SerpApi. Happen does not add another place, map, review, search, or web provider.
+
+This keeps the historical single-provider boundary and extends it to supporting web data.
+
+### 30.5 Model and decision boundary
+
+Local Gemma may classify a prompt or extract structured preferences. It may also extract structured evidence from retrieved source text.
+
+Python performs all of the following:
+
+- validation of Gemma’s structured output;
+- feasibility checks;
+- scoring;
+- final selection of the plan.
+
+A structured model result becomes part of the plan only after Python accepts it. Invalid model output is rejected. Gemma does not check feasibility, assign the score, or select the stops.
+
+### 30.6 Provenance and unknown states
+
+Every place and supporting fact shown for a plan carries:
+
+- source provenance that identifies where the fact came from;
+- the retrieval timestamp for that source;
+- destination-local time whenever the plan shows a clock time or a date.
+
+The destination-local zone is the zone of the chosen destination. Happen does not present those times as if they were a single fixed zone for every destination.
+
+A fact that the retrieval did not supply is shown as unknown. An unknown hour, review, or supporting page is not evidence that the stop is a good choice.
+
+### 30.7 Live-only production rule
+
+Captured fixtures are test data only.
+
+A user-facing plan is built from live SerpApi retrieval for that submission. Production does not load a captured fixture into a user-facing result. The interface does not offer captured evidence when a live retrieval fails. A live failure says that a live plan is unavailable and keeps the user’s brief.
+
+Automated tests may read fixture files. A test fixture must not be reachable as a user-facing fallback.
+
+This replaces the historical user-facing fixture path: the captured-fixture product endpoint as a recovery option, an explicit captured-evidence action, and any instruction to show a fixture plan to a user when live retrieval fails. Fixture files may remain in the repository for tests.
+
+### 30.8 Prompt-to-plan flow
+
+1. The user submits a prompt that describes the evening.
+2. Local Gemma may classify that prompt or extract structured preferences from it.
+3. Python validates the structured output. Output that fails validation does not become the brief.
+4. Happen shows an editable planning brief. The brief states the destination, the single evening in destination-local date and time, at most two stops, and the preferences Python accepted.
+5. The user can edit the brief before Happen retrieves the plan.
+6. When the destination matches more than one place, Happen asks the user to choose one destination before retrieval. Happen does not choose that destination silently.
+7. Happen asks one essential follow-up at a time. An essential follow-up is the single missing fact without which Python cannot make a feasible plan inside the one-evening, two-stop limit. Happen waits for the answer before asking anything else.
+8. After the brief is submitted, Python checks feasibility, retrieves live SerpApi evidence inside the cap in section 30.9, scores the options, and selects the plan.
+9. The result is a timeline for that evening. Each stop shows its destination-local time, place, source provenance, retrieval timestamp, and any unknown fields. The timeline contains at most two stops.
+10. When the user edits the brief and submits again, Happen shows an explicit refinement diff against the previous plan. The diff states what was added, removed, or changed in the destination, the evening, and each stop. The new timeline is shown together with that diff.
+
+### 30.9 Shared SerpApi cap
+
+One submitted plan has a shared maximum of eight billed SerpApi requests.
+
+These all draw from that same maximum:
+
+- place retrieval;
+- supporting web retrieval;
+- any paid destination-resolution fallback.
+
+A billed destination-resolution request counts toward the eight. It does not receive a separate allowance. After destination resolution spends billed requests, the remaining place and web retrieval stays inside whatever is left of the eight.
+
+A billed request is a SerpApi request that consumes a search credit. A cached SerpApi response that consumes no credit is not billed. A retry that consumes a credit is billed and counts toward the eight.
+
+Happen stops before sending a ninth billed request. When the plan cannot be completed inside the cap, the result says the search limit was reached and no further billed request is sent for that submission.
+
+A refinement the user submits is a new submitted plan. It has its own maximum of eight billed requests. Unused requests from the previous plan do not raise that maximum.
+
+A follow-up that does not call SerpApi does not consume the cap.
+
+This replaces, for the current planner, the historical maximum of seven searches for one live restaurant recommendation. The probe and capture counts already recorded in section 13 remain a history of spent searches. They are not an extra allowance on a new user-facing plan.
+
+### 30.10 Acceptance criteria
+
+| ID | Observable condition | Verification |
+|---|---|---|
+| **GL-01** | One submitted plan covers one evening and no more than two stops. Extra evenings or stops are left unplanned and that limit is stated. | Automated test |
+| **GL-02** | A prompt becomes an editable planning brief, and the user can change the destination, evening, stops, and accepted preferences before retrieval. | Automated test |
+| **GL-03** | An ambiguous destination is resolved by the user’s choice before retrieval. Happen has at most one essential follow-up waiting at a time. | Automated test |
+| **GL-04** | The result is a timeline whose times use the destination-local zone. | Automated test |
+| **GL-05** | A submitted refinement shows an explicit diff of additions, removals, and changes from the previous plan. | Automated test |
+| **GL-06** | A user-facing result is built only from live SerpApi retrieval. A captured fixture is not returned and is not offered as a fallback. | Automated test |
+| **GL-07** | Each shown place and supporting fact has source provenance and a retrieval timestamp. Missing facts stay unknown. | Automated test |
+| **GL-08** | User-facing copy does not claim that Happen can plan every city, venue, language, or evening. | Automated test |
+| **GL-09** | One submitted plan sends at most eight billed SerpApi requests, including any paid destination-resolution fallback. The ninth billed request is not sent. | Automated test |
+| **GL-10** | SerpApi is the only external source of place data and supporting web data used to build a plan. | Automated test |
+| **GL-11** | Python validates Gemma output before use. Python performs feasibility checks, scoring, and final selection. Rejected model output cannot select a stop. | Automated test |
+| **GL-12** | A live failure says the live plan is unavailable, keeps the brief, and does not substitute fixture data. | Automated test |
+
+GL-01 through GL-12 are the required acceptance criteria for the current product. AC-01 through AC-22 remain the record of the earlier contract. Where an earlier criterion requires a user-facing fixture, three restaurant timelines, or a Bengaluru-only preset, GL-01 through GL-12 control.
+
+### 30.11 Automated and user responsibilities
+
+| Work | Automated | User |
+|---|---|---|
+| This contract | Cursor records it in `docs/HANDOFF.md`, `docs/HANDOFF2.md`, and `docs/BUILD_LOG.md`, then runs the secret scanner. | Approved the redesign on October 4, 2026 by asking for this record. |
+| Later implementation | Cursor implements GL-01 through GL-12 on `global-live-experience`, with tests, and does not push, merge, deploy, or publish unless asked. | Tests the app locally when asked and says whether the brief, the timeline, and the diff are understandable. |
+| SerpApi credits | The planner refuses a ninth billed request. Tests use fixtures or fakes and do not spend credits. | Holds `SERPAPI_API_KEY` and approves any live request that spends credits. |
+| Secrets, hosting, and publication | The secret scanner checks the tree. Cursor does not create Render services or publish. | Owns accounts, dashboards, deployment, a friend walkthrough, and any public publish. |
+| Live failure | The app reports that the live plan is unavailable and keeps the brief. | Decides whether to submit again later. |
+
+### 30.12 Boundary of this addendum
+
+This addendum records the approved contract. It does not change application code, spend SerpApi credits, deploy, or publish. Implementation of section 30 is later work on `global-live-experience`.

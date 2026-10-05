@@ -28,81 +28,22 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("shows three timelines, one moment, and a different fallback", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/?layout=sample");
-  await expect(page.getByRole("note")).toContainText("Layout sample");
-  await expect(page.getByRole("article", { name: "Courtyard Lantern" })).toBeVisible();
-  await expect(page.getByRole("article", { name: "North Gallery Supper" })).toBeVisible();
-  await expect(page.getByRole("article", { name: "Platform Seats" })).toBeVisible();
-  const recommended = page.getByRole("article", { name: "Recommended" });
-  await expect(recommended).toContainText("Courtyard Lantern");
-  await expect(recommended).toContainText("Fit Strong");
-  await expect(recommended).toContainText("Confidence High");
-  const fallback = page.getByRole("article", { name: "Fallback" });
-  await expect(fallback).toContainText("North Gallery Supper");
-  await expect(fallback).toContainText("Fit Possible");
-  await expect(fallback).toContainText("Confidence Medium");
-  await expect(page.getByText("Synthetic development ·")).toBeVisible();
-  await expect(page.getByText("Scoring policy v1")).toBeVisible();
-  await expect(
-    page.getByText("Synthetic development evidence. Planning evidence—not live occupancy."),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: /Selected/ })).toHaveCount(1);
-  const desktopColumns = await page
-    .locator(".timeline ol")
-    .first()
-    .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
-  expect(desktopColumns).toBe(6);
-  await expectNoHorizontalOverflow(page);
-
-  await page.getByRole("button", { name: "Why this moment?" }).click();
-  const evidence = page.getByRole("region", { name: "Why this moment?" });
-  await expect(evidence).toContainText("the wait was shorter before 8 pm");
-  await expect(
-    evidence.locator('a[href="https://example.com/happen/synthetic/courtyard-lantern"]'),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Close evidence" }).click();
-  await expect(page.getByRole("button", { name: "Why this moment?" })).toBeFocused();
-});
-
-test("stacks the result without horizontal overflow on a narrow screen", async ({ page }) => {
+test("a sample query stays on the landing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?layout=sample");
-  await expect(page.getByLabel("Neighbourhood")).toBeEnabled();
-  await expect(page.getByRole("article", { name: "Recommended" })).toBeVisible();
-  await expect(page.getByRole("article", { name: "Fallback" })).toBeVisible();
-  const mobileColumns = await page
-    .locator(".timeline ol")
-    .first()
-    .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
-  expect(mobileColumns).toBe(2);
-  await page.getByRole("button", { name: "Why this moment?" }).click();
-  await expect(page.getByRole("region", { name: "Why this moment?" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
+  await expect(page.getByText("Courtyard Lantern")).toHaveCount(0);
+  await expect(page.getByText("Layout sample")).toHaveCount(0);
+  await expect(page.getByText("Recommended")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Use captured evidence" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Project repository" })).toHaveCount(0);
+  await expect(page.getByText("Indiranagar")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });
 
-test("shows the selected moment immediately when reduced motion is requested", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/?layout=sample");
-  const selected = page.getByRole("button", { name: /Selected/ });
-  await expect(selected).toBeVisible();
-  const motion = await page
-    .locator(".timeline")
-    .first()
-    .evaluate((element) => {
-      const style = getComputedStyle(element);
-      return { animationName: style.animationName, opacity: style.opacity };
-    });
-  expect(motion.animationName).toBe("none");
-  expect(motion.opacity).toBe("1");
-  await expectNoHorizontalOverflow(page);
-});
-
-test("the planner stays empty until the layout sample is requested", async ({ page }) => {
+test("the landing does not show the layout sample", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Nothing has been recommended yet.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
   await expect(page.getByRole("heading", { name: "Courtyard Lantern" })).toHaveCount(0);
 });
 

@@ -13,12 +13,22 @@ interval. Unparseable or contradictory hours produce no verified interval.
 
 from __future__ import annotations
 
-import re
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
+from happen_api.domain.hours import (
+    HOURS_CLOSED,
+    HOURS_CONTRADICTORY,
+    HOURS_MISSING,
+    apply_meridiem,
+    day_intervals,
+    normalize_hours,
+    parse_clock,
+    parse_range,
+    twenty_four,
+)
 from happen_api.domain.models import (
     ArrivalWindow,
     BusynessObservation,
@@ -31,36 +41,11 @@ from happen_api.domain.models import (
 )
 
 KOLKATA = ZoneInfo("Asia/Kolkata")
-_DAY_ALIASES = {
-    "mon": DayOfWeek.monday,
-    "monday": DayOfWeek.monday,
-    "tue": DayOfWeek.tuesday,
-    "tues": DayOfWeek.tuesday,
-    "tuesday": DayOfWeek.tuesday,
-    "wed": DayOfWeek.wednesday,
-    "wednesday": DayOfWeek.wednesday,
-    "thu": DayOfWeek.thursday,
-    "thur": DayOfWeek.thursday,
-    "thurs": DayOfWeek.thursday,
-    "thursday": DayOfWeek.thursday,
-    "fri": DayOfWeek.friday,
-    "friday": DayOfWeek.friday,
-    "sat": DayOfWeek.saturday,
-    "saturday": DayOfWeek.saturday,
-    "sun": DayOfWeek.sunday,
-    "sunday": DayOfWeek.sunday,
-}
-_CLOCK = re.compile(
-    r"^(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<meridiem>am|pm)?$",
-    re.IGNORECASE,
-)
 _BANDS = {
     TemporalHint.early_evening: (time(17, 0), time(19, 0)),
     TemporalHint.mid_evening: (time(19, 0), time(21, 0)),
     TemporalHint.late_evening: (time(21, 0), time(23, 0)),
 }
-_CLOSED = {"closed"}
-_ALL_DAY = {"open 24 hours", "open 24 hrs", "24 hours"}
 
 
 def parse_hours_for_visit(
@@ -69,39 +54,41 @@ def parse_hours_for_visit(
     visit_date: date,
     source_url: str,
 ) -> HoursParse:
-    """Parse provider hour lines for one Bengaluru visit date."""
+    """Read provider hour entries for one visit date through the canonical schedule."""
 
     _require_http_url(source_url)
-    grouped: dict[DayOfWeek, list[str]] = {}
-    for day, hours in _normalize_entries(entries):
-        grouped.setdefault(day, []).append(hours)
-    visit_day = DayOfWeek(visit_date.strftime("%A").lower())
-    lines = grouped.get(visit_day)
-    if not lines:
-        return HoursParse(status="uncertain", intervals=[], reason_codes=["hours_missing"])
-
-    parsed_sets = [_parse_day_text(line) for line in lines]
-    first = parsed_sets[0]
-    if any(item != first for item in parsed_sets[1:]):
+    normalized = normalize_hours(entries)
+    schedule = normalized.days.get(DayOfWeek(visit_date.strftime("%A").lower()))
+    if schedule is None:
+        if normalized.unrecognized:
+            return HoursParse(
+                status="uncertain",
+                intervals=[],
+                reason_codes=[
+                    normalized.reason_codes[0] if normalized.reason_codes else HOURS_MISSING
+                ],
+            )
+        return HoursParse(status="uncertain", intervals=[], reason_codes=[HOURS_MISSING])
+    if schedule.status == "unknown":
+        reasons = set(schedule.reason_codes)
+        if HOURS_CONTRADICTORY in reasons:
+            return HoursParse(status="uncertain", intervals=[], reason_codes=[HOURS_CONTRADICTORY])
         return HoursParse(
             status="uncertain",
             intervals=[],
-            reason_codes=["hours_contradictory"],
+            reason_codes=["hours_unparseable"],
         )
-    status, ranges = first
-    if status == "uncertain":
-        return HoursParse(status="uncertain", intervals=[], reason_codes=["hours_unparseable"])
-    if status == "closed":
-        return HoursParse(status="closed", intervals=[], reason_codes=["hours_closed"])
+    if schedule.status == "closed":
+        return HoursParse(status="closed", intervals=[], reason_codes=[HOURS_CLOSED])
     intervals = [
         OpeningInterval(
             date=visit_date,
-            opens_at=opens_at,
-            closes_at=closes_at,
+            opens_at=interval.opens_at,
+            closes_at=interval.closes_at,
             source_url=source_url,
             confidence=HoursConfidence.verified,
         )
-        for opens_at, closes_at in ranges
+        for interval in day_intervals(normalized, visit_date)
     ]
     return HoursParse(status="verified", intervals=intervals, reason_codes=["hours_verified"])
 
@@ -196,123 +183,6 @@ def temporal_relevance(
     return Decimal(0)
 
 
-def _normalize_entries(entries: list[dict[str, str]]) -> list[tuple[DayOfWeek, str]]:
-    normalized: list[tuple[DayOfWeek, str]] = []
-    for entry in entries:
-        if "day" in entry and "hours" in entry:
-            day_text, hours = entry["day"], entry["hours"]
-        elif len(entry) == 1:
-            day_text, hours = next(iter(entry.items()))
-        else:
-            raise ValueError("each hours entry must name one day")
-        day = _DAY_ALIASES.get(day_text.strip().casefold())
-        if day is None:
-            raise ValueError("hours entry uses an unrecognized day")
-        normalized.append((day, hours))
-    return normalized
-
-
-def _parse_day_text(text: str) -> tuple[str, list[tuple[time, time]]]:
-    cleaned = " ".join(text.replace("–", "-").replace("—", "-").split())
-    lowered = cleaned.casefold().rstrip(".")
-    if lowered in _CLOSED:
-        return "closed", []
-    if lowered in _ALL_DAY:
-        return "open", [(time(0, 0), time(0, 0))]
-    ranges: list[tuple[time, time]] = []
-    for part in [piece.strip() for piece in cleaned.split(",") if piece.strip()]:
-        parsed = _parse_range(part)
-        if parsed is None:
-            return "uncertain", []
-        ranges.append(parsed)
-    if not ranges:
-        return "uncertain", []
-    return "open", ranges
-
-
-def _parse_range(part: str) -> tuple[time, time] | None:
-    pieces = re.split(r"\s+-\s+|\s+to\s+", part, maxsplit=1, flags=re.IGNORECASE)
-    if len(pieces) != 2:
-        pieces = part.split("-", maxsplit=1)
-        if len(pieces) != 2:
-            return None
-    start = _parse_clock(pieces[0])
-    end = _parse_clock(pieces[1])
-    if start is None or end is None:
-        return None
-    return _resolve_clocks(start, end)
-
-
-def _parse_clock(token: str) -> tuple[int, int, str | None] | None:
-    match = _CLOCK.fullmatch(token.strip())
-    if match is None:
-        return None
-    hour = int(match.group("hour"))
-    minute = int(match.group("minute") or 0)
-    meridiem = match.group("meridiem")
-    if minute > 59:
-        return None
-    if meridiem is not None:
-        if not 1 <= hour <= 12:
-            return None
-        return hour, minute, meridiem.lower()
-    if hour > 24 or (hour == 24 and minute != 0):
-        return None
-    return hour, minute, None
-
-
-def _resolve_clocks(
-    start: tuple[int, int, str | None],
-    end: tuple[int, int, str | None],
-) -> tuple[time, time] | None:
-    start_hour, start_minute, start_meridiem = start
-    end_hour, end_minute, end_meridiem = end
-    if start_meridiem is not None and end_meridiem is not None:
-        return (
-            _apply_meridiem(start_hour, start_minute, start_meridiem),
-            _apply_meridiem(end_hour, end_minute, end_meridiem),
-        )
-    if start_meridiem is None and end_meridiem is None:
-        start_time = _twenty_four(start_hour, start_minute, allow_midnight_end=False)
-        end_time = _twenty_four(end_hour, end_minute, allow_midnight_end=True)
-        if start_time is None or end_time is None:
-            return None
-        return start_time, end_time
-    if start_meridiem is None and end_meridiem is not None:
-        start_time = _apply_meridiem(start_hour, start_minute, end_meridiem)
-        end_time = _apply_meridiem(end_hour, end_minute, end_meridiem)
-        if _minutes(start_time) >= _minutes(end_time):
-            start_time = _from_minutes(_minutes(start_time) - 12 * 60)
-        return start_time, end_time
-    start_time = _apply_meridiem(start_hour, start_minute, start_meridiem or "am")
-    same = _apply_meridiem(end_hour, end_minute, start_meridiem or "am")
-    if _minutes(same) > _minutes(start_time):
-        return start_time, same
-    opposite = "am" if start_meridiem == "pm" else "pm"
-    return start_time, _apply_meridiem(end_hour, end_minute, opposite)
-
-
-def _twenty_four(hour: int, minute: int, *, allow_midnight_end: bool) -> time | None:
-    if hour == 24:
-        if allow_midnight_end and minute == 0:
-            return time(0, 0)
-        return None
-    if hour > 23:
-        return None
-    return time(hour, minute)
-
-
-def _apply_meridiem(hour: int, minute: int, meridiem: str) -> time:
-    base = 0 if hour == 12 else hour
-    if meridiem == "pm":
-        base += 12
-    return time(base, minute)
-
-
-def _minutes(value: time) -> int:
-    return value.hour * 60 + value.minute
-
-
 def _from_minutes(minutes: int) -> time:
     wrapped = minutes % (24 * 60)
     return time(wrapped // 60, wrapped % 60)
@@ -378,7 +248,7 @@ def _specific_time_relevance(
         return Decimal(0)
     cleaned = " ".join(temporal_span.replace("–", "-").replace("—", "-").split())
     if "-" in cleaned or " to " in cleaned.casefold():
-        parsed = _parse_range(cleaned)
+        parsed = parse_range(cleaned)
         if parsed is None:
             return Decimal(0)
         span_start = datetime.combine(starts_at.date(), parsed[0], tzinfo=starts_at.tzinfo)
@@ -388,14 +258,14 @@ def _specific_time_relevance(
         if starts_at < span_end and ends_at > span_start:
             return Decimal(1)
         return Decimal(0)
-    clock = _parse_clock(cleaned)
+    clock = parse_clock(cleaned)
     if clock is None:
         return Decimal(0)
     hour, minute, meridiem = clock
     if meridiem is None:
-        resolved = _twenty_four(hour, minute, allow_midnight_end=False)
+        resolved = twenty_four(hour, minute, allow_midnight_end=False)
     else:
-        resolved = _apply_meridiem(hour, minute, meridiem)
+        resolved = apply_meridiem(hour, minute, meridiem)
     if resolved is None:
         return Decimal(0)
     instant = datetime.combine(starts_at.date(), resolved, tzinfo=starts_at.tzinfo)

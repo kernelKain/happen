@@ -18,6 +18,8 @@ const meta = {
   fixture_available: false,
   live_available: false,
   model_status: "not_loaded",
+  planning_reader: "deterministic_parser",
+  planner_model_in_request_path: false,
   scoring_policy_version: "v1",
   timezone: "Asia/Kolkata",
 };

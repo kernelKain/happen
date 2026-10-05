@@ -68,6 +68,7 @@ def recommendations(
             guard=_guard(request),
             monotonic=_monotonic(request),
             provider_factory=request.app.state.provider_factory,
+            http_client=getattr(request.app.state, "http_client", None),
         )
         memory.finish(idempotency_key, payload_hash(body), result)
         finished = True

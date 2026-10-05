@@ -3,23 +3,42 @@
 from __future__ import annotations
 
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from happen_api import __version__
+from happen_api.ai.extractor import release_model
 from happen_api.api.demo import router as demo_router
 from happen_api.api.health import router
+from happen_api.api.plans import router as plan_router
 from happen_api.api.recommendations import router as live_router
 from happen_api.config import Settings, get_settings
 from happen_api.errors import error_response, message_for, public_field_errors
 from happen_api.logging import configure_logging, get_logger
 from happen_api.middleware import BodyLimitMiddleware, RequestContextMiddleware, current_request_id
+from happen_api.planning.limits import AllowanceStore, PlanCache, PlanningThrottle
 from happen_api.providers.serpapi.guard import LiveGuard
 from happen_api.readiness import captured_fixture_status
 from happen_api.recommendations.memory import RecommendationMemory
+
+
+@asynccontextmanager
+async def _lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Open the shared SerpApi HTTP client and close it when the app stops."""
+
+    client = httpx.Client(trust_env=False, follow_redirects=False, timeout=httpx.Timeout(8.0))
+    application.state.http_client = client
+    try:
+        yield
+    finally:
+        client.close()
+        release_model()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -33,19 +52,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=_lifespan,
     )
     application.state.settings = resolved
     application.state.started_at = time.monotonic()
-    _, fixture_available = captured_fixture_status()
-    application.state.fixture_available = fixture_available
+    _, fixture_ready = captured_fixture_status()
+    # Production does not advertise a captured fixture as a user-facing fallback.
+    application.state.fixture_available = fixture_ready and resolved.app_env != "production"
     application.state.recommendation_memory = RecommendationMemory()
+    application.state.planning_throttle = PlanningThrottle()
+    application.state.plan_cache = PlanCache()
+    application.state.plan_allowances = AllowanceStore()
     application.state.live_guard = LiveGuard(budget=resolved.serpapi_search_budget)
     application.state.excerpt_generate = None
     application.state.provider_factory = None
     application.state.clock = None
     application.state.monotonic = None
 
-    application.add_middleware(BodyLimitMiddleware, fixture_available=fixture_available)
+    application.add_middleware(
+        BodyLimitMiddleware,
+        fixture_available=bool(application.state.fixture_available),
+    )
     application.add_middleware(RequestContextMiddleware)
     application.add_middleware(
         CORSMiddleware,
@@ -56,8 +83,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         expose_headers=[],
     )
     application.include_router(router)
-    application.include_router(demo_router)
-    application.include_router(live_router)
+    if resolved.app_env != "production":
+        application.include_router(demo_router)
+        application.include_router(live_router)
+    application.include_router(plan_router)
     application.add_exception_handler(StarletteHTTPException, http_exception_handler)
     application.add_exception_handler(RequestValidationError, validation_exception_handler)
     application.add_exception_handler(Exception, unhandled_exception_handler)

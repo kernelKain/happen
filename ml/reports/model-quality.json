@@ -1,0 +1,592 @@
+{
+  "report_version": "1",
+  "created_on": "2026-10-05",
+  "selected_fallback": "deterministic_parser",
+  "claims_enabled": false,
+  "measured_sha256": "c866c9f113f2e9aa2225c5997ede437392b8fa844ba5db9e4c77e315ffe20800",
+  "gates": {
+    "schema_parse_min": 0.95,
+    "planning_essential_min": 0.9,
+    "review_dimension_polarity_min": 0.8
+  },
+  "baseline_270m": {
+    "source_report": "ml/reports/baseline-270m.json",
+    "model_filename": "google_gemma-3-270m-it-Q4_K_M.gguf",
+    "model_sha256": "c866c9f113f2e9aa2225c5997ede437392b8fa844ba5db9e4c77e315ffe20800",
+    "held_out_count": 30,
+    "parse_rate": 0.0667,
+    "dimension_polarity_accuracy": 0.0444,
+    "schema_gate": false,
+    "review_gate": false,
+    "preserved": true
+  },
+  "planning": {
+    "example_count": 24,
+    "parsed_count": 22,
+    "parse_rate": 0.9167,
+    "essential_fields_correct": 64,
+    "essential_fields_total": 96,
+    "essential_field_accuracy": 0.6667,
+    "schema_gate": false,
+    "essential_gate": false,
+    "examples": [
+      {
+        "example_id": "plan-001",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-002",
+        "parsed": true,
+        "parse_attempt": 2,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-003",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-004",
+        "parsed": false,
+        "parse_attempt": 2,
+        "essential_correct": 0
+      },
+      {
+        "example_id": "plan-005",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 3
+      },
+      {
+        "example_id": "plan-006",
+        "parsed": true,
+        "parse_attempt": 2,
+        "essential_correct": 2
+      },
+      {
+        "example_id": "plan-007",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 3
+      },
+      {
+        "example_id": "plan-008",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 0
+      },
+      {
+        "example_id": "plan-009",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 3
+      },
+      {
+        "example_id": "plan-010",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 3
+      },
+      {
+        "example_id": "plan-011",
+        "parsed": true,
+        "parse_attempt": 2,
+        "essential_correct": 0
+      },
+      {
+        "example_id": "plan-012",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 3
+      },
+      {
+        "example_id": "plan-013",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-014",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 2
+      },
+      {
+        "example_id": "plan-015",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-016",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 3
+      },
+      {
+        "example_id": "plan-017",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-018",
+        "parsed": false,
+        "parse_attempt": 2,
+        "essential_correct": 0
+      },
+      {
+        "example_id": "plan-019",
+        "parsed": true,
+        "parse_attempt": 2,
+        "essential_correct": 3
+      },
+      {
+        "example_id": "plan-020",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-021",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-022",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 2
+      },
+      {
+        "example_id": "plan-023",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 4
+      },
+      {
+        "example_id": "plan-024",
+        "parsed": true,
+        "parse_attempt": 1,
+        "essential_correct": 1
+      }
+    ],
+    "measured": true
+  },
+  "review": {
+    "measured": true,
+    "held_out_count": 30,
+    "parsed_count": 2,
+    "parse_rate": 0.0667,
+    "correct_pairs": 4,
+    "pair_count": 90,
+    "dimension_polarity_accuracy": 0.0444,
+    "schema_gate": false,
+    "review_gate": false,
+    "examples": [
+      {
+        "example_id": "hold-001",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-002",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-003",
+        "kind": "negative",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-004",
+        "kind": "negative",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-005",
+        "kind": "negative",
+        "malformed": false,
+        "parse_attempt": 2,
+        "correct_pairs": 2
+      },
+      {
+        "example_id": "hold-006",
+        "kind": "unsupported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-007",
+        "kind": "unsupported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-008",
+        "kind": "injection",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-009",
+        "kind": "injection",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-010",
+        "kind": "conflicting",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-011",
+        "kind": "conflicting",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-012",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-013",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-014",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-015",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-016",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-017",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-018",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-019",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-020",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-021",
+        "kind": "negative",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-022",
+        "kind": "negative",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-023",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-024",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-025",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-026",
+        "kind": "conflicting",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-027",
+        "kind": "supported",
+        "malformed": false,
+        "parse_attempt": 2,
+        "correct_pairs": 2
+      },
+      {
+        "example_id": "hold-028",
+        "kind": "supported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-029",
+        "kind": "unsupported",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      },
+      {
+        "example_id": "hold-030",
+        "kind": "injection",
+        "malformed": true,
+        "parse_attempt": 2,
+        "correct_pairs": 0
+      }
+    ]
+  },
+  "resources": {
+    "file_size_bytes": 253115168,
+    "load_seconds": 0.932,
+    "median_inference_seconds": 2.327,
+    "peak_rss_bytes": 724475904
+  },
+  "candidate_1b": {
+    "huggingface_repo": "bartowski/google_gemma-3-1b-it-GGUF",
+    "revision": "116f76234503685a98f572982177b11d44ec8ff1",
+    "filename": "google_gemma-3-1b-it-Q4_K_M.gguf",
+    "sha256": "12bf0fff8815d5f73a3c9b586bd8fee8e7b248c935de70dec367679873d0f29d",
+    "size_bytes": 806058496,
+    "public_without_token": true,
+    "selected": false,
+    "evaluated": true,
+    "fits_memory_budget": true,
+    "reason": "The pinned 1B file verifies without a Hugging Face token and fits the memory budget, but it missed a quality gate. The deterministic parser remains the fallback.",
+    "local_sha256_matches": true,
+    "load_seconds": 0.693,
+    "peak_rss_bytes": 1273331712,
+    "planning": {
+      "example_count": 24,
+      "parsed_count": 24,
+      "parse_rate": 1.0,
+      "essential_fields_correct": 76,
+      "essential_fields_total": 96,
+      "essential_field_accuracy": 0.7917,
+      "schema_gate": true,
+      "essential_gate": false,
+      "examples": [
+        {
+          "example_id": "plan-001",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-002",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-003",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-004",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 1
+        },
+        {
+          "example_id": "plan-005",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-006",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        },
+        {
+          "example_id": "plan-007",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        },
+        {
+          "example_id": "plan-008",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 0
+        },
+        {
+          "example_id": "plan-009",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        },
+        {
+          "example_id": "plan-010",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        },
+        {
+          "example_id": "plan-011",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 0
+        },
+        {
+          "example_id": "plan-012",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-013",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-014",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        },
+        {
+          "example_id": "plan-015",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-016",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-017",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-018",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        },
+        {
+          "example_id": "plan-019",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        },
+        {
+          "example_id": "plan-020",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-021",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-022",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        },
+        {
+          "example_id": "plan-023",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 4
+        },
+        {
+          "example_id": "plan-024",
+          "parsed": true,
+          "parse_attempt": 1,
+          "essential_correct": 3
+        }
+      ]
+    },
+    "review": {
+      "measured": true,
+      "held_out_count": 30,
+      "parsed_count": 30,
+      "parse_rate": 1.0,
+      "correct_pairs": 61,
+      "pair_count": 90,
+      "dimension_polarity_accuracy": 0.6778,
+      "schema_gate": true,
+      "review_gate": false
+    }
+  },
+  "selection_reason": "The measured model missed a selection gate. Review gate passed: False. Model claims stay off. The deterministic parser remains usable."
+}

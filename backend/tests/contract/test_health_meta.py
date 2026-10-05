@@ -30,6 +30,9 @@ HEALTH_FIELDS = {
     "service_version",
     "contract_version",
     "model_status",
+    "artifact_status",
+    "model_quality",
+    "model_claims_enabled",
     "fixture_status",
     "uptime_seconds",
 }
@@ -44,6 +47,11 @@ META_FIELDS = {
     "fixture_available",
     "live_available",
     "model_status",
+    "artifact_status",
+    "model_quality",
+    "model_claims_enabled",
+    "planning_reader",
+    "planner_model_in_request_path",
     "scoring_policy_version",
     "timezone",
 }
@@ -77,6 +85,9 @@ def test_health_is_degraded_without_loading_the_model(
     assert body["service_version"] == __version__
     assert body["contract_version"] == CONTRACT_VERSION
     assert body["model_status"] == "not_loaded"
+    assert body["artifact_status"] == "not_loaded"
+    assert body["model_quality"] == "failed"
+    assert body["model_claims_enabled"] is False
     assert body["fixture_status"] == "ready"
     assert body["uptime_seconds"] >= 0
     assert response.headers["x-content-type-options"] == "nosniff"
@@ -102,6 +113,9 @@ def test_matching_model_file_is_ready_without_loading_llama(
     body = response.json()
     assert response.status_code == 200
     assert body["model_status"] == "ready"
+    assert body["artifact_status"] == "ready"
+    assert body["model_quality"] == "unmeasured"
+    assert body["model_claims_enabled"] is False
     assert body["fixture_status"] == "ready"
     assert body["status"] == "ok"
     assert "llama_cpp" not in sys.modules
@@ -129,6 +143,9 @@ def test_metadata_exposes_the_canonical_preset(
     assert body["supported_categories"] == ["restaurants"]
     assert body["supported_experiences"] == ["easier_conversation"]
     assert body["priority_dimensions"] == ["conversation", "short_wait", "seating"]
+    # Public metadata must not leave a reader guessing which reader is active.
+    assert body["planning_reader"] == "deterministic_parser"
+    assert body["planner_model_in_request_path"] is False
     assert body["canonical_preset"] == {
         "neighborhood": "indiranagar",
         "restaurant_category": "restaurants",
@@ -140,6 +157,8 @@ def test_metadata_exposes_the_canonical_preset(
     assert body["fixture_available"] is True
     assert body["live_available"] is False
     assert body["model_status"] == "not_loaded"
+    assert body["artifact_status"] == "not_loaded"
+    assert body["model_claims_enabled"] is False
     assert body["scoring_policy_version"] == SCORING_POLICY_VERSION
     assert body["timezone"] == "Asia/Kolkata"
     assert body["contract_version"] == CONTRACT_VERSION
@@ -258,6 +277,47 @@ def test_unhandled_errors_hide_internals(
     assert "Traceback" not in response.text
     assert "live-key-value" not in caplog.text
     assert "/tmp/model.gguf" not in caplog.text
+
+
+def test_production_does_not_serve_captured_recommendations(
+    settings_factory: Callable[..., Settings],
+) -> None:
+    """Verify production omits demo routes, the neighbourhood preset, and fixture fallback copy."""
+
+    settings = settings_factory(
+        APP_ENV="production",
+        CORS_ALLOWED_ORIGINS="https://happen.example",
+        HAPPEN_LIVE_ENABLED=True,
+        SERPAPI_API_KEY="live-key-value",
+    )
+    client = TestClient(create_app(settings), raise_server_exceptions=False)
+    for path in ("/api/v1/demo-recommendations", "/api/v1/recommendations"):
+        response = client.post(path, json={"neighborhood": "indiranagar"})
+        assert response.status_code == 404
+        body = response.json()
+        assert body["error"]["fixture_available"] is False
+        assert "captured" not in body["error"]["next_action"].lower()
+        assert "captured_fixture" not in response.text
+        assert "indiranagar" not in response.text.lower()
+
+    meta = client.get("/api/v1/meta")
+    assert meta.status_code == 200
+    published = meta.json()
+    assert published["fixture_available"] is False
+    assert published["live_available"] is True
+    assert published["supported_neighborhoods"] == []
+    assert published["canonical_preset"]["neighborhood"] == ""
+    assert published["timezone"] == ""
+    assert "indiranagar" not in meta.text.lower()
+    assert "Asia/Kolkata" not in meta.text
+    assert "live-key-value" not in meta.text
+
+    health = client.get("/healthz")
+    assert health.status_code == 200
+    assert health.json()["fixture_status"] == "ready"
+    plans = client.post("/api/v2/plans", json={})
+    assert plans.status_code == 422
+    assert "captured" not in plans.json()["error"]["next_action"].lower()
 
 
 def test_access_log_omits_authorization_header(

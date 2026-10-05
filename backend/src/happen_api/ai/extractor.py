@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from happen_api.domain.models import ReviewExcerpt
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _LOCK = threading.Lock()
 _MODEL: object | None = None
+_LOAD_SECONDS: float | None = None
 TEMPERATURE = 0.0
 MAX_TOKENS = 384
 REPEAT_PENALTY = 1.0
@@ -34,6 +36,18 @@ def model_file(settings: Settings) -> Path:
     """Return the pinned GGUF path without requiring the file to exist yet."""
 
     return _REPO_ROOT / "ml" / ".cache" / settings.model_filename
+
+
+def model_load_seconds() -> float | None:
+    """Return how long the last model construction took, when this process loaded one."""
+
+    return _LOAD_SECONDS
+
+
+def complete_prompt(prompt: str, *, settings: Settings | None = None) -> str:
+    """Run one pinned-model completion. Callers discard the raw text after parsing."""
+
+    return _model_generate(settings or get_settings())(prompt)
 
 
 def extract_excerpt(
@@ -69,8 +83,21 @@ def _model_generate(settings: Settings) -> Callable[[str], str]:
     return generate
 
 
+def release_model() -> None:
+    """Drop a loaded model when the process stops. Nothing happens if none was loaded."""
+
+    global _MODEL, _LOAD_SECONDS
+    with _LOCK:
+        model = _MODEL
+        _MODEL = None
+        _LOAD_SECONDS = None
+    close = getattr(model, "close", None)
+    if callable(close):
+        close()
+
+
 def _load_model(settings: Settings) -> object:
-    global _MODEL
+    global _MODEL, _LOAD_SECONDS
     if _MODEL is not None:
         return _MODEL
     path = model_file(settings)
@@ -81,6 +108,7 @@ def _load_model(settings: Settings) -> object:
     try:
         from llama_cpp import Llama
 
+        started = time.perf_counter()
         _MODEL = Llama(
             model_path=str(path),
             n_ctx=2048,
@@ -89,6 +117,7 @@ def _load_model(settings: Settings) -> object:
             verbose=False,
             seed=0,
         )
+        _LOAD_SECONDS = time.perf_counter() - started
     except (OSError, RuntimeError, ValueError):
         raise ExtractionError(
             "MODEL_UNAVAILABLE", "The evidence model could not be loaded."
