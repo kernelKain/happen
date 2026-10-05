@@ -122,17 +122,23 @@ afterEach(() => {
 describe("landing", () => {
   it("leads with the promise, the composer, the chips, and the trust strip", () => {
     render(<Landing />);
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Your evening, checked.");
-    expect(screen.getByRole("textbox", { name: "Describe the evening" })).toHaveProperty(
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Turn your evening into a checked plan.",
+    );
+    expect(screen.getByRole("textbox", { name: "What would you like to do?" })).toHaveProperty(
       "maxLength",
       2000,
     );
-    expect(screen.getByRole("button", { name: "Plan this evening" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Build my evening" })).toBeTruthy();
     expect(screen.getByRole("list", { name: "Example evenings" })).toBeTruthy();
     // Three promises, stated in the reader's terms rather than in internals.
-    expect(screen.getByText("Live places")).toBeTruthy();
-    expect(screen.getByText("Checked timing")).toBeTruthy();
-    expect(screen.getByText("Source-backed")).toBeTruthy();
+    expect(screen.getByText("Live when you search")).toBeTruthy();
+    expect(screen.getByText("Feasibility first")).toBeTruthy();
+    expect(screen.getByText("No hidden guesses")).toBeTruthy();
+    expect(
+      screen.getByText("Searches live place listings through SerpApi when you continue."),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Built to finish the decision" })).toBeTruthy();
     expect(document.querySelector(".mark")).toBeTruthy();
     expect(screen.getByText("Happen", { selector: ".wordmark" })).toBeTruthy();
   });
@@ -141,7 +147,9 @@ describe("landing", () => {
     render(<Landing />);
     // Above the fold, nothing explains the implementation.
     const hero = document.querySelector(".landing-hero")?.textContent ?? "";
-    expect(hero).not.toMatch(/SerpApi|Gemma|Python|model|fixture|repository|Indiranagar/i);
+    expect(hero).not.toMatch(/Gemma|Python|model|fixture|repository|Indiranagar/i);
+    // SerpApi is named because it is what the visitor's search actually uses.
+    expect(hero).toMatch(/through SerpApi/);
     // The headline carries no product-identity claim beyond the decision itself.
     expect(hero).not.toMatch(/itinerary|chatbot|assistant/i);
   });
@@ -186,9 +194,10 @@ describe("landing", () => {
   it("keeps the support sentence short", () => {
     render(<Landing />);
     const sentence = document.querySelector(".promise p")?.textContent ?? "";
-    // One short sentence. A paragraph here would read as documentation.
+    expect(sentence).toBe(
+      "Describe your evening. Happen checks live place listings and returns one source-backed plan with up to two stops.",
+    );
     expect(sentence.length).toBeLessThanOrEqual(140);
-    expect(sentence).not.toMatch(/\.\s+\S/);
   });
 
   it("offers exactly three concise example chips", () => {
@@ -205,7 +214,7 @@ describe("landing", () => {
     const fetchImpl = vi.fn();
     render(<Landing fetchImpl={fetchImpl as PlanFetch} />);
     fireEvent.click(screen.getByRole("button", { name: EXAMPLE_EVENINGS[0] }));
-    const field = screen.getByRole("textbox", { name: "Describe the evening" });
+    const field = screen.getByRole("textbox", { name: "What would you like to do?" });
     expect(field).toHaveProperty("value", EXAMPLE_EVENINGS[0]);
     expect(screen.queryByRole("status")).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -223,12 +232,12 @@ describe("landing", () => {
     chip.focus();
     expect(document.activeElement).toBe(chip);
     fireEvent.click(chip);
-    expect(screen.getByRole("textbox", { name: "Describe the evening" })).toHaveProperty(
+    expect(screen.getByRole("textbox", { name: "What would you like to do?" })).toHaveProperty(
       "value",
       EXAMPLE_EVENINGS[0],
     );
     expect(document.activeElement).toBe(
-      screen.getByRole("textbox", { name: "Describe the evening" }),
+      screen.getByRole("textbox", { name: "What would you like to do?" }),
     );
     // The disclosure is reachable and reports its state to assistive tech.
     const toggle = screen.getByRole("button", { name: "How Happen decides" });
@@ -241,7 +250,7 @@ describe("landing", () => {
     const fetchImpl = vi.fn();
     render(<Landing fetchImpl={fetchImpl as PlanFetch} />);
     fireEvent.click(screen.getByRole("button", { name: EXAMPLE_EVENINGS[0] }));
-    const field = screen.getByRole("textbox", { name: "Describe the evening" });
+    const field = screen.getByRole("textbox", { name: "What would you like to do?" });
     expect(field).toHaveProperty("value", EXAMPLE_EVENINGS[0]);
     expect(screen.queryByRole("status")).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -250,13 +259,13 @@ describe("landing", () => {
   it("asks for an evening before calling the backend", () => {
     const fetchImpl = vi.fn();
     render(<Landing fetchImpl={fetchImpl as PlanFetch} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
     expect(screen.getByRole("alert").textContent).toMatch(/Describe the evening/);
     expect(screen.queryByRole("status")).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("shows an editable brief and waits for Find the plan before searching", async () => {
+  it("shows an editable brief and waits for Check live places before searching", async () => {
     const calls: string[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -273,9 +282,26 @@ describe("landing", () => {
       throw new Error(url);
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    expect(await screen.findByRole("button", { name: "Find the plan" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    expect(await screen.findByRole("button", { name: "Check live places" })).toBeTruthy();
     expect(screen.getByText(`Your words: ${original}`)).toBeTruthy();
+    // The brief is compact until the visitor asks to edit it.
+    expect(document.querySelector(".brief-line-main")?.textContent).toBe(
+      "Kyoto, Kyoto, Japan · Mon, Oct 5 · 7:00 PM",
+    );
+    expect(document.querySelector(".brief-line-main time")?.getAttribute("datetime")).toBe(
+      "2026-10-05",
+    );
+    expect(screen.getByText(/Dinner → Walk · 2 people/)).toBeTruthy();
+    expect(screen.getByText("Times shown in Kyoto local time.")).toBeTruthy();
+    expect(screen.queryByLabelText("Destination")).toBeNull();
+    const edit = screen.getByRole("button", { name: "Edit details" });
+    expect(edit).toHaveProperty("ariaExpanded", "false");
+    fireEvent.click(edit);
+    expect(screen.getByRole("button", { name: "Done editing" })).toHaveProperty(
+      "ariaExpanded",
+      "true",
+    );
     expect(screen.getByLabelText("Destination")).toHaveProperty("value", "Kyoto");
     expect(screen.getByLabelText("Local date")).toHaveProperty("value", "2026-10-05");
     expect(screen.getByLabelText("Local time")).toHaveProperty("value", "19:00");
@@ -283,14 +309,14 @@ describe("landing", () => {
     expect(calls.some((url) => url.endsWith("/api/v2/plans"))).toBe(false);
     fireEvent.change(screen.getByLabelText("Party size"), { target: { value: "4" } });
     fireEvent.change(screen.getByLabelText("Destination"), { target: { value: "Osaka" } });
-    expect(screen.queryByRole("button", { name: "Find the plan" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Check live places" })).toBeNull();
     expect(screen.getByRole("button", { name: "Check this place" })).toBeTruthy();
     expect(screen.getByText(`Your words: ${original}`)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Destination"), { target: { value: "Kyoto" } });
     fireEvent.click(screen.getByRole("button", { name: "Check this place" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
-    expect(await screen.findByRole("heading", { name: "This evening" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
+    expect(await screen.findByRole("heading", { name: /^Your \w+ evening/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Kura" })).toBeTruthy();
     expect(calls.filter((url) => url.endsWith("/api/v2/plans"))).toHaveLength(1);
   });
 
@@ -334,13 +360,13 @@ describe("landing", () => {
       throw new Error(url);
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
     const question = await screen.findByLabelText("Which place should this evening be in?");
     expect(screen.queryByLabelText("What time should the evening start?")).toBeNull();
     fireEvent.change(question, { target: { value: "Kyoto" } });
     fireEvent.click(screen.getByRole("button", { name: "Answer" }));
     expect(await screen.findByText(`Your words: ${original}`)).toBeTruthy();
-    expect(await screen.findByRole("button", { name: "Find the plan" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Check live places" })).toBeTruthy();
     expect(fetchImpl.mock.calls.some((call) => String(call[0]).endsWith("/api/v2/plans"))).toBe(
       false,
     );
@@ -376,12 +402,12 @@ describe("landing", () => {
       throw new Error(url);
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
     expect(await screen.findByRole("group", { name: "Which place did you mean?" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Find the plan" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Check live places" })).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: "London, United Kingdom" }));
     fireEvent.click(screen.getByRole("button", { name: "Use this place" }));
-    expect(await screen.findByRole("button", { name: "Find the plan" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Check live places" })).toBeTruthy();
     expect(calls.some((url) => url.endsWith("/api/v2/plans"))).toBe(false);
   });
 
@@ -426,7 +452,7 @@ describe("landing", () => {
       throw new Error(url);
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
     const field = await screen.findByLabelText("Which place should this evening be in?");
     // The draft must survive the effect that runs when the question appears.
     // Clearing it here left the submit button disabled, so the answer was lost
@@ -437,7 +463,7 @@ describe("landing", () => {
     const submit = screen.getByRole("button", { name: "Answer" });
     expect(submit).toHaveProperty("disabled", false);
     fireEvent.click(submit);
-    expect(await screen.findByRole("button", { name: "Find the plan" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Check live places" })).toBeTruthy();
   });
 
   it("does not start a second place search while one is running or after cancel", async () => {
@@ -460,17 +486,20 @@ describe("landing", () => {
       });
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    const find = await screen.findByRole("button", { name: "Find the plan" });
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    const find = await screen.findByRole("button", { name: "Check live places" });
     fireEvent.click(find);
     fireEvent.click(find);
-    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Finding live places.");
+    expect(await screen.findByRole("status")).toHaveProperty(
+      "textContent",
+      "Checking live listings and opening hours through SerpApi…",
+    );
     expect(planCalls).toBe(1);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     rejectPlan(new DOMException("The operation was aborted.", "AbortError"));
-    expect(screen.queryByRole("heading", { name: "This evening" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /^Your \w+ evening/ })).toBeNull();
     expect(planCalls).toBe(1);
-    expect(screen.getByRole("button", { name: "Find the plan" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Check live places" })).toBeTruthy();
   });
 
   it("shows quota, timeout, unreachable, and no-result states without a stand-in plan", async () => {
@@ -498,8 +527,8 @@ describe("landing", () => {
       );
     });
     const { unmount } = render(<Landing initialEvening={original} fetchImpl={quota} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
     expect(await screen.findByRole("alert")).toHaveProperty(
       "textContent",
       expect.stringMatching(/search allowance/),
@@ -534,8 +563,8 @@ describe("landing", () => {
       );
     });
     const second = render(<Landing initialEvening={original} fetchImpl={timeout} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
     expect(await screen.findByText("Live place evidence did not respond in time.")).toBeTruthy();
     expect(planCalls).toBe(1);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
@@ -546,12 +575,12 @@ describe("landing", () => {
       throw new TypeError("offline");
     });
     render(<Landing initialEvening={original} fetchImpl={offline} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
     expect(await screen.findByRole("alert")).toHaveProperty(
       "textContent",
       expect.stringMatching(/could not be reached/),
     );
-    expect(screen.queryByRole("heading", { name: "This evening" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /^Your \w+ evening/ })).toBeNull();
     cleanup();
 
     const empty = vi.fn(async (input: RequestInfo | URL) => {
@@ -565,11 +594,11 @@ describe("landing", () => {
       return json({ ...eveningPlan, outcome: "no_results", stops: [], warnings: [] });
     });
     render(<Landing initialEvening={original} fetchImpl={empty} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
     expect(await screen.findByText("No live places matched this evening.")).toBeTruthy();
     expect(screen.getByText(`Your words: ${original}`)).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "1. Kura" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Kura" })).toBeNull();
   });
 
   it("reviews a change without replacing the plan until Apply", async () => {
@@ -602,29 +631,29 @@ describe("landing", () => {
       return json(eveningPlan);
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
-    expect(await screen.findByRole("heading", { name: "1. Kura" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
+    expect(await screen.findByRole("heading", { name: "Kura" })).toBeTruthy();
     expect(planCalls).toBe(1);
     fireEvent.change(screen.getByLabelText("Change this evening"), {
       target: { value: "Make it livelier" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
     expect(await screen.findByRole("heading", { name: "Review the change" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
-    expect(screen.getByText(/Preferences: quiet to quiet, lively/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Kura" })).toBeTruthy();
+    expect(screen.getByText(/Preferences: quiet → quiet, lively/)).toBeTruthy();
     // Reviewing alone must not recompute.
     expect(planCalls).toBe(1);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("heading", { name: "Review the change" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Kura" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Change this evening"), {
       target: { value: "Make it livelier" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
     await screen.findByRole("button", { name: "Apply" });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(await screen.findByRole("heading", { name: "This evening" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: /^Your \w+ evening/ })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Review the change" })).toBeNull();
     // Apply recomputes from the server, so the plan request happens again.
     expect(planCalls).toBe(2);
@@ -664,9 +693,9 @@ describe("landing", () => {
       return json(eveningPlan);
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
-    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
+    await screen.findByRole("heading", { name: "Kura" });
     fireEvent.change(screen.getByLabelText("Change this evening"), {
       target: { value: "Make it quieter" },
     });
@@ -721,9 +750,9 @@ describe("landing", () => {
       );
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
-    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
+    await screen.findByRole("heading", { name: "Kura" });
     fireEvent.change(screen.getByLabelText("Change this evening"), {
       target: { value: "Make it quieter" },
     });
@@ -732,7 +761,8 @@ describe("landing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
     // The old plan is still on the page, and the brief was not advanced.
-    expect(screen.getByRole("heading", { name: "1. Kura" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Kura" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit details" }));
     expect(screen.getByLabelText("Preferences")).toHaveProperty("value", "quiet");
   });
 
@@ -770,16 +800,19 @@ describe("landing", () => {
       return json(unverified);
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
-    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
+    await screen.findByRole("heading", { name: "Kura" });
     fireEvent.change(screen.getByLabelText("Change this evening"), {
       target: { value: "Make it romantic" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
     await screen.findByRole("button", { name: "Apply" });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(await screen.findByText(/romantic: unknown/)).toBeTruthy();
+    expect(await screen.findByText("Couldn't confirm:")).toBeTruthy();
+    expect(screen.getByText(/“romantic”/)).toBeTruthy();
+    expect(screen.getByText("Preferences: romantic")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit details" }));
     expect(screen.getByLabelText("Preferences")).toHaveProperty("value", "romantic");
   });
 
@@ -817,9 +850,9 @@ describe("landing", () => {
       return json(eveningPlan);
     });
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
-    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
+    await screen.findByRole("heading", { name: "Kura" });
     expect(resolveCalls).toBe(1);
     fireEvent.change(screen.getByLabelText("Change this evening"), {
       target: { value: "Move this to Osaka" },
@@ -830,6 +863,7 @@ describe("landing", () => {
     await waitFor(() => expect(planCalls).toBe(2));
     // The new place needs its own resolution before the plan can be requested.
     expect(resolveCalls).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "Edit details" }));
     expect(screen.getByLabelText("Destination")).toHaveProperty("value", "Osaka");
   });
 });
@@ -899,7 +933,7 @@ describe("refinement purposes on the page", () => {
     });
 
     const { unmount } = render(<Landing initialEvening={original} fetchImpl={ask} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
     const question = await screen.findByLabelText("Which place should this evening be in?");
     fireEvent.change(question, { target: { value: "Kyoto" } });
     fireEvent.click(screen.getByRole("button", { name: "Answer" }));
@@ -909,9 +943,9 @@ describe("refinement purposes on the page", () => {
     unmount();
 
     render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
-    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
-    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.click(screen.getByRole("button", { name: "Build my evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check live places" }));
+    await screen.findByRole("heading", { name: "Kura" });
     fireEvent.change(screen.getByLabelText("Change this evening"), {
       target: { value: "Make it quiet" },
     });

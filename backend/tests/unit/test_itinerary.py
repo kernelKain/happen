@@ -221,6 +221,31 @@ def test_two_stops_link_directions_without_inventing_a_duration() -> None:
     assert "35.1,135.8" in directions
     with pytest.raises(ValidationError):
         PlanTransition.model_validate({**dumped, "duration": 12})
+    assert plan.stops[0].arrival_planned is True
+    assert plan.stops[1].arrival_planned is False
+
+
+def test_the_planned_weekday_hours_come_first_with_typed_timing() -> None:
+    """Hours evidence shows the planned day, not the first rows of the week."""
+
+    week = [
+        "Thursday: 9:00 AM–5:00 PM",
+        "Friday: 9:00 AM–5:00 PM",
+        "Saturday: 9:00 AM–5:00 PM",
+        "Sunday: Closed",
+        "Monday: 6:00 PM–11:00 PM",
+    ]
+    stop = _plan([_place(hours=week)]).stops[0]
+    hours = [item.text for item in stop.evidence if item.field == "hours"]
+    assert hours == ["Monday: 6:00 PM–11:00 PM"]
+    assert stop.hours_for_day == "Monday: 6:00 PM–11:00 PM"
+    assert stop.weekly_hours == week
+    assert stop.hours_reason == "hours_covers_arrival"
+    assert stop.closes_at == time(23, 0)
+    unlisted = _plan([_place(hours=[], unknown_fields=["hours"])]).stops[0]
+    assert unlisted.closes_at is None
+    assert unlisted.hours_for_day is None
+    assert unlisted.hours_reason == "hours_missing"
 
 
 def test_evidence_keeps_source_types_and_the_retrieval_time() -> None:

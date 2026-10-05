@@ -121,7 +121,7 @@
   cursor: pointer;
 }
 
-.composer button {
+.composer button[type="submit"] {
   justify-self: start;
   padding: 0.7rem 1.15rem;
   border: 0;
@@ -353,7 +353,9 @@
 .flow button,
 .brief button,
 .follow-up button,
-.notice button {
+.notice button,
+.refine button,
+.diff button {
   min-height: 44px;
   padding: 0.7rem 1.15rem;
   border: 0;
@@ -367,6 +369,8 @@
 
 .flow button:disabled,
 .brief button:disabled,
+.refine button:disabled,
+.diff button:disabled,
 .follow-up button:disabled,
 .composer button:disabled {
   opacity: 0.55;
@@ -434,6 +438,10 @@
   background: #17211d;
   border: 1px solid var(--line);
   border-radius: 1.25rem;
+}
+
+.refine button {
+  justify-self: start;
 }
 
 .refine textarea {
@@ -517,39 +525,37 @@
 
 @media (min-width: 1280px) {
   .landing {
-    width: min(72rem, calc(100% - 4rem));
-    padding-top: 2rem;
-    gap: 5rem;
+    width: min(80rem, calc(100% - 3rem));
+    padding-top: 1.5rem;
+  }
+
+  .landing[data-stage="describe"] {
+    gap: 2.25rem;
   }
 
   .landing-hero {
-    grid-template-columns: minmax(0, 1.05fr) minmax(21rem, 0.95fr);
-    gap: 2rem 4rem;
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.9fr);
+    gap: 1.75rem 4rem;
     align-items: start;
   }
 
   .promise {
     grid-column: 1;
     grid-row: 1;
+    padding-top: 1rem;
   }
 
   .composer {
     grid-column: 2;
-    grid-row: 1 / span 2;
-    /* Anchored to the top so the headline stays the dominant element. */
+    grid-row: 1;
     align-self: start;
     padding: 1.25rem;
   }
 
-  .chips {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  /* Three promises read as one row once there is room for them. */
+  /* Three promises read as one row under both columns. */
   .trust-strip {
-    grid-column: 1;
-    grid-row: 3;
+    grid-column: 1 / -1;
+    grid-row: 2;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -589,6 +595,673 @@
   .chips button,
   .methodology-toggle,
   .flow button {
+    transition: none;
+  }
+}
+
+/* Shared controls. */
+.landing .secondary {
+  background: transparent;
+  color: var(--paper);
+  border: 1px solid var(--line);
+  font-weight: 500;
+}
+
+.landing .secondary:hover:not(:disabled) {
+  border-color: var(--brass);
+}
+
+.link-button {
+  min-height: 44px;
+  padding: 0 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--brass);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.landing a {
+  color: var(--brass);
+  text-underline-offset: 0.2em;
+}
+
+.landing :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.composer-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.different {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 46rem;
+  padding: 1.25rem 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.different h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.different p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.landing[data-stage="describe"] > main {
+  display: grid;
+  gap: 2rem;
+}
+
+.landing[data-stage="describe"] .flow:empty {
+  display: none;
+}
+
+/* Compact application header after the visitor has described an evening. */
+.landing:not([data-stage="describe"]) {
+  gap: 1.25rem;
+  padding-top: 0.75rem;
+}
+
+.app-bar {
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.app-bar .mark {
+  width: 2rem;
+  height: 2rem;
+}
+
+.app-bar .wordmark {
+  font-size: 1.15rem;
+}
+
+.progress {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  counter-reset: step;
+}
+
+.progress li {
+  counter-increment: step;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.progress li::before {
+  content: counter(step) " ";
+  font-weight: 600;
+}
+
+.progress li[data-done="true"] {
+  color: var(--paper);
+}
+
+.progress li[aria-current="step"] {
+  background: var(--brass);
+  border-color: var(--brass);
+  color: var(--brass-ink);
+  font-weight: 600;
+}
+
+.new-evening {
+  margin-left: auto;
+  min-height: 40px;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+/* Workspace: brief rail, itinerary, and an optional sources panel. */
+.workspace {
+  display: grid;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.workspace:focus {
+  outline: none;
+}
+
+.workspace > .flow:not(:has(*)) {
+  display: none;
+}
+
+.rail {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.stage-main,
+.sources {
+  min-width: 0;
+}
+
+.brief-summary {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.brief-summary p {
+  margin: 0;
+}
+
+.brief-line-main {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.brief-zone,
+.original {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.brief-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.brief > button {
+  justify-self: start;
+}
+
+.find-row {
+  justify-items: start;
+}
+
+.notice-lead {
+  font-weight: 600;
+}
+
+.review-guide {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--line);
+  border-radius: 1.25rem;
+  color: var(--muted);
+}
+
+.review-guide h2 {
+  margin: 0;
+  color: var(--paper);
+  font-size: 1.15rem;
+}
+
+.review-guide ol {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.4rem;
+  line-height: 1.5;
+}
+
+.review-guide p {
+  margin: 0;
+}
+
+/* Itinerary. */
+.plan-head {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.plan h2 {
+  font-size: clamp(1.3rem, 2.4vw, 1.7rem);
+  letter-spacing: -0.02em;
+}
+
+.plan-sub {
+  font-weight: 600;
+}
+
+.plan-meta {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.plan-outcome {
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--brass);
+  background: #221c12;
+}
+
+.plan-notes {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.4rem;
+  border-left: 2px solid var(--line);
+  display: grid;
+  gap: 1.5rem;
+}
+
+.stop {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.stop[data-selected="true"] {
+  border-color: var(--brass);
+}
+
+.stop h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+}
+
+.stop h4 {
+  margin: 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.stop p {
+  margin: 0;
+}
+
+.stop-when {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: var(--brass);
+}
+
+.stop-seq {
+  position: absolute;
+  left: calc(-1.4rem - 0.85rem);
+  top: 1rem;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: var(--brass);
+  color: var(--brass-ink);
+  font-size: 0.85rem;
+}
+
+.stop-address {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.stop-timing {
+  justify-self: start;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: #1d3329;
+  color: #bfe8cf;
+}
+
+.stop-timing[data-tone="caution"] {
+  background: #33281a;
+  color: #f1d29d;
+}
+
+.stop-leg {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.stop-why ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.stop-label {
+  font-weight: 600;
+}
+
+.stop-unknown {
+  padding: 0.55rem 0.75rem;
+  border-left: 3px solid #f1d29d;
+  background: #1c1912;
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-size: 0.94rem;
+}
+
+.stop-against {
+  padding: 0.55rem 0.75rem;
+  border-left: 3px solid var(--danger);
+  font-size: 0.94rem;
+}
+
+.stop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+}
+
+.stop-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+}
+
+/* Sources panel. */
+.sources {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  background: #17211d;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+}
+
+.sources-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sources h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sources h2:focus {
+  outline: none;
+}
+
+.sources h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.sources h4 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.sources p,
+.sources ul,
+.sources dl {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.sources ul {
+  padding-left: 1.1rem;
+}
+
+.sources-note,
+.source-note,
+.audit-meta {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.checks {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.checks div {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 0.5rem;
+}
+
+.checks dt {
+  font-weight: 600;
+}
+
+.checks dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.source-group {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.25rem 0 0.25rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.source-link {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.verification {
+  color: var(--muted);
+}
+
+.sources details summary {
+  cursor: pointer;
+  min-height: 32px;
+  font-weight: 600;
+}
+
+.audit ul {
+  display: grid;
+  gap: 0.6rem;
+  padding-left: 1rem;
+  margin-top: 0.5rem;
+}
+
+.audit p {
+  overflow-wrap: anywhere;
+}
+
+/* Refinement diff. */
+.diff-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.diff-kind {
+  display: inline-block;
+  min-width: 4.5rem;
+  font-weight: 600;
+  color: var(--brass);
+}
+
+.diff p,
+.refine label {
+  margin: 0;
+}
+
+.view-switch {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .workspace {
+    grid-template-columns: minmax(18rem, 21rem) minmax(0, 1fr);
+  }
+
+  .workspace[data-sources="open"] {
+    grid-template-columns: minmax(17rem, 19rem) minmax(0, 1fr) minmax(19rem, 23rem);
+  }
+
+  .workspace > .flow {
+    grid-column: 1 / -1;
+  }
+
+  .rail {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  .sources {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+
+  .rail .brief-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1023px) {
+  .view-switch {
+    display: flex;
+    gap: 0.35rem;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 0.4rem 0;
+    background: var(--ink, #101614);
+  }
+
+  .view-switch button {
+    flex: 1;
+    min-height: 40px;
+    padding: 0.4rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--paper);
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .view-switch button[aria-pressed="true"] {
+    background: var(--brass);
+    border-color: var(--brass);
+    color: var(--brass-ink);
+  }
+
+  .workspace[data-stage="plan"][data-view="plan"] .rail,
+  .workspace[data-stage="plan"][data-view="plan"] .sources,
+  .workspace[data-stage="plan"][data-view="brief"] .stage-main,
+  .workspace[data-stage="plan"][data-view="brief"] .sources,
+  .workspace[data-stage="plan"][data-view="sources"] .rail,
+  .workspace[data-stage="plan"][data-view="sources"] .stage-main {
+    display: none;
+  }
+
+  .progress li {
+    padding: 0.25rem 0.55rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-bar {
+    gap: 0.5rem 0.75rem;
+  }
+
+  .progress {
+    order: 3;
+    width: 100%;
+  }
+
+  .progress li {
+    flex: 1;
+    text-align: center;
+  }
+
+  .timeline {
+    padding-left: 1.1rem;
+  }
+
+  .plan {
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+
+  .stop {
+    padding: 0.85rem;
+  }
+
+  .stop-seq {
+    left: calc(-1.1rem - 0.85rem);
+    width: 1.45rem;
+    height: 1.45rem;
+  }
+
+  .checks div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stop,
+  .sources {
+    animation: landing-rise 240ms ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stop,
+  .sources,
+  .link-button,
+  .view-switch button,
+  .new-evening {
+    animation: none;
     transition: none;
   }
 }

@@ -22,9 +22,9 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. Five audited defects are repaired. Latency and concurrency are bounded by one shared monotonic deadline. The landing now states one outcome above the fold and keeps methodology behind a disclosure. The model quality gate failed, so claims stay off. |
-| Last finished step | Verify the decision-ready evening experience. |
-| Next step | user-owned: local manual test, optional bounded live test, friend walkthrough, demo recording, review, deployment |
-| Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
+| Last finished step | Evidence-first interface. |
+| Next step | user-owned: demo recording, DEV article, submission |
+| Branch | `evidence-first-interface`, created from `main` at `704f481` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
 | Live URL | Not deployed |
@@ -109,9 +109,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 | | |
 |---|---|
 | Status | Audited and verified. The whole branch passes 464 backend, 62 frontend, and 21 shell tests with formatting, lint, the secret scan, and the production build clean. Three silent defects were found and fixed: the plans route was given the destination attempt cap, a stage could begin with too little budget left to finish, and a typed follow-up answer could be wiped before it was sent. Swaps, cached alternatives, why-won comparison, calculated arrivals, departures, and route distance do not exist and are documented as absent. One monotonic 14s deadline governs provider work, the eight-attempt allowance is charged per attempt, and cached plans spend zero requests. Warm p50/p95 against live SerpApi is unmeasured. Gemma claims stay off. |
-| Last finished step | Verify the decision-ready evening experience. |
-| Next step | A manual local test of one real evening, which only the user can run |
-| Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
+| Last finished step | Evidence-first interface. |
+| Next step | Demo recording, DEV article, and submission, which only the user can do |
+| Branch | `evidence-first-interface`, created from `main` at `704f481` |
 | Live URL | Not deployed |
 | Spend | $0 |
 | Biggest blocker | Render services are still not created, and that deploy is not the current step. |
@@ -1468,3 +1468,47 @@ alone.
 6. Record a short demo. Keep it to one evening, one question, one change.
 7. Review the diff, then decide separately whether to push, open a pull request,
    deploy, or publish. None of that was done here.
+
+## Evidence-first interface
+
+The user ran the local manual test on a real Mexico City coffee-and-museum
+evening and reported the results. That closed the previous gate. Pull request 9
+was merged into `main` at `704f481`, and this branch started there.
+
+### What changed
+
+- The landing says "Turn your evening into a checked plan." It names SerpApi as
+  the live source, shows three promises, and adds a short "Built to finish the
+  decision" section. At 1280×800 the proposition, composer, action, and promises
+  fit without scrolling.
+- The page has three stages: Describe, Review, and Plan. After Describe, the hero
+  becomes a compact header with a progress indicator and a **New evening**
+  button.
+- The brief is a short summary with **Edit details**. The full form opens on
+  request, or by itself when a value is missing or invalid. **Check live places**
+  replaces Find the plan.
+- On desktop the result is a sticky brief rail, the itinerary, and an optional
+  sources panel. On a phone it is a Plan, Brief, and Sources switch.
+- Each stop shows its time and activity, the name and address, one timing
+  status, up to three reasons, listing details, and one **Couldn't confirm**
+  line. The second stop says exact arrival is not calculated and links
+  directions between stops.
+- **View sources** opens What was checked, the planned day's hours with the full
+  week behind a disclosure, sources grouped by kind with duplicate links
+  removed, What remains unknown, and a full audit with per-claim retrieval times.
+- Customer copy comes from `frontend/src/app/landing/present.ts`, built from
+  typed fields. Component details and reason codes are no longer rendered.
+
+### Backend contract additions
+
+`PlanStop` gained five optional fields, all backward compatible:
+`hours_reason`, `arrival_planned`, `closes_at`, `hours_for_day`, and
+`weekly_hours`. The Maps hours evidence now carries the planned weekday's row
+instead of the first three rows of the week. Scoring and selection are
+unchanged.
+
+### Verified
+
+466 backend tests, ruff format and lint, the secret scan, Biome, 68 Vitest
+tests, the production build, and 22 Playwright tests with axe at 1280px and
+390px. Zero SerpApi credits were spent.

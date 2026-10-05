@@ -26,14 +26,16 @@ test("a fixture response is not requested or shown", async ({ page }) => {
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/?layout=sample");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Turn your evening into a checked plan.",
+  );
   await expect(page.getByText("Courtyard Lantern")).toHaveCount(0);
   await expect(page.getByText("Captured fixture")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Use captured evidence" })).toHaveCount(0);
   await expect(page.getByText(/fixture|captured evidence|Project repository/i)).toHaveCount(0);
   expect(fixtureCalls).toBe(0);
 
-  await page.getByRole("button", { name: "Plan this evening" }).click();
+  await page.getByRole("button", { name: "Build my evening" }).click();
   await expect(page.getByRole("alert")).toContainText(
     "Describe the evening before Happen can plan it.",
   );
@@ -123,10 +125,10 @@ test("an exhausted search stays a failure without a fixture", async ({ page }) =
 
   await page.goto("/");
   await page
-    .getByRole("textbox", { name: "Describe the evening" })
+    .getByRole("textbox", { name: "What would you like to do?" })
     .fill("Dinner in Kyoto tomorrow at 7.");
-  await page.getByRole("button", { name: "Plan this evening" }).click();
-  await page.getByRole("button", { name: "Find the plan" }).click();
+  await page.getByRole("button", { name: "Build my evening" }).click();
+  await page.getByRole("button", { name: "Check live places" }).click();
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("The search allowance for this plan has been reached.");
   await expect(alert).toContainText("Try again later.");

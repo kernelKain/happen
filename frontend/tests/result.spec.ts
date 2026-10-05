@@ -31,7 +31,9 @@ test.beforeEach(async ({ page }) => {
 test("a sample query stays on the landing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?layout=sample");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Turn your evening into a checked plan.",
+  );
   await expect(page.getByText("Courtyard Lantern")).toHaveCount(0);
   await expect(page.getByText("Layout sample")).toHaveCount(0);
   await expect(page.getByText("Recommended")).toHaveCount(0);
@@ -43,7 +45,9 @@ test("a sample query stays on the landing", async ({ page }) => {
 
 test("the landing does not show the layout sample", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Turn your evening into a checked plan.",
+  );
   await expect(page.getByRole("heading", { name: "Courtyard Lantern" })).toHaveCount(0);
 });
 

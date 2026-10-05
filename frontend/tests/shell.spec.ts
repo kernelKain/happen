@@ -17,8 +17,10 @@ test("a layout query stays on the landing", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   for (const target of ["/?layout=sample", "/?layout=planner", "/"]) {
     await page.goto(target);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
-    await expect(page.getByRole("button", { name: "Plan this evening" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Turn your evening into a checked plan.",
+    );
+    await expect(page.getByRole("button", { name: "Build my evening" })).toBeVisible();
     await expect(page.getByLabel("Neighbourhood")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Find the moment" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Use captured evidence" })).toHaveCount(0);
@@ -35,11 +37,11 @@ test("a layout query stays on the landing", async ({ page }) => {
 test("the landing stays usable at 390 pixels without a demo preset", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?layout=planner");
-  await expect(page.getByRole("textbox", { name: "Describe the evening" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "What would you like to do?" })).toBeVisible();
   await page
     .getByRole("button", { name: "Dinner in Kyoto tomorrow at 7, then a short walk." })
     .click();
-  await expect(page.getByRole("textbox", { name: "Describe the evening" })).toHaveValue(
+  await expect(page.getByRole("textbox", { name: "What would you like to do?" })).toHaveValue(
     "Dinner in Kyoto tomorrow at 7, then a short walk.",
   );
   await expect(page.getByText("Indiranagar")).toHaveCount(0);
