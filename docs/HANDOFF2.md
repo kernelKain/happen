@@ -21,8 +21,8 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. Five audited defects are repaired. Latency and concurrency are now bounded by one shared monotonic deadline, measured against fixtures only. The model quality gate failed, so claims stay off. |
-| Last finished step | Bound planning latency and concurrency. |
+| Phase complete | No. Five audited defects are repaired. Latency and concurrency are bounded by one shared monotonic deadline. The landing now states one outcome above the fold and keeps methodology behind a disclosure. The model quality gate failed, so claims stay off. |
+| Last finished step | Refine the evening planning entry. |
 | Next step | live SerpApi latency measurement, which needs explicit approval for credits |
 | Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
@@ -108,8 +108,8 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | One monotonic 14s deadline governs destination, search, details, reviews, web, directions, and extraction. A cancelled or expired attempt is never sent and never charged. The eight-attempt allowance is shared across concurrent work and claimed per attempt. Cached plans spend zero requests. Fixture benchmark only; warm p50/p95 against live SerpApi is unmeasured. Gemma claims stay off. |
-| Last finished step | Bound planning latency and concurrency. |
+| Status | The landing states one outcome above the fold: identity, headline, one sentence, composer, three chips, and three promises. Methodology sits behind a closed disclosure. Behaviour is unchanged. One monotonic 14s deadline governs provider work, the eight-attempt allowance is shared and charged per attempt, and cached plans spend zero requests. Fixture benchmark only; warm p50/p95 against live SerpApi is unmeasured. Gemma claims stay off. |
+| Last finished step | Refine the evening planning entry. |
 | Next step | live SerpApi latency measurement, which needs explicit approval for credits |
 | Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
 | Live URL | Not deployed |
@@ -245,6 +245,67 @@ Snippets stay short, carry no reviewer identity, and a `_PHONE` pattern drops an
 The evidence drawer shows the source kind, the supported field, the match method, the retrieval time, and a `Not verified.` or `Conflicts with another source.` line where that applies. Each claim carries `data-verification` and a source class, so official, Maps, and community are visually distinct.
 
 `tests/unit/test_evidence_provenance.py` covers classification, URL preservation, entity mismatch, unsafe-link filtering, real conflicts, non-conflicting secondary text, and review skipping.
+
+## The evening planning entry
+
+This step reshapes the landing into a decision product. It follows the latency work and changes presentation only, not behaviour, contracts, or the plan-selection logic.
+
+### What is above the fold
+
+Measured in a real browser, and asserted by a Playwright test at both sizes:
+
+| Viewport | Hero bottom | Viewport height | Above the fold | Horizontal overflow |
+|---|---|---|---|---|
+| 1280 × 720 | 676 px | 720 px | yes | none |
+| 390 × 844 | 829 px | 844 px | yes | none |
+
+The order is deliberate and is what the tests assert:
+
+1. the Happen identity
+2. the headline **Your evening, checked.**
+3. one supporting sentence, capped at 140 characters by a test
+4. the prompt composer
+5. three example chips
+6. a trust strip: live places, checked timing, source-backed decisions
+
+The headline replaced **One evening, held to two stops.** The old line described a constraint; the new one describes the outcome the visitor gets.
+
+### What moved out of the primary journey
+
+The **Try an evening** section became the chips inside the hero. **How it works** was removed as a section. The **Live evidence** footer became a closed `Methodology` disclosure with an `aria-expanded` toggle, so the explanation of how Happen decides is available without competing with the decision itself.
+
+Every mention of SerpApi, Gemma, Python, and the quality gates now lives inside that disclosure. Three tests assert this: one scans the hero text for implementation language, one asserts the disclosure is closed on load, and one asserts the model wording still cannot overstate what the model does once opened.
+
+### What was deliberately kept
+
+- The prompt-led interaction is untouched. Reading the prompt, asking one follow-up, resolving the destination, and searching only after Find the plan all behave exactly as before.
+- Chips fill the composer and never submit it. A chip also moves focus to the composer, so a keyboard user can start editing immediately.
+- No chat bubbles or transcript styling were introduced.
+- No UI framework was added. React and hand-written CSS remain the only dependencies.
+- No remote stock asset was fetched. The only imagery is the existing inline `Mark` SVG.
+
+### Layout notes
+
+The 1280 px layout places the headline, sentence, and chips in the left column and the composer in the right, with the trust strip as a three-across row beneath. Below 640 px a tighter vertical rhythm and a shorter composer are what keep the trust strip on screen at 390 × 844; without them it fell to 919 px and pushed below the fold.
+
+`prefers-reduced-motion: reduce` still disables the entrance animation. A Playwright test asserts `animationName` is `none` under reduced motion, and the reduced-motion block now also covers the chip and disclosure transitions.
+
+### Tests
+
+| Suite | Before | After |
+|---|---|---|
+| `npm test` | 55 | 61 |
+| `npm run test:shell` | 15 | 21 |
+
+New Vitest coverage: the new headline and strip, absence of implementation language above the fold, the disclosure's closed and open states, the short-sentence cap, exactly three chips each under 70 characters, chip fill without submit, and keyboard reachability with correct `aria-expanded`.
+
+New Playwright coverage: the above-the-fold contract at both sizes, the methodology disclosure, keyboard chip fill, a visible focus ring on primary controls, and the fold-height assertion.
+
+The existing axe check runs on the new landing at both viewports and reports no serious or critical violations. The palette was not changed, so contrast is unchanged from the previously audited tokens.
+
+### Not done
+
+The warm p50 and p95 targets remain unmeasured against live SerpApi, as recorded in the latency section above. This step changed no backend code and spent no provider credit.
 
 ## Planning latency and concurrency
 

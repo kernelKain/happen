@@ -724,10 +724,10 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       <main>
         <section className="landing-hero" aria-labelledby="promise">
           <div className="promise">
-            <h1 id="promise">One evening, held to two stops.</h1>
+            <h1 id="promise">Your evening, checked.</h1>
             <p>
-              Describe the night in your own words. Happen plans that evening from live place
-              evidence, and it stops at two.
+              One evening, at most two stops, chosen from live places and checked against their
+              sources.
             </p>
           </div>
           <form
@@ -741,7 +741,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
             <textarea
               id="evening"
               name="evening"
-              rows={5}
+              rows={4}
               maxLength={EVENING_TEXT_LIMIT}
               value={evening}
               disabled={busy !== null}
@@ -764,6 +764,23 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
               Plan this evening
             </button>
           </form>
+          <ul className="chips" aria-label="Example evenings">
+            {EXAMPLE_EVENINGS.map((prompt) => (
+              <li key={prompt}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEvening(prompt);
+                    setComposerError(null);
+                    document.getElementById("evening")?.focus();
+                  }}
+                >
+                  {prompt}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <TrustStrip />
         </section>
 
         <section className="flow" aria-labelledby="flow-heading" aria-busy={busy !== null}>
@@ -1153,46 +1170,78 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
             />
           ) : null}
         </section>
-
-        <section className="examples" aria-labelledby="examples-heading">
-          <h2 id="examples-heading">Try an evening</h2>
-          <ul>
-            {EXAMPLE_EVENINGS.map((prompt) => (
-              <li key={prompt}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEvening(prompt);
-                    setComposerError(null);
-                    document.getElementById("evening")?.focus();
-                  }}
-                >
-                  {prompt}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="steps" aria-labelledby="steps-heading">
-          <h2 id="steps-heading">How it works</h2>
-          <ol>
-            <li>You describe one evening.</li>
-            <li>If the place, the date, or the time is missing, Happen asks one question.</li>
-            <li>The plan stays inside that evening and uses at most two stops.</li>
-          </ol>
-        </section>
       </main>
-      <footer className="trust">
-        <h2>Live evidence</h2>
-        <p>
-          Place evidence comes from live SerpApi results for that evening. Your request is read by
-          local deterministic parsing, and Python picks the stops. A local Gemma model was measured
-          here and missed its quality gates, so it stays switched off. Happen does not claim it can
-          plan every city or every night.
-        </p>
-      </footer>
+      <Methodology />
     </div>
+  );
+}
+
+/**
+ * The three claims the product makes about itself, above the fold.
+ *
+ * Each one is a promise the reader can hold the plan to, not an implementation
+ * detail. Anything about how Happen is built belongs in the methodology drawer
+ * instead of here.
+ */
+function TrustStrip() {
+  return (
+    <ul className="trust-strip">
+      <li>
+        <strong>Live places</strong>
+        <span>Retrieved for this evening, not a sample.</span>
+      </li>
+      <li>
+        <strong>Checked timing</strong>
+        <span>Each stop is checked against its opening hours.</span>
+      </li>
+      <li>
+        <strong>Source-backed</strong>
+        <span>Every claim names where it came from.</span>
+      </li>
+    </ul>
+  );
+}
+
+/**
+ * Methodology, kept out of the primary journey.
+ *
+ * This is a disclosure rather than a page, so the explanation of how Happen
+ * works is available without competing with the decision the visitor came to
+ * make. It stays closed until it is asked for, and it is reachable by keyboard.
+ */
+function Methodology() {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  return (
+    <footer className="methodology">
+      <button
+        type="button"
+        className="methodology-toggle"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? "Hide how Happen decides" : "How Happen decides"}
+      </button>
+      {open ? (
+        <div id={panelId} className="methodology-body">
+          <p>
+            Describe one evening in your own words. If the place, the date, or the time is missing,
+            Happen asks one question before it searches.
+          </p>
+          <p>
+            Place evidence comes from live SerpApi results for that evening. Your request is read by
+            local deterministic parsing, and Python checks feasibility and picks the stops. A plan
+            holds at most two stops for that one evening, and it does not span multiple dates.
+          </p>
+          <p>
+            A local Gemma model was measured here and missed its quality gates, so it stays switched
+            off. Happen does not claim it can plan every city or every night. When the retrieval
+            does not support a fact, the result says it is unknown.
+          </p>
+        </div>
+      ) : null}
+    </footer>
   );
 }
 

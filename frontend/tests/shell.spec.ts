@@ -17,9 +17,7 @@ test("a layout query stays on the landing", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   for (const target of ["/?layout=sample", "/?layout=planner", "/"]) {
     await page.goto(target);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "One evening, held to two stops.",
-    );
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
     await expect(page.getByRole("button", { name: "Plan this evening" })).toBeVisible();
     await expect(page.getByLabel("Neighbourhood")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Find the moment" })).toHaveCount(0);

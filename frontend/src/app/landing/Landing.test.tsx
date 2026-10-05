@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlanFetch } from "../../lib/api/planClient";
 import { EXAMPLE_EVENINGS } from "./examples";
@@ -120,41 +120,121 @@ afterEach(() => {
 });
 
 describe("landing", () => {
-  it("shows the promise, the composer, the steps, and the trust line", () => {
+  it("leads with the promise, the composer, the chips, and the trust strip", () => {
     render(<Landing />);
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
-      "One evening, held to two stops.",
-    );
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Your evening, checked.");
     expect(screen.getByRole("textbox", { name: "Describe the evening" })).toHaveProperty(
       "maxLength",
       2000,
     );
     expect(screen.getByRole("button", { name: "Plan this evening" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "How it works" })).toBeTruthy();
-    expect(screen.getByText(/live SerpApi results/)).toBeTruthy();
-    expect(screen.getByText(/local deterministic parsing/)).toBeTruthy();
-    expect(screen.getByText(/Python picks the stops/)).toBeTruthy();
-    expect(screen.getByText(/missed its quality gates, so it stays switched off/)).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Example evenings" })).toBeTruthy();
+    // Three promises, stated in the reader's terms rather than in internals.
+    expect(screen.getByText("Live places")).toBeTruthy();
+    expect(screen.getByText("Checked timing")).toBeTruthy();
+    expect(screen.getByText("Source-backed")).toBeTruthy();
     expect(document.querySelector(".mark")).toBeTruthy();
     expect(screen.getByText("Happen", { selector: ".wordmark" })).toBeTruthy();
   });
 
-  it("never tells a visitor that a model reads the request", () => {
+  it("keeps implementation detail out of the primary journey", () => {
     render(<Landing />);
-    const trust = document.querySelector(".trust")?.textContent ?? "";
-    // The false sentence must not come back.
-    expect(trust).not.toMatch(/Gemma runs locally/);
-    expect(trust).not.toMatch(/Gemma reads/);
-    expect(trust).not.toMatch(/model reads the request/);
-    // Nor may unused weights be implied to help the plan.
-    expect(trust).not.toMatch(/improves|stronger|better because/i);
+    // Above the fold, nothing explains the implementation.
+    const hero = document.querySelector(".landing-hero")?.textContent ?? "";
+    expect(hero).not.toMatch(/SerpApi|Gemma|Python|model|fixture|repository|Indiranagar/i);
+    // The headline carries no product-identity claim beyond the decision itself.
+    expect(hero).not.toMatch(/itinerary|chatbot|assistant/i);
   });
 
-  it("keeps repository and implementation language off the page", () => {
+  it("puts methodology behind an optional disclosure", () => {
+    render(<Landing />);
+    const toggle = screen.getByRole("button", { name: "How Happen decides" });
+    expect(toggle).toHaveProperty("ariaExpanded", "false");
+    // Nothing is shown until it is asked for.
+    expect(screen.queryByText(/local deterministic parsing/)).toBeNull();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Hide how Happen decides" })).toHaveProperty(
+      "ariaExpanded",
+      "true",
+    );
+    expect(screen.getByText(/local deterministic parsing/)).toBeTruthy();
+    expect(screen.getByText(/Python checks feasibility and picks the stops/)).toBeTruthy();
+    expect(screen.getByText(/missed its quality gates, so it stays switched off/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hide how Happen decides" }));
+    expect(screen.queryByText(/local deterministic parsing/)).toBeNull();
+  });
+
+  it("never tells a visitor that a model reads the request", () => {
+    render(<Landing />);
+    fireEvent.click(screen.getByRole("button", { name: "How Happen decides" }));
+    const method = document.querySelector(".methodology")?.textContent ?? "";
+    // The false sentence must not come back.
+    expect(method).not.toMatch(/Gemma runs locally/);
+    expect(method).not.toMatch(/Gemma reads/);
+    expect(method).not.toMatch(/model reads the request/);
+    // Nor may unused weights be implied to help the plan.
+    expect(method).not.toMatch(/improves|stronger|better because/i);
+  });
+
+  it("keeps repository and implementation language off the visible page", () => {
     render(<Landing />);
     const text = document.body.textContent ?? "";
     expect(text).not.toMatch(/repository|github|fixture|gguf|scoring|Indiranagar/i);
     expect(text).not.toMatch(/\bv1\b|\bv2\b/);
+  });
+
+  it("keeps the support sentence short", () => {
+    render(<Landing />);
+    const sentence = document.querySelector(".promise p")?.textContent ?? "";
+    // One short sentence. A paragraph here would read as documentation.
+    expect(sentence.length).toBeLessThanOrEqual(140);
+    expect(sentence).not.toMatch(/\.\s+\S/);
+  });
+
+  it("offers exactly three concise example chips", () => {
+    render(<Landing />);
+    const chips = screen.getByRole("list", { name: "Example evenings" });
+    const buttons = within(chips).getAllByRole("button");
+    expect(buttons).toHaveLength(3);
+    for (const button of buttons) {
+      expect(button.textContent?.length ?? 0).toBeLessThanOrEqual(70);
+    }
+  });
+
+  it("fills the composer from a chip without sending it", () => {
+    const fetchImpl = vi.fn();
+    render(<Landing fetchImpl={fetchImpl as PlanFetch} />);
+    fireEvent.click(screen.getByRole("button", { name: EXAMPLE_EVENINGS[0] }));
+    const field = screen.getByRole("textbox", { name: "Describe the evening" });
+    expect(field).toHaveProperty("value", EXAMPLE_EVENINGS[0]);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("reaches a chip, the composer, and the disclosure by keyboard alone", () => {
+    render(<Landing />);
+    // Every control in the primary journey is a real focusable element.
+    for (const role of ["button", "textbox"] as const) {
+      expect(screen.getAllByRole(role).length).toBeGreaterThan(0);
+    }
+    // A chip takes focus, fills the composer, and hands focus to the composer so
+    // a keyboard user can start editing immediately.
+    const chip = screen.getByRole("button", { name: EXAMPLE_EVENINGS[0] });
+    chip.focus();
+    expect(document.activeElement).toBe(chip);
+    fireEvent.click(chip);
+    expect(screen.getByRole("textbox", { name: "Describe the evening" })).toHaveProperty(
+      "value",
+      EXAMPLE_EVENINGS[0],
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole("textbox", { name: "Describe the evening" }),
+    );
+    // The disclosure is reachable and reports its state to assistive tech.
+    const toggle = screen.getByRole("button", { name: "How Happen decides" });
+    toggle.focus();
+    expect(document.activeElement).toBe(toggle);
+    expect(toggle).toHaveProperty("ariaExpanded", "false");
   });
 
   it("fills the composer from an example without sending it", () => {

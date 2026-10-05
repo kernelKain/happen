@@ -26,9 +26,7 @@ test("a fixture response is not requested or shown", async ({ page }) => {
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/?layout=sample");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "One evening, held to two stops.",
-  );
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
   await expect(page.getByText("Courtyard Lantern")).toHaveCount(0);
   await expect(page.getByText("Captured fixture")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Use captured evidence" })).toHaveCount(0);

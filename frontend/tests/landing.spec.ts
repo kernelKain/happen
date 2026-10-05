@@ -118,9 +118,7 @@ test("plans an evening from the keyboard at desktop width", async ({ page }) => 
   await mockPlanning(page, calls);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "One evening, held to two stops.",
-  );
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
   await page.getByRole("link", { name: "Skip to the evening" }).focus();
   await page.keyboard.press("Enter");
   const field = page.getByRole("textbox", { name: "Describe the evening" });
@@ -502,3 +500,107 @@ async function expectNoHorizontalOverflow(page: Page) {
   );
   expect(overflow).toBeLessThanOrEqual(1);
 }
+
+test("leads with the decision, not the documentation", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+  // Above the fold: identity, headline, one sentence, composer, chips, promises.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
+  await expect(page.getByText("Happen", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Describe the evening" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Example evenings" })).toBeVisible();
+  const promises = page.locator(".trust-strip");
+  await expect(promises.getByText("Live places", { exact: true })).toBeVisible();
+  await expect(promises.getByText("Checked timing")).toBeVisible();
+  await expect(promises.getByText("Source-backed")).toBeVisible();
+  // The whole decision surface fits in a 720 pixel viewport.
+  const hero = await page.locator(".landing-hero").boundingBox();
+  expect(hero).not.toBeNull();
+  expect((hero?.y ?? 0) + (hero?.height ?? 0)).toBeLessThanOrEqual(720);
+  // No implementation language above the fold.
+  const above = await page.locator(".landing-hero").innerText();
+  expect(above).not.toMatch(/SerpApi|Gemma|Python|fixture|repository/i);
+});
+
+test("keeps methodology out of the primary journey until it is opened", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+  const toggle = page.getByRole("button", { name: "How Happen decides" });
+  await expect(toggle).toBeVisible();
+  // Closed means the explanation is not on the page at all.
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".methodology-body")).toHaveCount(0);
+  await toggle.click();
+  await expect(page.getByText(/local deterministic parsing/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Hide how Happen decides" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expectNoHorizontalOverflow(page);
+  await expectNoSeriousViolations(page);
+});
+
+test("fills the composer from a chip with the keyboard and does not submit", async ({ page }) => {
+  const calls: string[] = [];
+  await mockPlanning(page, calls);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+  const chip = page.getByRole("button", { name: /Dinner in Kyoto/ });
+  await chip.focus();
+  await expect(chip).toBeFocused();
+  await page.keyboard.press("Enter");
+  const field = page.getByRole("textbox", { name: "Describe the evening" });
+  await expect(field).toHaveValue(/Dinner in Kyoto/);
+  await expect(field).toBeFocused();
+  // Filling is not submitting: nothing was sent.
+  expect(calls).toHaveLength(0);
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+});
+
+test("shows a visible focus ring on every primary control", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+  for (const name of ["Plan this evening", "How Happen decides"]) {
+    const target = page.getByRole("button", { name });
+    await target.focus();
+    const outline = await target.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { width: style.outlineWidth, style: style.outlineStyle };
+    });
+    // A focused control must not be left with the browser's removed ring.
+    expect(outline.style).not.toBe("none");
+  }
+});
+
+test("keeps the chips and promises readable at 390 pixels", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your evening, checked.");
+  await expect(page.getByRole("list", { name: "Example evenings" })).toBeVisible();
+  const promises = page.locator(".trust-strip");
+  for (const promise of ["Live places", "Checked timing", "Source-backed"]) {
+    await expect(promises.getByText(promise, { exact: promise === "Live places" })).toBeVisible();
+  }
+  await expectNoHorizontalOverflow(page);
+  await expectNoSeriousViolations(page);
+});
+
+test("keeps the whole decision surface above the fold at both sizes", async ({ page }) => {
+  for (const size of [
+    { width: 1280, height: 720 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto("/");
+    const measured = await page.evaluate(() => {
+      const hero = document.querySelector(".landing-hero");
+      const box = hero?.getBoundingClientRect();
+      return { bottom: box?.bottom ?? 0, height: window.innerHeight };
+    });
+    // Identity, headline, sentence, composer, chips, and promises all visible
+    // without scrolling at either supported viewport.
+    expect(measured.bottom).toBeLessThanOrEqual(measured.height);
+    await expectNoHorizontalOverflow(page);
+  }
+});

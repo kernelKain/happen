@@ -58,29 +58,29 @@
   letter-spacing: -0.04em;
 }
 
-.landing-hero,
-.examples,
-.steps,
-.trust {
+.landing-hero {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
+/*
+ * Above the fold there is one headline, one sentence, one composer, three
+ * example chips, and one trust strip. Everything else in the product appears
+ * only after the visitor has described an evening.
+ */
 .promise h1 {
-  max-width: 12ch;
-  font-size: clamp(2.5rem, 8vw, 4.75rem);
-  line-height: 0.96;
+  max-width: 14ch;
+  font-size: clamp(2.6rem, 7.5vw, 4.5rem);
+  line-height: 0.98;
   letter-spacing: -0.045em;
 }
 
-.promise p,
-.steps li,
-.trust p,
-.held {
-  max-width: 38rem;
+.promise p {
+  max-width: 34rem;
+  margin: 0.9rem 0 0;
   color: var(--muted);
-  font-size: 1.05rem;
-  line-height: 1.6;
+  font-size: clamp(1rem, 1.6vw, 1.15rem);
+  line-height: 1.55;
 }
 
 .composer {
@@ -92,17 +92,14 @@
   border-radius: 1.25rem;
 }
 
-.composer label,
-.examples h2,
-.steps h2,
-.trust h2 {
+.composer label {
   font-size: 0.95rem;
   letter-spacing: 0.01em;
 }
 
 .composer textarea {
   width: 100%;
-  min-height: 8.5rem;
+  min-height: 7rem;
   font: inherit;
   padding: 0.85rem 0.9rem;
   resize: vertical;
@@ -118,7 +115,7 @@
 }
 
 .composer button,
-.examples button {
+.chips button {
   min-height: 44px;
   border-radius: 999px;
   cursor: pointer;
@@ -133,6 +130,64 @@
   font-weight: 600;
 }
 
+/*
+ * Example evenings are short affordances, not paragraphs. They fill the
+ * composer and never submit it, so they stay quiet until they are wanted.
+ */
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chips button {
+  max-width: 100%;
+  padding: 0.5rem 0.85rem;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.chips button:hover {
+  color: var(--paper);
+  border-color: var(--brass);
+}
+
+/*
+ * The trust strip states what the product promises, in the reader's terms. It
+ * is deliberately three short pairs rather than a paragraph of reassurance.
+ */
+.trust-strip {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem 1.5rem;
+}
+
+.trust-strip li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.trust-strip strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.trust-strip span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .composer-error {
   margin: 0;
   color: var(--danger);
@@ -140,6 +195,51 @@
 
 .held {
   margin: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+/*
+ * Methodology sits below everything and stays closed by default, so the
+ * explanation of how Happen decides never competes with the decision itself.
+ */
+.methodology {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.methodology-toggle {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.methodology-toggle:hover {
+  color: var(--paper);
+  border-color: var(--brass);
+}
+
+.methodology-body {
+  display: grid;
+  gap: 0.6rem;
+  max-width: 46rem;
+}
+
+.methodology-body p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
 }
 
 .visually-hidden {
@@ -358,35 +458,61 @@
   padding-left: 1.1rem;
 }
 
-.examples ul,
-.steps ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.75rem;
-}
+/*
+ * On a phone the trust strip is part of the decision, so it stays on screen.
+ * Tight vertical rhythm and a shorter composer are what buy that space.
+ */
+@media (max-width: 640px) {
+  .landing {
+    gap: 2rem;
+    padding-bottom: 2.5rem;
+  }
 
-.examples button {
-  width: 100%;
-  padding: 0.75rem 0.9rem;
-  text-align: left;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--paper);
-  line-height: 1.45;
-}
+  .landing-hero {
+    gap: 1.1rem;
+  }
 
-.steps ol {
-  list-style: decimal;
-  padding-left: 1.25rem;
-  display: grid;
-  gap: 0.85rem;
-}
+  .promise h1 {
+    font-size: clamp(2.1rem, 11vw, 2.9rem);
+  }
 
-.trust {
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--line);
+  .promise p {
+    margin-top: 0.6rem;
+    font-size: 0.98rem;
+    line-height: 1.45;
+  }
+
+  .composer {
+    padding: 0.85rem;
+    gap: 0.6rem;
+  }
+
+  .composer textarea {
+    min-height: 5.25rem;
+    padding: 0.7rem 0.75rem;
+  }
+
+  .chips {
+    gap: 0.4rem;
+  }
+
+  .chips button {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.86rem;
+  }
+
+  .trust-strip {
+    gap: 0.5rem;
+    margin-top: 0;
+  }
+
+  .trust-strip strong {
+    font-size: 0.9rem;
+  }
+
+  .trust-strip span {
+    font-size: 0.85rem;
+  }
 }
 
 @media (min-width: 1280px) {
@@ -397,13 +523,34 @@
   }
 
   .landing-hero {
-    grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
-    gap: 4rem;
-    align-items: end;
+    grid-template-columns: minmax(0, 1.05fr) minmax(21rem, 0.95fr);
+    gap: 2rem 4rem;
+    align-items: start;
+  }
+
+  .promise {
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .composer {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    /* Anchored to the top so the headline stays the dominant element. */
+    align-self: start;
     padding: 1.25rem;
+  }
+
+  .chips {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  /* Three promises read as one row once there is room for them. */
+  .trust-strip {
+    grid-column: 1;
+    grid-row: 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .brief-fields {
@@ -439,7 +586,8 @@
   }
 
   .composer button,
-  .examples button,
+  .chips button,
+  .methodology-toggle,
   .flow button {
     transition: none;
   }
