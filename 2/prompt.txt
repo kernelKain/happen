@@ -1,11 +1,3 @@
-hi
-
----
-
-pull latest changes from github repo to lcoal repo
-
----
-
 Implement an evidence-first redesign of Happen’s landing page, planning brief, and result experience so a first-time visitor immediately understands what the product does, why it is useful, and how its recommendation is supported.
 
 Repository: /home/kernel-kain/Documents/Github/happen
