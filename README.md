@@ -1,6 +1,8 @@
 # Happen
 
-Turn your evening into a checked plan.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kernelKain/happen/main/docs/press/cover.png" alt="Happen — turn your evening into a checked plan" width="100%">
+</p>
 
 Describe one evening in your own words. Happen checks live place listings through SerpApi and returns one source-backed plan with up to two stops. Anything the sources do not confirm is marked as unknown.
 
