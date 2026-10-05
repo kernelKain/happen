@@ -385,6 +385,61 @@ describe("landing", () => {
     expect(calls.some((url) => url.endsWith("/api/v2/plans"))).toBe(false);
   });
 
+  it("keeps an answer the visitor already typed when the question settles", async () => {
+    const unnamed = {
+      ...brief,
+      destination_text: null,
+      local_date: null,
+      pending_date: { phrase: "tomorrow" },
+      intents: [],
+      preferences: [],
+      party_size: null,
+    };
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/briefs/interpret")) {
+        return json(
+          interpreted(unnamed, {
+            kind: "missing",
+            field: "destination",
+            question: "Which place should this evening be in?",
+          }),
+        );
+      }
+      if (url.endsWith("/api/v2/plans/refine")) {
+        const body = JSON.parse(String(init?.body)) as { revision: string };
+        // The typed answer must reach the server rather than be wiped first.
+        expect(body.revision).toBe("Kyoto");
+        return json({
+          version: "2",
+          applied: false,
+          current: unnamed,
+          proposed: { ...brief, raw_prompt: "Kyoto" },
+          follow_up: null,
+          diff: { added: ["destination"], removed: [], changed: [] },
+          message: "The current plan was not changed.",
+        });
+      }
+      if (url.endsWith("/api/v2/destinations/resolve")) {
+        return json(resolved);
+      }
+      throw new Error(url);
+    });
+    render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
+    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    const field = await screen.findByLabelText("Which place should this evening be in?");
+    // The draft must survive the effect that runs when the question appears.
+    // Clearing it here left the submit button disabled, so the answer was lost
+    // and the visitor was asked the same question again.
+    fireEvent.change(field, { target: { value: "Kyoto" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Answer" })).toBeTruthy());
+    expect(field).toHaveProperty("value", "Kyoto");
+    const submit = screen.getByRole("button", { name: "Answer" });
+    expect(submit).toHaveProperty("disabled", false);
+    fireEvent.click(submit);
+    expect(await screen.findByRole("button", { name: "Find the plan" })).toBeTruthy();
+  });
+
   it("does not start a second place search while one is running or after cancel", async () => {
     let planCalls = 0;
     let rejectPlan: (error: unknown) => void = () => {};

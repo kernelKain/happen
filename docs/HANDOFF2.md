@@ -108,7 +108,7 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Audited and verified. The whole branch passes 464 backend, 61 frontend, and 21 shell tests with formatting, lint, the secret scan, and the production build clean. Two silent defects were found and fixed: the plans route was given the destination attempt cap, and a stage could begin with too little budget left to finish. Swaps, cached alternatives, why-won comparison, calculated arrivals, departures, and route distance do not exist and are documented as absent. One monotonic 14s deadline governs provider work, the eight-attempt allowance is charged per attempt, and cached plans spend zero requests. Warm p50/p95 against live SerpApi is unmeasured. Gemma claims stay off. |
+| Status | Audited and verified. The whole branch passes 464 backend, 62 frontend, and 21 shell tests with formatting, lint, the secret scan, and the production build clean. Three silent defects were found and fixed: the plans route was given the destination attempt cap, a stage could begin with too little budget left to finish, and a typed follow-up answer could be wiped before it was sent. Swaps, cached alternatives, why-won comparison, calculated arrivals, departures, and route distance do not exist and are documented as absent. One monotonic 14s deadline governs provider work, the eight-attempt allowance is charged per attempt, and cached plans spend zero requests. Warm p50/p95 against live SerpApi is unmeasured. Gemma claims stay off. |
 | Last finished step | Verify the decision-ready evening experience. |
 | Next step | A manual local test of one real evening, which only the user can run |
 | Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
@@ -1335,6 +1335,9 @@ SerpApi credits and staged nothing under `.github/hooks/`.
 
 ### Two defects this audit found and fixed
 
+Two backend defects were found by reading and by direct probe. A third, in the
+frontend, was found only by running the suite repeatedly.
+
 | Defect | What was wrong | Proof | Fix |
 |---|---|---|---|
 | Destination seconds applied to every route | `_metered` gave every metered client the destination-stage cap, so `/api/v2/plans` limited each SerpApi attempt to 6.0s instead of 8.0s. | A probe printed `cap=6.0 want=8.0 WRONG` for `/api/v2/plans` and `cap=6.0 want=6.0 OK` for `/api/v2/destinations/resolve`. | `_metered` takes an `attempt_cap`. The plans route passes `SEARCH_SECONDS`; the destination route passes `DESTINATION_SECONDS`. Both routes now report the cap the contract names. |
@@ -1343,6 +1346,22 @@ SerpApi credits and staged nothing under `.github/hooks/`.
 Both defects were silent: tests passed while the behaviour was wrong. That is
 why `test_the_plans_route_uses_the_search_stage_cap` and
 `test_a_sequence_of_stages_cannot_run_past_the_planning_deadline` now exist.
+
+### A third defect this audit found: a lost answer
+
+| Defect | What was wrong | Proof | Fix |
+|---|---|---|---|
+| The first follow-up answer could be wiped before it was sent | An effect cleared `answerDraft` whenever `question` changed, including the very first time the question appeared. React may flush that effect after the field is already on screen and after an answer has been typed, so the typed answer was erased and the submit button stayed disabled. The click did nothing and the visitor was asked the same question again. | The follow-up test failed roughly 1 run in 28. The captured DOM showed the real cause: the input had `value=""` and the `Answer` button had `disabled=""`, which is the exact state after the draft is cleared, not a slow render. | The effect clears the draft only when the question actually differs from the one already shown, tracked in a ref. The draft starts empty, so the first question never needed clearing. |
+
+The bug was intermittent because it depends on when React flushes the effect,
+so a single green run proved nothing. It reproduced 1 run in 28 in isolation and
+did not reproduce at all when the suite ran alone on an idle machine. It was
+found by running the suite 20 times and accumulating output, then 28 more times
+in isolation to confirm the rate. After the fix, 40 consecutive runs of the
+follow-up tests failed zero times.
+
+The new test also asserts the typed answer reaches the server body, so the
+defect cannot come back silently.
 
 ### What was verified, and how
 
@@ -1353,7 +1372,7 @@ why `test_the_plans_route_uses_the_search_stage_cap` and
 | Backend tests | `uv run pytest` | 464 passed |
 | Secret scan | `python3 scripts/scan-secrets.py` | clean, exit 0 |
 | Frontend lint | `npm run check` | 36 files, no fixes needed |
-| Frontend tests | `npm test` | 61 passed across 9 files |
+| Frontend tests | `npm test` | 62 passed across 9 files |
 | Frontend build | `npm run build` | built in 220ms |
 | Shell tests | `npm run test:shell` | 21 passed, axe included, 1280px and 390px |
 

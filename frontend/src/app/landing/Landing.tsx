@@ -68,6 +68,9 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   const abortRef = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const requestLock = useRef(false);
+  // The last question the follow-up form showed, so a new question can clear
+  // the draft without the first one erasing an answer already being typed.
+  const shownQuestion = useRef<string | null>(null);
 
   const [evening, setEvening] = useState(initialEvening);
   const [originalPrompt, setOriginalPrompt] = useState<string | null>(null);
@@ -129,7 +132,15 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   }, [failure]);
 
   useEffect(() => {
-    setAnswerDraft("");
+    // Clear the draft only when the question itself changes. Clearing on the
+    // first question as well races whoever is answering: the effect can flush
+    // after the field is on screen and after an answer has been typed, which
+    // wipes that answer and leaves the disabled submit button un-clickable.
+    // The draft starts empty, so the first question never needs clearing.
+    if (shownQuestion.current !== null && shownQuestion.current !== question) {
+      setAnswerDraft("");
+    }
+    shownQuestion.current = question;
     if (question) {
       followRef.current?.focus();
     }
