@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M44ZN3CZ2HNMN7W4M1RMCRXF",
+  "strategy": "manual-commit",
+  "branch": "evidence-first-interface",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md",
+    "backend/src/happen_api/planning/itinerary.py",
+    "backend/tests/unit/test_itinerary.py",
+    "docs/HANDOFF2.md",
+    "frontend/src/app/landing/Landing.test.tsx",
+    "frontend/src/app/landing/Landing.tsx",
+    "frontend/src/app/landing/landing.css",
+    "frontend/src/app/landing/present.test.ts",
+    "frontend/src/app/landing/present.ts",
+    "frontend/src/app/landing/timeline.test.tsx",
+    "frontend/src/app/landing/timeline.tsx",
+    "frontend/src/lib/api/plan.ts",
+    "frontend/src/lib/api/planClient.ts",
+    "frontend/tests/hook.spec.ts",
+    "frontend/tests/landing.spec.ts",
+    "frontend/tests/result.spec.ts",
+    "frontend/tests/shell.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Monday, Oct 5, 2026, 7:59 AM (UTC+5:30)</timestamp>\n<user_query>\npull latets changes from github repo\n</user_query>"}]}}
+{"type":"turn_ended","status":"error","error":"Provider Error We're having trouble finding the resource you requested. If the problem persists, please contact support."}
