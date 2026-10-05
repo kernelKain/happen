@@ -1,0 +1,65 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M4520RHGGYEMDCC3J0CHEAH3",
+  "session_id": "dabbf491-d06d-4a6d-a1ca-f4c58fded23d",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-05T03:34:17.18762601Z",
+  "branch": "evidence-first-interface",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs/press/cover.png",
+    "docs/press/entire.png",
+    "docs/press/landing.png",
+    "docs/press/plan.png",
+    "docs/press/review.png"
+  ],
+  "agent": "Cursor",
+  "model": "cursor-grok-4.6-high-fast",
+  "turn_id": "a1f308aefc79",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 106953,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 393856,
+    "output_tokens": 9381,
+    "api_call_count": 1
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-10-05T03:34:17.167432456Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 0,
+    "total_lines_changed": 0,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 68,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".github/hooks/entire.json": 68
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 68,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".github/hooks/entire.json": 68
+      }
+    }
+  ]
+}
