@@ -132,12 +132,14 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   }, [failure]);
 
   useEffect(() => {
-    // Clear the draft only when the question itself changes. Clearing on the
-    // first question as well races whoever is answering: the effect can flush
-    // after the field is on screen and after an answer has been typed, which
-    // wipes that answer and leaves the disabled submit button un-clickable.
-    // The draft starts empty, so the first question never needs clearing.
-    if (shownQuestion.current !== null && shownQuestion.current !== question) {
+    // Clear the draft only when the question is actually replaced, never when a
+    // first question appears. The draft starts empty, so appearing needs no
+    // clearing. Treating the empty state as a prior question made this effect
+    // wipe the answer of anyone already typing: the passive effect flushes
+    // after the field is on screen, which left the submit button disabled and
+    // the answer lost. A truthiness test on the previous question is what
+    // distinguishes "no question yet" from "a different question".
+    if (shownQuestion.current && shownQuestion.current !== question) {
       setAnswerDraft("");
     }
     shownQuestion.current = question;

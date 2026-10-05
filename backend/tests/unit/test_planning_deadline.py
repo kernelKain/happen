@@ -538,13 +538,34 @@ def test_a_sequence_of_stages_cannot_run_past_the_planning_deadline() -> None:
     assert ran < 20
 
 
-def test_a_stage_is_refused_rather_than_started_with_no_time_left() -> None:
-    """Verify an exhausted request refuses new work instead of starting it."""
+def test_a_stage_is_refused_rather_than_started_with_too_little_time_left() -> None:
+    """Verify a stage is refused while usable time remains but too little of it.
+
+    Full expiry is already caught by `check`, so a test at exactly zero proves
+    nothing about the minimum-slice rule. The case that matters is the one just
+    before expiry: the request is not yet expired, `check` passes, and only the
+    minimum-slice rule stops a fresh stage from starting.
+    """
 
     clock = FakeClock()
     deadline = _deadline(clock)
-    clock.advance(PLANNING_DEADLINE_SECONDS)
+    # 0.5 seconds remain, which is below the one-second minimum slice.
+    clock.advance(PLANNING_DEADLINE_SECONDS - 0.5)
+    assert deadline.expired is False
+    deadline.check()  # full expiry has not been reached, so this passes
     entered = False
     with pytest.raises(DeadlineExceeded), deadline.stage(Stage.details, 4.0):
         entered = True
     assert entered is False
+
+
+def test_a_stage_still_starts_when_a_usable_slice_remains() -> None:
+    """Verify the minimum-slice rule refuses late work without refusing all of it."""
+
+    clock = FakeClock()
+    deadline = _deadline(clock)
+    clock.advance(PLANNING_DEADLINE_SECONDS - 1.5)
+    # 1.5 seconds is enough to be worth starting, so the stage is allowed.
+    with deadline.stage(Stage.details, 4.0):
+        clock.advance(0.25)
+    assert deadline.timings()[0]["outcome"] == "ok"

@@ -22,8 +22,8 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 |---|---|
 | Current phase | Global live experience |
 | Phase complete | No. Five audited defects are repaired. Latency and concurrency are bounded by one shared monotonic deadline. The landing now states one outcome above the fold and keeps methodology behind a disclosure. The model quality gate failed, so claims stay off. |
-| Last finished step | Refine the evening planning entry. |
-| Next step | live SerpApi latency measurement, which needs explicit approval for credits |
+| Last finished step | Verify the decision-ready evening experience. |
+| Next step | user-owned: local manual test, optional bounded live test, friend walkthrough, demo recording, review, deployment |
 | Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
@@ -246,6 +246,43 @@ The evidence drawer shows the source kind, the supported field, the match method
 
 `tests/unit/test_evidence_provenance.py` covers classification, URL preservation, entity mismatch, unsafe-link filtering, real conflicts, non-conflicting secondary text, and review skipping.
 
+## A follow-up answer could be wiped before it was sent
+
+Found during the implementation audit. This was a real user-facing defect, not a test artifact, and the first fix for it did not work.
+
+### What happened
+
+The effect that clears the follow-up draft ran on the first question as well as on a question change. A passive effect flushes after the field is already on screen, so it could land after the visitor had typed an answer. The typed answer was then cleared, the submit button stayed disabled because it is disabled on an empty draft, and the click did nothing. The visitor was asked the same question again with no explanation.
+
+### Why the first attempt was wrong
+
+The first fix guarded the clear with `shownQuestion.current !== null`. That treats the empty string as a previous question, so `"" → question` still counted as a change and the clear still fired. The flake survived it: 2 failures in 12 full-suite runs after that change.
+
+The correct test is truthiness on the previous question, which distinguishes "no question has been shown yet" from "a different question is now shown". The draft starts empty, so a first question never needs clearing.
+
+### Proof
+
+Measured on the same machine, same test, isolated:
+
+| Version | Runs | Failures |
+|---|---|---|
+| original | 12 full-suite runs | 2 |
+| first fix (`!== null`) | 12 full-suite runs | 2 |
+| second fix (truthiness) | 40 isolated runs | 0 |
+| second fix | 20 full-file runs | 0 |
+
+The regression test is `keeps an answer the visitor already typed when the question settles` in `Landing.test.tsx`. It types an answer, waits for the submit button, asserts the value survived, asserts the button is enabled, and asserts the answer reaches the server.
+
+### Two earlier tests were found to be vacuous
+
+The audit mutation-tested its own suite: for each fix, the guard was removed and the tests were re-run to prove they actually catch the regression. Two did not.
+
+`test_a_stage_is_refused_rather_than_started_with_no_time_left` advanced the clock to exactly 14.0 seconds and asserted the stage raised. That passed with the guard removed, because `check()` already refuses at full expiry. The minimum-slice rule only matters just *before* expiry, where the request is not yet expired. The test now advances to 13.5 seconds, asserts `expired is False` and that `check()` still passes, and then asserts the stage is refused. With the guard removed that test fails, and a companion test proves the rule does not refuse work when a usable 1.5-second slice remains.
+
+`test_each_route_gets_the_attempt_cap_its_own_work_needs` was mutation-checked the same way: reverting `/plans` to the 6-second destination cap makes it fail, so that one was already sound.
+
+Both backend repairs from the previous turn were therefore real and both are now covered by a test that would catch their removal.
+
 ## The evening planning entry
 
 This step reshapes the landing into a decision product. It follows the latency work and changes presentation only, not behaviour, contracts, or the plan-selection logic.
@@ -375,8 +412,12 @@ The contract's warm targets of p50 <= 5s and p95 <= 12s are **not** met by this 
 |---|---|
 | `cd backend && uv run ruff format --check src tests ../scripts/scan-secrets.py` | 86 files already formatted |
 | `cd backend && uv run ruff check src tests ../scripts/scan-secrets.py` | All checks passed |
-| `cd backend && uv run pytest` | 461 passed (448 before, 13 new) |
-| `cd backend && uv run python scripts/benchmark_planning.py` | ran, fixture-derived |
+| `cd backend && uv run pytest` | 465 passed (397 unit, 68 contract) |
+| `cd backend && uv run python scripts/benchmark_planning.py` | ran; cached plan p50 0.33 ms, p95 0.63 ms, 0 provider calls; metered call p50 25.2 ms with 1 provider call. Fixture-derived only. |
+| `cd frontend && npm run check` | 36 files checked, no fixes applied |
+| `cd frontend && npm test` | 62 passed across 9 files |
+| `cd frontend && npm run build` | built; production bundle inspected, no secrets or dev-only messaging |
+| `cd frontend && npm run test:shell` | 21 passed |
 | `python3 scripts/scan-secrets.py` | exit 0 |
 
 ## Independent repair audit
