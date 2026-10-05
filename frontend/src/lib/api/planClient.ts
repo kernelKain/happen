@@ -177,7 +177,7 @@ export async function resolveDestination(
   throw errorFrom(status, payload);
 }
 
-/** Retrieve live places. Call this only after the user confirms Find the plan. */
+/** Retrieve live places. Call this only after the user confirms Check live places. */
 export async function requestPlan(
   query: PlanQuery,
   options: CallOptions = {},

@@ -213,6 +213,11 @@ export const planStopSchema = z.object({
   components: z.array(scoringComponentSchema).max(18).default([]),
   unknown_fields: z.array(z.string()),
   warnings: z.array(z.string()),
+  hours_reason: z.string().nullable().optional(),
+  arrival_planned: z.boolean().optional(),
+  closes_at: clock.nullable().optional(),
+  hours_for_day: z.string().nullable().optional(),
+  weekly_hours: z.array(z.string()).max(7).optional(),
 });
 
 export const planTransitionSchema = z.strictObject({

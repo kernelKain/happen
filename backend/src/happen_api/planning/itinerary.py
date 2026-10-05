@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from happen_api.domain.hours import (
     ProviderHours,
+    day_intervals,
     hours_reason,
     hours_state,
     schedule_from_lines,
@@ -156,6 +157,11 @@ class PlanStop(BaseModel):
     components: list[ScoringComponent] = Field(default_factory=list, max_length=18)
     unknown_fields: list[str] = Field(default_factory=list, max_length=8)
     warnings: list[str] = Field(default_factory=list, max_length=4)
+    hours_reason: str | None = Field(default=None, max_length=40)
+    arrival_planned: bool = True
+    closes_at: time | None = None
+    hours_for_day: str | None = Field(default=None, max_length=300)
+    weekly_hours: list[str] = Field(default_factory=list, max_length=7)
 
 
 class PlanTransition(BaseModel):
@@ -605,8 +611,10 @@ def _stop(
     warnings: list[str] = []
     unknown = [field for field in ("price", "popular_times") if field in place.unknown_fields]
     maps_link = safe_link(place.maps_link)
-    # Maps hours stay Maps evidence even when an official site exists.
-    for line in place.hours[:3]:
+    day_line = _day_line(place.hours, local_date)
+    # Maps hours stay Maps evidence even when an official site exists. The
+    # planned weekday is the only row that bears on this evening.
+    for line in [day_line] if day_line else place.hours[:3]:
         evidence.append(
             PlanEvidence(
                 source=EvidenceSource.maps,
@@ -697,7 +705,37 @@ def _stop(
         components=_components(hours, reason, checked),
         unknown_fields=unknown,
         warnings=warnings[:4],
+        hours_reason=reason[:40],
+        arrival_planned=arrival_verified,
+        closes_at=_closes_at(place, local_date, arrival) if hours == "open" else None,
+        hours_for_day=day_line[:300] if day_line else None,
+        weekly_hours=[line[:300] for line in place.hours[:7]],
     )
+
+
+def _day_line(lines: Sequence[str], local_date: date) -> str | None:
+    """Return the provider's hours row for the planned weekday, if it names one."""
+
+    name = local_date.strftime("%A").casefold()
+    for line in lines:
+        label = line.split(":", 1)[0].strip().casefold().rstrip(".")
+        if label and (label == name or (len(label) >= 3 and name.startswith(label))):
+            return line
+    return None
+
+
+def _closes_at(place: DiscoveredPlace, local_date: date, arrival: time) -> time | None:
+    """Return the listed closing time of the interval that covers the arrival."""
+
+    for interval in day_intervals(place_schedule(place), local_date):
+        if interval.opens_at == interval.closes_at:
+            return None
+        if interval.overnight:
+            if arrival >= interval.opens_at:
+                return interval.closes_at
+        elif interval.opens_at <= arrival < interval.closes_at:
+            return interval.closes_at
+    return None
 
 
 def _transition(stops: list[PlanStop]) -> PlanTransition | None:

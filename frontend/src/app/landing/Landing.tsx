@@ -30,7 +30,8 @@ import {
   shouldResolve,
 } from "./flow";
 import { Mark } from "./Mark";
-import { EveningTimeline, RefinementDiff } from "./timeline";
+import { activityLabel, briefSummary, budgetText } from "./present";
+import { EveningTimeline, RefinementDiff, SourcesPanel } from "./timeline";
 import "./landing.css";
 
 type LandingProps = {
@@ -44,16 +45,29 @@ type Failure = {
   message: string;
   next: string;
   retry: "interpret" | "resolve" | "plan" | null;
+  live?: boolean;
 };
+
+type Stage = "describe" | "review" | "plan";
+type View = "plan" | "brief" | "sources";
 
 const BUSY_LABEL: Record<Busy, string> = {
-  reading: "Reading the evening.",
-  checking: "Checking the destination.",
-  finding: "Finding live places.",
-  reviewing: "Reading the change.",
+  reading: "Reading your evening…",
+  checking: "Finding the destination and its local time through SerpApi…",
+  finding: "Checking live listings and opening hours through SerpApi…",
+  reviewing: "Reviewing your change…",
 };
 
-/** Customer landing. Place search starts only after Find the plan. */
+const STAGES: { id: Stage; label: string }[] = [
+  { id: "describe", label: "Describe" },
+  { id: "review", label: "Review" },
+  { id: "plan", label: "Plan" },
+];
+
+const LIVE_FAILURE =
+  "We couldn't retrieve a live plan right now. Your evening details are still here.";
+
+/** Customer landing. Place search starts only after Check live places. */
 export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   const errorId = useId();
   const partyErrorId = useId();
@@ -95,8 +109,14 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
   const [accessDraft, setAccessDraft] = useState("");
   const [answerDraft, setAnswerDraft] = useState("");
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [view, setView] = useState<View>("plan");
+  const [selectedStop, setSelectedStop] = useState<number | null>(null);
+  const sourcesId = useId();
+  const briefFieldsId = useId();
 
   const choosing = choices.length > 0;
+  const stage: Stage = plan ? "plan" : brief && originalPrompt ? "review" : "describe";
   const shownFollowUp = brief ? activeFollowUp(brief, followUp, choosing) : null;
   const question =
     shownFollowUp?.kind === "missing"
@@ -153,6 +173,44 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
       choiceRef.current?.focus();
     }
   }, [choices]);
+
+  useEffect(() => {
+    if (!plan) {
+      setSelectedStop(null);
+      setView("plan");
+      return;
+    }
+    setSelectedStop((current) =>
+      current !== null && plan.stops.some((stop) => stop.position === current) ? current : null,
+    );
+  }, [plan]);
+
+  function startOver() {
+    cancel();
+    setOriginalPrompt(null);
+    setBrief(null);
+    setFollowUp(null);
+    setDestination(null);
+    setChoices([]);
+    setSelectedChoice(null);
+    setPlanToken(null);
+    setFailure(null);
+    setPlan(null);
+    setProposal(null);
+    setRevision("");
+    setSearchSnapshot(null);
+    setEditing(false);
+  }
+
+  function viewSources(position: number) {
+    setSelectedStop(position);
+    setView("sources");
+  }
+
+  function closeSources() {
+    setSelectedStop(null);
+    setView("plan");
+  }
 
   function begin(): number | null {
     if (requestLock.current) {
@@ -212,24 +270,28 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     if (error instanceof DOMException && error.name === "AbortError") {
       return null;
     }
+    const live = retry === "plan";
     if (error instanceof PlanRequestError) {
       if (error.status === 500) {
         return {
           message: "Something unexpected happened.",
           next: "Try again.",
           retry: error.retryable ? retry : null,
+          live,
         };
       }
       return {
         message: error.message,
         next: error.nextAction,
         retry: error.retryable ? retry : null,
+        live,
       };
     }
     return {
       message: "Happen could not be reached.",
       next: "Try again.",
       retry,
+      live,
     };
   }
 
@@ -723,468 +785,663 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     void interpretPrompt(cleaned);
   }
 
+  const needsAttention = Boolean(
+    brief &&
+      (!brief.destination_text?.trim() ||
+        !brief.local_date ||
+        !brief.local_start ||
+        brief.intents.length === 0 ||
+        partyMessage ||
+        budgetMessage ||
+        preferenceMessage ||
+        accessMessage),
+  );
+  const formOpen = editing || needsAttention;
+  const summary = brief ? briefSummary(brief, destination) : null;
+  const sourceStop =
+    plan && selectedStop !== null
+      ? (plan.stops.find((stop) => stop.position === selectedStop) ?? null)
+      : null;
+
+  const statusAndNotice = (
+    <>
+      {busy ? (
+        <div className="status-row status-live">
+          <p className="held" role="status">
+            {BUSY_LABEL[busy]}
+          </p>
+          <button type="button" className="secondary" onClick={cancel}>
+            Cancel
+          </button>
+        </div>
+      ) : null}
+      {failure ? (
+        <div className="notice" role="alert" tabIndex={-1} ref={alertRef}>
+          {failure.live ? <p className="notice-lead">{LIVE_FAILURE}</p> : null}
+          <p>{failure.message}</p>
+          <p>{failure.next}</p>
+          {failure.retry ? (
+            <button type="button" onClick={retry} disabled={busy !== null}>
+              Try again
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+
+  const questions = (
+    <>
+      {choosing ? (
+        <form
+          className="follow-up"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const choice = choices.find((item) => item.label === selectedChoice);
+            if (choice) {
+              void confirmChoice(choice);
+            }
+          }}
+        >
+          <fieldset>
+            <legend>Which place did you mean?</legend>
+            {choices.map((choice, index) => (
+              <label key={choice.label}>
+                <input
+                  ref={index === 0 ? choiceRef : undefined}
+                  type="radio"
+                  name="destination-choice"
+                  value={choice.label}
+                  checked={selectedChoice === choice.label}
+                  onChange={() => setSelectedChoice(choice.label)}
+                />
+                {choice.label}
+              </label>
+            ))}
+          </fieldset>
+          <button type="submit" disabled={!selectedChoice || busy !== null}>
+            Use this place
+          </button>
+        </form>
+      ) : null}
+      {shownFollowUp && busy === null ? (
+        <form
+          className="follow-up"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (shownFollowUp.kind === "ambiguity") {
+              const selected = new FormData(event.currentTarget).get("follow-up-choice");
+              if (typeof selected === "string") {
+                void answer(selected);
+              }
+              return;
+            }
+            void answer(answerDraft);
+          }}
+        >
+          {shownFollowUp.kind === "ambiguity" ? (
+            <fieldset>
+              <legend>{shownFollowUp.message}</legend>
+              {shownFollowUp.candidates.map((candidate, index) => (
+                <label key={candidate}>
+                  <input
+                    ref={index === 0 ? followRef : undefined}
+                    type="radio"
+                    name="follow-up-choice"
+                    value={candidate}
+                    required
+                  />
+                  {candidate}
+                </label>
+              ))}
+            </fieldset>
+          ) : (
+            <>
+              <label htmlFor="follow-up">{shownFollowUp.question}</label>
+              <input
+                id="follow-up"
+                ref={followRef}
+                value={answerDraft}
+                onChange={(event) => setAnswerDraft(event.target.value)}
+              />
+            </>
+          )}
+          <button
+            type="submit"
+            disabled={
+              busy !== null || (shownFollowUp.kind === "missing" && answerDraft.trim() === "")
+            }
+          >
+            {shownFollowUp.kind === "ambiguity" ? "Use this answer" : "Answer"}
+          </button>
+        </form>
+      ) : null}
+    </>
+  );
+
   return (
-    <div className="landing">
-      <a className="skip" href="#evening">
-        Skip to the evening
+    <div className="landing" data-stage={stage}>
+      <a className="skip" href={stage === "describe" ? "#evening" : "#workspace"}>
+        {stage === "describe" ? "Skip to the evening" : "Skip to your plan"}
       </a>
-      <header className="landing-bar">
+      <header className={stage === "describe" ? "landing-bar" : "landing-bar app-bar"}>
         <p className="brand">
           <Mark />
           <span className="wordmark">Happen</span>
         </p>
+        {stage !== "describe" ? (
+          <>
+            <ol className="progress" aria-label="Progress">
+              {STAGES.map((item, index) => {
+                const current = STAGES.findIndex((entry) => entry.id === stage);
+                return (
+                  <li
+                    key={item.id}
+                    aria-current={item.id === stage ? "step" : undefined}
+                    data-done={index < current}
+                  >
+                    {item.label}
+                  </li>
+                );
+              })}
+            </ol>
+            <button type="button" className="secondary new-evening" onClick={startOver}>
+              New evening
+            </button>
+          </>
+        ) : null}
       </header>
       <main>
-        <section className="landing-hero" aria-labelledby="promise">
-          <div className="promise">
-            <h1 id="promise">Your evening, checked.</h1>
-            <p>
-              One evening, at most two stops, chosen from live places and checked against their
-              sources.
-            </p>
-          </div>
-          <form
-            className="composer"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitComposer(evening);
-            }}
-          >
-            <label htmlFor="evening">Describe the evening</label>
-            <textarea
-              id="evening"
-              name="evening"
-              rows={4}
-              maxLength={EVENING_TEXT_LIMIT}
-              value={evening}
-              disabled={busy !== null}
-              aria-invalid={composerError !== null}
-              aria-describedby={composerError ? errorId : undefined}
-              placeholder="Dinner in Kyoto tomorrow at 7, then a short walk."
-              onChange={(event) => {
-                setEvening(event.target.value);
-                if (composerError) {
-                  setComposerError(null);
-                }
-              }}
-            />
-            {composerError ? (
-              <p id={errorId} className="composer-error" role="alert">
-                {composerError}
-              </p>
-            ) : null}
-            <button type="submit" disabled={busy !== null}>
-              Plan this evening
-            </button>
-          </form>
-          <ul className="chips" aria-label="Example evenings">
-            {EXAMPLE_EVENINGS.map((prompt) => (
-              <li key={prompt}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEvening(prompt);
-                    setComposerError(null);
-                    document.getElementById("evening")?.focus();
-                  }}
-                >
-                  {prompt}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <TrustStrip />
-        </section>
-
-        <section className="flow" aria-labelledby="flow-heading" aria-busy={busy !== null}>
-          <h2 id="flow-heading" className="visually-hidden">
-            Planning
-          </h2>
-          {busy ? (
-            <div className="status-row">
-              <p className="held" role="status">
-                {BUSY_LABEL[busy]}
-              </p>
-              <button type="button" onClick={cancel}>
-                Cancel
-              </button>
-            </div>
-          ) : null}
-          {failure ? (
-            <div className="notice" role="alert" tabIndex={-1} ref={alertRef}>
-              <p>{failure.message}</p>
-              <p>{failure.next}</p>
-              {failure.retry ? (
-                <button type="button" onClick={retry} disabled={busy !== null}>
-                  Try again
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {choosing ? (
-            <form
-              className="follow-up"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const choice = choices.find((item) => item.label === selectedChoice);
-                if (choice) {
-                  void confirmChoice(choice);
-                }
-              }}
-            >
-              <fieldset>
-                <legend>Which place did you mean?</legend>
-                {choices.map((choice, index) => (
-                  <label key={choice.label}>
-                    <input
-                      ref={index === 0 ? choiceRef : undefined}
-                      type="radio"
-                      name="destination-choice"
-                      value={choice.label}
-                      checked={selectedChoice === choice.label}
-                      onChange={() => setSelectedChoice(choice.label)}
-                    />
-                    {choice.label}
-                  </label>
-                ))}
-              </fieldset>
-              <button type="submit" disabled={!selectedChoice || busy !== null}>
-                Use this place
-              </button>
-            </form>
-          ) : null}
-          {shownFollowUp && busy === null ? (
-            <form
-              className="follow-up"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (shownFollowUp.kind === "ambiguity") {
-                  const selected = new FormData(event.currentTarget).get("follow-up-choice");
-                  if (typeof selected === "string") {
-                    void answer(selected);
-                  }
-                  return;
-                }
-                void answer(answerDraft);
-              }}
-            >
-              {shownFollowUp.kind === "ambiguity" ? (
-                <fieldset>
-                  <legend>{shownFollowUp.message}</legend>
-                  {shownFollowUp.candidates.map((candidate, index) => (
-                    <label key={candidate}>
-                      <input
-                        ref={index === 0 ? followRef : undefined}
-                        type="radio"
-                        name="follow-up-choice"
-                        value={candidate}
-                        required
-                      />
-                      {candidate}
-                    </label>
-                  ))}
-                </fieldset>
-              ) : (
-                <>
-                  <label htmlFor="follow-up">{shownFollowUp.question}</label>
-                  <input
-                    id="follow-up"
-                    ref={followRef}
-                    value={answerDraft}
-                    onChange={(event) => setAnswerDraft(event.target.value)}
-                  />
-                </>
-              )}
-              <button
-                type="submit"
-                disabled={
-                  busy !== null || (shownFollowUp.kind === "missing" && answerDraft.trim() === "")
-                }
-              >
-                {shownFollowUp.kind === "ambiguity" ? "Use this answer" : "Answer"}
-              </button>
-            </form>
-          ) : null}
-          {brief && originalPrompt ? (
-            <section className="brief" aria-labelledby="brief-heading">
-              <h2 id="brief-heading">Your evening</h2>
-              <p className="original">Your words: {originalPrompt}</p>
-              {destination?.timezone_name ? (
+        {stage === "describe" ? (
+          <>
+            <section className="landing-hero" aria-labelledby="promise">
+              <div className="promise">
+                <h1 id="promise">Turn your evening into a checked plan.</h1>
                 <p>
-                  {destination.label}. Local time uses {destination.timezone_name}.
+                  Describe your evening. Happen checks live place listings and returns one
+                  source-backed plan with up to two stops.
                 </p>
-              ) : null}
-              <div className="brief-fields">
-                <label className="brief-span">
-                  Destination
-                  <input
-                    value={brief.destination_text ?? ""}
-                    disabled={busy !== null}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setBrief({ ...brief, destination_text: value || null });
-                      setDestination(null);
-                      setChoices([]);
-                      setSelectedChoice(null);
-                      setPlan(null);
-                      if (value.trim()) {
-                        clearAsked("destination");
-                      }
-                    }}
-                  />
-                </label>
-                <label>
-                  Local date
-                  <input
-                    type="date"
-                    value={brief.local_date ?? ""}
-                    disabled={busy !== null}
-                    aria-describedby={
-                      brief.pending_date && !brief.local_date ? dateHintId : undefined
+              </div>
+              <form
+                className="composer"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  submitComposer(evening);
+                }}
+              >
+                <label htmlFor="evening">What would you like to do?</label>
+                <textarea
+                  id="evening"
+                  name="evening"
+                  rows={4}
+                  maxLength={EVENING_TEXT_LIMIT}
+                  value={evening}
+                  disabled={busy !== null}
+                  aria-invalid={composerError !== null}
+                  aria-describedby={composerError ? `${errorId} ${findNoteId}` : findNoteId}
+                  placeholder="Coffee in Mexico City on Wednesday at 6 pm, then a museum, for two."
+                  onChange={(event) => {
+                    setEvening(event.target.value);
+                    if (composerError) {
+                      setComposerError(null);
                     }
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setBrief({
-                        ...brief,
-                        local_date: value || null,
-                        pending_date: value ? null : brief.pending_date,
-                      });
-                      if (value) {
-                        clearAsked("date");
-                      }
-                    }}
-                  />
-                </label>
-                <label>
-                  Local time
-                  <input
-                    type="time"
-                    value={clockForInput(brief.local_start)}
-                    disabled={busy !== null}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setBrief({ ...brief, local_start: value || null });
-                      if (value) {
-                        clearAsked("time");
-                      }
-                    }}
-                  />
-                </label>
-                {brief.pending_date && !brief.local_date ? (
-                  <p id={dateHintId} className="field-hint brief-span">
-                    You said {brief.pending_date.phrase.replaceAll("_", " ")}.
+                  }}
+                />
+                {composerError ? (
+                  <p id={errorId} className="composer-error" role="alert">
+                    {composerError}
                   </p>
                 ) : null}
-                <label>
-                  Party size
-                  <input
-                    inputMode="numeric"
-                    value={partyDraft}
-                    disabled={busy !== null}
-                    aria-invalid={partyMessage !== null}
-                    aria-describedby={partyMessage ? partyErrorId : undefined}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setPartyDraft(value);
-                      if (partySizeIssue(value)) {
-                        return;
-                      }
-                      setBrief({
-                        ...brief,
-                        party_size: value.trim() ? Number(value) : null,
-                      });
-                    }}
-                  />
-                </label>
-                <label>
-                  Budget amount
-                  <input
-                    inputMode="decimal"
-                    value={budgetAmount}
-                    disabled={busy !== null}
-                    aria-invalid={budgetMessage !== null}
-                    aria-describedby={budgetMessage ? budgetErrorId : undefined}
-                    onChange={(event) => {
-                      const amount = event.target.value;
-                      setBudgetAmount(amount);
-                      if (budgetIssue(amount, budgetCurrency)) {
-                        return;
-                      }
-                      setBrief({ ...brief, budget: budgetFrom(brief, amount, budgetCurrency) });
-                    }}
-                  />
-                </label>
-                <label>
-                  Currency
-                  <input
-                    value={budgetCurrency}
-                    disabled={busy !== null}
-                    aria-invalid={budgetMessage !== null}
-                    aria-describedby={budgetMessage ? budgetErrorId : undefined}
-                    onChange={(event) => {
-                      const currency = event.target.value;
-                      setBudgetCurrency(currency);
-                      if (budgetIssue(budgetAmount, currency)) {
-                        return;
-                      }
-                      setBrief({ ...brief, budget: budgetFrom(brief, budgetAmount, currency) });
-                    }}
-                  />
-                </label>
-                <label className="brief-span">
-                  Accessibility
-                  <input
-                    value={accessDraft}
-                    disabled={busy !== null}
-                    aria-invalid={accessMessage !== null}
-                    aria-describedby={accessMessage ? accessErrorId : undefined}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setAccessDraft(value);
-                      if (preferenceIssue(value)) {
-                        return;
-                      }
-                      setBrief({ ...brief, accessibility_needs: preferenceList(value) });
-                    }}
-                  />
-                </label>
-                <label className="brief-span">
-                  Preferences
-                  <input
-                    value={preferenceDraft}
-                    disabled={busy !== null}
-                    aria-invalid={preferenceMessage !== null}
-                    aria-describedby={preferenceMessage ? preferenceErrorId : undefined}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setPreferenceDraft(value);
-                      if (preferenceIssue(value)) {
-                        return;
-                      }
-                      setBrief({ ...brief, preferences: preferenceList(value) });
-                    }}
-                  />
-                </label>
-              </div>
-              {partyMessage ? (
-                <p id={partyErrorId} className="composer-error" role="alert">
-                  {partyMessage}
-                </p>
-              ) : null}
-              {budgetMessage ? (
-                <p id={budgetErrorId} className="composer-error" role="alert">
-                  {budgetMessage}
-                </p>
-              ) : null}
-              {accessMessage ? (
-                <p id={accessErrorId} className="composer-error" role="alert">
-                  {accessMessage}
-                </p>
-              ) : null}
-              {preferenceMessage ? (
-                <p id={preferenceErrorId} className="composer-error" role="alert">
-                  {preferenceMessage}
-                </p>
-              ) : null}
-              {brief.budget?.tier ? <p>Price range: {brief.budget.tier}.</p> : null}
-              <div className="intent-order">
-                <h3>Intent order</h3>
-                {brief.intents.length === 0 ? <p>No stop is listed yet.</p> : null}
-                <ol>
-                  {brief.intents.map((intent, index) => (
-                    <li key={`${intent.kind}-${intent.label}`}>
-                      <span>{`${intent.position}. ${intent.label}`}</span>
+                <div className="composer-actions">
+                  <button type="submit" disabled={busy !== null}>
+                    Build my evening
+                  </button>
+                  <p id={findNoteId} className="composer-note">
+                    Searches live place listings through SerpApi when you continue.
+                  </p>
+                </div>
+                <ul className="chips" aria-label="Example evenings">
+                  {EXAMPLE_EVENINGS.map((prompt) => (
+                    <li key={prompt}>
                       <button
                         type="button"
-                        disabled={busy !== null || index === 0}
-                        aria-label={`Move ${intent.label} earlier`}
                         onClick={() => {
-                          setBrief({ ...brief, intents: moveIntent(brief.intents, index, -1) });
-                          clearAsked("primary_intent");
+                          setEvening(prompt);
+                          setComposerError(null);
+                          document.getElementById("evening")?.focus();
                         }}
                       >
-                        Earlier
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy !== null || index === brief.intents.length - 1}
-                        aria-label={`Move ${intent.label} later`}
-                        onClick={() => {
-                          setBrief({ ...brief, intents: moveIntent(brief.intents, index, 1) });
-                          clearAsked("primary_intent");
-                        }}
-                      >
-                        Later
+                        {prompt}
                       </button>
                     </li>
                   ))}
-                </ol>
-              </div>
-              {showCheck ? (
-                <button type="button" onClick={() => void checkPlace()}>
-                  Check this place
-                </button>
-              ) : null}
-              {showFind ? (
-                <div className="find-row">
-                  <p id={findNoteId}>
-                    {plan
-                      ? "This looks up live places again for this evening."
-                      : "This looks up live places for this evening."}
-                  </p>
-                  <button
-                    type="button"
-                    aria-describedby={findNoteId}
-                    onClick={() => void findPlan()}
-                  >
-                    {plan ? "Find the plan again" : "Find the plan"}
-                  </button>
-                </div>
-              ) : null}
+                </ul>
+              </form>
+              <TrustStrip />
             </section>
-          ) : null}
-          {plan ? (
-            <EveningTimeline
-              plan={plan}
-              timezone={destination?.timezone_name ?? null}
-              intentCount={
-                searchSnapshot?.intents.length ?? brief?.intents.length ?? plan.stops.length
-              }
-            />
-          ) : null}
-          {plan && brief && !proposal ? (
-            <form
-              className="refine"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void reviewChange(revision);
-              }}
-            >
-              <label htmlFor="revision">Change this evening</label>
-              <textarea
-                id="revision"
-                rows={3}
-                maxLength={EVENING_TEXT_LIMIT}
-                value={revision}
-                disabled={busy !== null}
-                onChange={(event) => setRevision(event.target.value)}
+            <section className="flow" aria-label="Planning status" aria-busy={busy !== null}>
+              {statusAndNotice}
+            </section>
+            <section className="different" aria-labelledby="different-heading">
+              <h2 id="different-heading">Built to finish the decision</h2>
+              <p>
+                General chat helps you explore possibilities. Happen narrows them into one feasible
+                sequence, shows what was checked, and keeps unsupported details unknown.
+              </p>
+            </section>
+          </>
+        ) : (
+          <div
+            id="workspace"
+            className="workspace"
+            data-stage={stage}
+            data-view={view}
+            data-sources={sourceStop ? "open" : "closed"}
+            tabIndex={-1}
+          >
+            <h1 className="visually-hidden">
+              {stage === "plan" ? "Your evening plan" : "Review your evening"}
+            </h1>
+            <section className="flow" aria-label="Planning status" aria-busy={busy !== null}>
+              {statusAndNotice}
+            </section>
+            {plan ? (
+              <nav className="view-switch" aria-label="Plan sections">
+                {(["plan", "brief", "sources"] as const).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    aria-pressed={view === item}
+                    onClick={() => {
+                      if (item === "sources" && selectedStop === null) {
+                        setSelectedStop(plan.stops[0]?.position ?? null);
+                      }
+                      setView(item);
+                    }}
+                    disabled={item === "sources" && plan.stops.length === 0}
+                  >
+                    {item === "plan" ? "Plan" : item === "brief" ? "Brief" : "Sources"}
+                  </button>
+                ))}
+              </nav>
+            ) : null}
+            <aside className="rail" aria-label="Your evening brief">
+              {questions}
+              {brief && summary ? (
+                <section className="brief" aria-labelledby="brief-heading">
+                  <h2 id="brief-heading">Your evening</h2>
+                  <p className="original">Your words: {originalPrompt}</p>
+                  <div className="brief-summary">
+                    <p className="brief-line-main">
+                      {summary.where}
+                      {" · "}
+                      {brief.local_date ? (
+                        <time dateTime={brief.local_date}>{summary.when[0]}</time>
+                      ) : (
+                        summary.when[0]
+                      )}
+                      {" · "}
+                      {brief.local_start ? (
+                        <time dateTime={brief.local_start.slice(0, 5)}>{summary.when[1]}</time>
+                      ) : (
+                        summary.when[1]
+                      )}
+                    </p>
+                    <p>{summary.details.join(" · ")}</p>
+                    {summary.extras.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                    {summary.zone ? <p className="brief-zone">{summary.zone}</p> : null}
+                    {brief.pending_date && !brief.local_date ? (
+                      <p className="field-hint">
+                        You said {brief.pending_date.phrase.replaceAll("_", " ")}.
+                      </p>
+                    ) : null}
+                  </div>
+                  {!needsAttention ? (
+                    <button
+                      type="button"
+                      className="secondary"
+                      aria-expanded={formOpen}
+                      aria-controls={briefFieldsId}
+                      onClick={() => setEditing((current) => !current)}
+                    >
+                      {editing ? "Done editing" : "Edit details"}
+                    </button>
+                  ) : null}
+                  {formOpen ? (
+                    <div id={briefFieldsId} className="brief-form">
+                      <div className="brief-fields">
+                        <label className="brief-span">
+                          Destination
+                          <input
+                            value={brief.destination_text ?? ""}
+                            disabled={busy !== null}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setBrief({ ...brief, destination_text: value || null });
+                              setDestination(null);
+                              setChoices([]);
+                              setSelectedChoice(null);
+                              setPlan(null);
+                              if (value.trim()) {
+                                clearAsked("destination");
+                              }
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Local date
+                          <input
+                            type="date"
+                            value={brief.local_date ?? ""}
+                            disabled={busy !== null}
+                            aria-describedby={
+                              brief.pending_date && !brief.local_date ? dateHintId : undefined
+                            }
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setBrief({
+                                ...brief,
+                                local_date: value || null,
+                                pending_date: value ? null : brief.pending_date,
+                              });
+                              if (value) {
+                                clearAsked("date");
+                              }
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Local time
+                          <input
+                            type="time"
+                            value={clockForInput(brief.local_start)}
+                            disabled={busy !== null}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setBrief({ ...brief, local_start: value || null });
+                              if (value) {
+                                clearAsked("time");
+                              }
+                            }}
+                          />
+                        </label>
+                        {brief.pending_date && !brief.local_date ? (
+                          <p id={dateHintId} className="field-hint brief-span">
+                            Pick the calendar date for “
+                            {brief.pending_date.phrase.replaceAll("_", " ")}”.
+                          </p>
+                        ) : null}
+                        <label>
+                          Party size
+                          <input
+                            inputMode="numeric"
+                            value={partyDraft}
+                            disabled={busy !== null}
+                            aria-invalid={partyMessage !== null}
+                            aria-describedby={partyMessage ? partyErrorId : undefined}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setPartyDraft(value);
+                              if (partySizeIssue(value)) {
+                                return;
+                              }
+                              setBrief({
+                                ...brief,
+                                party_size: value.trim() ? Number(value) : null,
+                              });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Budget amount
+                          <input
+                            inputMode="decimal"
+                            value={budgetAmount}
+                            disabled={busy !== null}
+                            aria-invalid={budgetMessage !== null}
+                            aria-describedby={budgetMessage ? budgetErrorId : undefined}
+                            onChange={(event) => {
+                              const amount = event.target.value;
+                              setBudgetAmount(amount);
+                              if (budgetIssue(amount, budgetCurrency)) {
+                                return;
+                              }
+                              setBrief({
+                                ...brief,
+                                budget: budgetFrom(brief, amount, budgetCurrency),
+                              });
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Currency
+                          <input
+                            value={budgetCurrency}
+                            disabled={busy !== null}
+                            aria-invalid={budgetMessage !== null}
+                            aria-describedby={budgetMessage ? budgetErrorId : undefined}
+                            onChange={(event) => {
+                              const currency = event.target.value;
+                              setBudgetCurrency(currency);
+                              if (budgetIssue(budgetAmount, currency)) {
+                                return;
+                              }
+                              setBrief({
+                                ...brief,
+                                budget: budgetFrom(brief, budgetAmount, currency),
+                              });
+                            }}
+                          />
+                        </label>
+                        <label className="brief-span">
+                          Accessibility
+                          <input
+                            value={accessDraft}
+                            disabled={busy !== null}
+                            aria-invalid={accessMessage !== null}
+                            aria-describedby={accessMessage ? accessErrorId : undefined}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setAccessDraft(value);
+                              if (preferenceIssue(value)) {
+                                return;
+                              }
+                              setBrief({ ...brief, accessibility_needs: preferenceList(value) });
+                            }}
+                          />
+                        </label>
+                        <label className="brief-span">
+                          Preferences
+                          <input
+                            value={preferenceDraft}
+                            disabled={busy !== null}
+                            aria-invalid={preferenceMessage !== null}
+                            aria-describedby={preferenceMessage ? preferenceErrorId : undefined}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setPreferenceDraft(value);
+                              if (preferenceIssue(value)) {
+                                return;
+                              }
+                              setBrief({ ...brief, preferences: preferenceList(value) });
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {partyMessage ? (
+                        <p id={partyErrorId} className="composer-error" role="alert">
+                          {partyMessage}
+                        </p>
+                      ) : null}
+                      {budgetMessage ? (
+                        <p id={budgetErrorId} className="composer-error" role="alert">
+                          {budgetMessage}
+                        </p>
+                      ) : null}
+                      {accessMessage ? (
+                        <p id={accessErrorId} className="composer-error" role="alert">
+                          {accessMessage}
+                        </p>
+                      ) : null}
+                      {preferenceMessage ? (
+                        <p id={preferenceErrorId} className="composer-error" role="alert">
+                          {preferenceMessage}
+                        </p>
+                      ) : null}
+                      {brief.budget?.tier ? (
+                        <p>Price range: {budgetText({ ...brief.budget, amount: null })}.</p>
+                      ) : null}
+                      <div className="intent-order">
+                        <h3>Stop order</h3>
+                        {brief.intents.length === 0 ? <p>No stop is listed yet.</p> : null}
+                        <ol>
+                          {brief.intents.map((intent, index) => (
+                            <li key={`${intent.kind}-${intent.label}`}>
+                              <span>{`${intent.position}. ${activityLabel(intent.kind, intent.label)}`}</span>
+                              <button
+                                type="button"
+                                className="secondary"
+                                disabled={busy !== null || index === 0}
+                                aria-label={`Move ${intent.label} earlier`}
+                                onClick={() => {
+                                  setBrief({
+                                    ...brief,
+                                    intents: moveIntent(brief.intents, index, -1),
+                                  });
+                                  clearAsked("primary_intent");
+                                }}
+                              >
+                                Earlier
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary"
+                                disabled={busy !== null || index === brief.intents.length - 1}
+                                aria-label={`Move ${intent.label} later`}
+                                onClick={() => {
+                                  setBrief({
+                                    ...brief,
+                                    intents: moveIntent(brief.intents, index, 1),
+                                  });
+                                  clearAsked("primary_intent");
+                                }}
+                              >
+                                Later
+                              </button>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    </div>
+                  ) : null}
+                  {showCheck ? (
+                    <button type="button" onClick={() => void checkPlace()}>
+                      Check this place
+                    </button>
+                  ) : null}
+                  {showFind ? (
+                    <div className="find-row">
+                      <button
+                        type="button"
+                        aria-describedby={`${findNoteId}-brief`}
+                        onClick={() => {
+                          setEditing(false);
+                          setView("plan");
+                          void findPlan();
+                        }}
+                      >
+                        {plan ? "Check live places again" : "Check live places"}
+                      </button>
+                      <p id={`${findNoteId}-brief`} className="composer-note">
+                        {plan
+                          ? "This refreshes the live place evidence through SerpApi."
+                          : "This searches live place listings through SerpApi."}
+                      </p>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+              {plan && brief && !proposal ? (
+                <form
+                  className="refine"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void reviewChange(revision);
+                  }}
+                >
+                  <label htmlFor="revision">Change this evening</label>
+                  <textarea
+                    id="revision"
+                    rows={2}
+                    maxLength={EVENING_TEXT_LIMIT}
+                    value={revision}
+                    disabled={busy !== null}
+                    placeholder="Make it for four people."
+                    onChange={(event) => setRevision(event.target.value)}
+                  />
+                  <button type="submit" disabled={busy !== null || revision.trim() === ""}>
+                    Review this change
+                  </button>
+                </form>
+              ) : null}
+              {proposal ? (
+                <RefinementDiff
+                  proposal={proposal}
+                  busy={busy !== null}
+                  onApply={() => void applyProposal()}
+                  onCancel={cancelProposal}
+                />
+              ) : null}
+            </aside>
+            <section className="stage-main" aria-label="Plan">
+              {plan ? (
+                <EveningTimeline
+                  plan={plan}
+                  brief={searchSnapshot ?? brief}
+                  destination={destination}
+                  intentCount={
+                    searchSnapshot?.intents.length ?? brief?.intents.length ?? plan.stops.length
+                  }
+                  sourcesId={sourcesId}
+                  selectedStop={selectedStop}
+                  onViewSources={viewSources}
+                />
+              ) : (
+                <ReviewGuide ready={showFind} busy={busy === "finding"} />
+              )}
+            </section>
+            {plan && sourceStop ? (
+              <SourcesPanel
+                key={sourceStop.position}
+                id={sourcesId}
+                stop={sourceStop}
+                plan={plan}
+                brief={searchSnapshot ?? brief}
+                timezone={destination?.timezone_name ?? null}
+                onClose={closeSources}
               />
-              <button type="submit" disabled={busy !== null || revision.trim() === ""}>
-                Review this change
-              </button>
-            </form>
-          ) : null}
-          {proposal ? (
-            <RefinementDiff
-              proposal={proposal}
-              busy={busy !== null}
-              onApply={() => void applyProposal()}
-              onCancel={cancelProposal}
-            />
-          ) : null}
-        </section>
+            ) : null}
+          </div>
+        )}
       </main>
       <Methodology />
+    </div>
+  );
+}
+
+/** What happens next while the visitor reviews the brief. Nothing here is a result. */
+function ReviewGuide({ ready, busy }: { ready: boolean; busy: boolean }) {
+  return (
+    <div className="review-guide">
+      <h2>{busy ? "Checking live places" : "Next: check live places"}</h2>
+      <ol>
+        <li>Happen searches live place listings through SerpApi for this evening.</li>
+        <li>Python checks opening hours and your requested details for each place.</li>
+        <li>You get at most two stops, with anything unconfirmed clearly marked.</li>
+      </ol>
+      {!ready && !busy ? <p>Answer the question or complete the brief to continue.</p> : null}
     </div>
   );
 }
@@ -1200,16 +1457,16 @@ function TrustStrip() {
   return (
     <ul className="trust-strip">
       <li>
-        <strong>Live places</strong>
-        <span>Retrieved for this evening, not a sample.</span>
+        <strong>Live when you search</strong>
+        <span>Place listings are retrieved through SerpApi for this evening.</span>
       </li>
       <li>
-        <strong>Checked timing</strong>
-        <span>Each stop is checked against its opening hours.</span>
+        <strong>Feasibility first</strong>
+        <span>Opening hours and requested constraints are checked before a stop is chosen.</span>
       </li>
       <li>
-        <strong>Source-backed</strong>
-        <span>Every claim names where it came from.</span>
+        <strong>No hidden guesses</strong>
+        <span>Anything the sources do not confirm is clearly marked.</span>
       </li>
     </ul>
   );
