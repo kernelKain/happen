@@ -19,7 +19,7 @@ from happen_api.planning.discovery import (
     discover_places,
     discovery_cache_key,
 )
-from happen_api.planning.evidence import ClaimKind
+from happen_api.planning.evidence import ClaimKind, Verification
 from happen_api.planning.itinerary import assemble_itinerary
 from happen_api.providers.serpapi.client import SerpApiClient
 
@@ -240,8 +240,9 @@ def test_timeout_and_quota_are_typed_and_send_no_ninth_request() -> None:
 def test_official_hours_override_a_community_statement() -> None:
     """A community page never replaces official hours, and stays secondary context.
 
-    Saying a place is closed on Monday does not contradict hours that list it
-    open, so this is unverified context rather than a conflict.
+    The record lists Monday open and the community says closed, so the two
+    claims are incompatible and the normalized record still wins. The
+    community wording is never promoted to an official fact either way.
     """
 
     from happen_api.planning.discovery import _place_from_record
@@ -261,14 +262,43 @@ def test_official_hours_override_a_community_statement() -> None:
         _destination("Kyoto, Japan", "JP", 35.0116, 135.7681, "Kyoto"),
     )
     assert found.hours == ["monday: 5:00 PM–10:00 PM"]
-    assert found.claim_conflicts == []
+    assert len(found.claim_conflicts) == 1
+    # The normalized listing still decides what the stop says.
+    assert found.hours_schedule.days["monday"].status == "open"
     assert found.community_notes == ["Kikunoi Kyoto is closed on Monday."]
     assert [claim.kind for claim in found.claims] == [ClaimKind.community]
     assert str(found.claims[0].url) == "https://www.reddit.com/r/kyoto/comments/1"
 
 
 def test_a_community_closure_that_contradicts_the_record_is_a_conflict() -> None:
-    """A closed day in the record plus a closed claim is a real conflict."""
+    """A weekday recorded closed that the community says opens is a real conflict."""
+
+    from happen_api.planning.discovery import _place_from_record
+
+    record = {**_place("Kikunoi", "ChIJkyoto"), "operating_hours": {"monday": "Closed"}}
+    found = _place_from_record(record, IntentKind.dinner)
+    assert found is not None
+    _apply_web(
+        found,
+        [
+            {
+                "title": "Kikunoi Kyoto",
+                "link": "https://www.reddit.com/r/kyoto/comments/1",
+                "snippet": "Kikunoi Kyoto opens at 6pm on Monday.",
+            }
+        ],
+        _destination("Kyoto, Japan", "JP", 35.0116, 135.7681, "Kyoto"),
+    )
+    assert len(found.claim_conflicts) == 1
+    conflict = found.claim_conflicts[0]
+    # Official normalized hours take precedence over the community text.
+    assert conflict.resolved.kind is ClaimKind.maps
+    assert conflict.secondary.kind is ClaimKind.community
+    assert conflict.secondary.verification is Verification.conflicting
+
+
+def test_a_closure_that_agrees_with_the_record_is_not_a_conflict() -> None:
+    """Verify agreement between the record and community text raises nothing."""
 
     from happen_api.planning.discovery import _place_from_record
 
@@ -286,11 +316,9 @@ def test_a_community_closure_that_contradicts_the_record_is_a_conflict() -> None
         ],
         _destination("Kyoto, Japan", "JP", 35.0116, 135.7681, "Kyoto"),
     )
-    assert len(found.claim_conflicts) == 1
-    conflict = found.claim_conflicts[0]
-    # Official normalized hours take precedence over the community text.
-    assert conflict.resolved.kind is ClaimKind.maps
-    assert conflict.secondary.kind is ClaimKind.community
+    # Two sources saying the same thing agree. They do not disagree.
+    assert found.claim_conflicts == []
+    assert found.claims[0].verification is Verification.unverified
 
 
 def test_shared_http_client_closes_with_the_app(settings: Settings) -> None:

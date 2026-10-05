@@ -248,9 +248,22 @@ export const briefDiffSchema = z.object({
   ),
 });
 
+export const refinementPurposeSchema = z.enum(["follow_up", "plan_refinement"]);
+
+/**
+ * Which of the two refinement actions a request is.
+ *
+ * `follow_up` is the same plan asking one more question, so the server keeps
+ * the current plan identity and the allowance it has left. `plan_refinement`
+ * is the user accepting a change after a result, which is a newly submitted
+ * plan with a fresh eight-request allowance.
+ */
+export type RefinementPurpose = z.infer<typeof refinementPurposeSchema>;
+
 export const refinementProposalSchema = z.object({
   version: z.literal("2"),
   applied: z.literal(false),
+  purpose: refinementPurposeSchema.default("follow_up"),
   current: planBriefSchema,
   proposed: planBriefSchema,
   follow_up: followUpSchema.nullable(),

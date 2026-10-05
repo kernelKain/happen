@@ -15,7 +15,15 @@ from happen_api.api.plans import PlanRequest
 from happen_api.planning.clock import FixedClock
 from happen_api.planning.constraints import EveningConstraints
 from happen_api.planning.contracts import Budget, BudgetBound, BudgetTier, IntentKind, PlaceIntent
-from happen_api.planning.discovery import DiscoveredPlace, EvidenceConflict
+from happen_api.planning.discovery import DiscoveredPlace
+from happen_api.planning.evidence import (
+    ClaimField,
+    ClaimKind,
+    ClaimsConflict,
+    EvidenceClaim,
+    MatchMethod,
+    Verification,
+)
 from happen_api.planning.interpret import interpret
 from happen_api.planning.itinerary import (
     ConstraintAssessment,
@@ -221,18 +229,42 @@ def test_evidence_keeps_source_types_and_the_retrieval_time() -> None:
     place = _place(
         website="https://alpha.example",
         community_notes=["Neighbors mention a quiet room."],
-        conflicts=[
-            EvidenceConflict(official="monday: 5:00 PM–10:00 PM", community="Closed on Mondays.")
-        ],
     )
     stop = _plan([place]).stops[0]
     sources = {item.source for item in stop.evidence}
     assert sources == {EvidenceSource.maps, EvidenceSource.official, EvidenceSource.community}
     assert {item.retrieved_at for item in stop.evidence} == {RETRIEVED}
-    assert "disagree" in stop.warnings[0]
     dumped = stop.model_dump()
     assert "score" not in dumped
     assert "weight" not in dumped
+
+
+def test_only_a_proven_hours_conflict_warns_the_reader() -> None:
+    """Verify the warning names a real disagreement and not a legacy conflict field."""
+
+    retrieved = RETRIEVED
+    listing = EvidenceClaim(
+        kind=ClaimKind.maps,
+        field=ClaimField.hours,
+        text="monday: 5:00 PM–10:00 PM",
+        retrieved_at=retrieved,
+        matched_by=MatchMethod.place_record,
+        verification=Verification.conflicting,
+    )
+    community = EvidenceClaim(
+        kind=ClaimKind.community,
+        field=ClaimField.hours,
+        text="Closed on Mondays.",
+        retrieved_at=retrieved,
+        verification=Verification.conflicting,
+    )
+    place = _place(
+        claim_conflicts=[
+            ClaimsConflict(field=ClaimField.hours, official=listing, secondary=community)
+        ]
+    )
+    stop = _plan([place]).stops[0]
+    assert any("different opening hours" in warning for warning in stop.warnings)
 
 
 def test_no_places_and_all_closed_places_stay_explicit() -> None:

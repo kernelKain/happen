@@ -370,9 +370,12 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     setBusy("reading");
     setFailure(null);
     try {
+      // Answering a question continues the same submitted plan, so the server
+      // keeps the current token and the allowance it has left.
       const proposal = await refineBrief(restorePrompt(brief, originalPrompt), cleaned, {
         signal: abortRef.current?.signal,
         fetchImpl,
+        purpose: "follow_up",
       });
       if (id !== generation.current) {
         return;
@@ -533,9 +536,13 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     setBusy("reviewing");
     setFailure(null);
     try {
+      // Reviewing a change after a result is a plan refinement, not a question.
+      // The server decides the allowance, and issues a new plan identity when
+      // the proposal is applied.
       const next = await refineBrief(restorePrompt(brief, originalPrompt), cleaned, {
         signal: abortRef.current?.signal,
         fetchImpl,
+        purpose: "plan_refinement",
       });
       if (id !== generation.current) {
         return;
@@ -578,7 +585,10 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
     // has actually succeeded or has returned an explicit evidence outcome.
     try {
       let place = destination;
-      const token = planToken;
+      // An accepted refinement is a newly submitted plan, so the server issues
+      // it its own plan identity and a fresh allowance. Apply uses the token
+      // that came back with the proposal, never the one the page was holding.
+      const token = proposed.plan_token ?? planToken;
       if (!samePlace || !place?.timezone_name) {
         const query = proposed.destination_text?.trim();
         if (!query || !proposed.local_date || !proposed.local_start) {
@@ -647,6 +657,7 @@ export function Landing({ initialEvening = "", fetchImpl }: LandingProps) {
         return;
       }
       rememberBrief(proposed);
+      setPlanToken(proposed.plan_token);
       setPlan(eveningPlan);
       setSearchSnapshot(proposed);
       setProposal(null);

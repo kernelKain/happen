@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from happen_api.domain.hours import ProviderHours, normalize_hours
+from happen_api.domain.hours import HoursVerdict, ProviderHours, normalize_hours, reconcile_hours
 from happen_api.planning.contracts import IntentKind, PlaceIntent, ResolvedDestination
 from happen_api.planning.evidence import (
     ClaimField,
@@ -902,18 +902,21 @@ def _community_claim_for(place: DiscoveredPlace, text: str) -> EvidenceClaim | N
 
 
 def _resolve_claim_conflicts(place: DiscoveredPlace) -> None:
-    """Record a conflict only when normalized claims cannot both be true."""
+    """Record a conflict only when comparable weekday/time claims are incompatible.
+
+    Agreement is agreement: a community sentence that matches the normalized
+    schedule proves nothing extra and is not a disagreement. Text that cannot
+    be reliably aligned is left unverified rather than treated as a conflict.
+    """
 
     place.claim_conflicts = []
-    official_hours = place.hours_schedule
+    recorded = place.hours_schedule
+    if recorded is None:
+        return
     for claim in place.claims:
         if claim.kind is not ClaimKind.community or claim.field is not ClaimField.hours:
             continue
-        closed = _claims_closed(claim.text)
-        if closed is None or official_hours is None:
-            # The text mentions hours but does not contradict the record.
-            continue
-        if not any(day.status == "closed" for day in official_hours.days.values()):
+        if reconcile_hours(recorded, claim.text) is not HoursVerdict.conflict:
             continue
         place.claim_conflicts.append(
             ClaimsConflict(
@@ -930,15 +933,6 @@ def _resolve_claim_conflicts(place: DiscoveredPlace) -> None:
                 secondary=claim.model_copy(update={"verification": Verification.conflicting}),
             )
         )
-
-
-def _claims_closed(text: str) -> bool | None:
-    """Return whether a statement asserts closure, or None if it does not."""
-
-    folded = text.casefold()
-    if "closed" in folded or "shut" in folded:
-        return True
-    return None
 
 
 def _clock_stamp() -> datetime:

@@ -1229,3 +1229,46 @@ designed behaviour.
 ### Next action
 
 Independent repair audit.
+
+## Repair planner accounting and refinement flow
+
+- Date: 2026-10-05
+- Branch: `global-live-experience`
+- Result: Five independently audited defects were reproduced, repaired, and covered by regression tests. First, SerpApi accounting moved to the outbound-attempt boundary: `SerpApiClient.set_attempt_gate` installs a gate that claims one allowance immediately before every network send, so each retry spends its own request, a call cancelled before sending costs nothing, a ninth attempt is refused before it reaches the network, and the claim is atomic under concurrency. Second, a follow-up answer keeps the plan identity the server issued, so resolving a missing destination continues on the same plan. Third, `RefinementPurpose` is now an explicit typed field on `POST /api/v2/plans/refine` and in the TypeScript client: `follow_up` preserves the current token and remaining allowance, while an accepted `plan_refinement` is issued a new token with a fresh eight-request allowance and the previous identity is forgotten. The server never trusts a token or allowance count from the browser. Fourth, hours-conflict logic was inverted and is corrected: `reconcile_hours` returns agreement, conflict, or unverifiable, and only provably incompatible claims about the same weekday conflict. Fifth, the destination qualifier pattern was concatenating its alternatives without separators, which swallowed quiet, vegetarian, we, and evening into the place name; each alternative is now separated. No product contract was changed, no provider, database, hosted model, auth, or dependency was added, and no live SerpApi request was made.
+- Product behavior changed: yes. A retried search now correctly spends two of the eight requests rather than one. A follow-up answer no longer loses the plan session. An accepted refinement starts a new plan with a full allowance instead of continuing to spend the previous plan's remainder. Two sources that agree about opening hours no longer raise a disagreement. A preference word no longer becomes part of a destination. This step did not deploy.
+- Cost changed: no. Every test uses fakes, fixtures, or a mocked transport. No SerpApi credit was spent.
+
+### Evidence
+
+- A successful first attempt spends exactly one request.
+- A failed attempt followed by a successful retry spends two.
+- Starting from seven spent requests permits one attempt and blocks its retry before the network.
+- Four threads racing on one shared token send exactly eight requests in total.
+- A request cancelled before sending spends nothing.
+- A follow-up answer returns the same plan token, and that token still resolves and retrieves a plan.
+- An applied refinement returns a different token with a full eight-request remaining allowance.
+- A browser-supplied `plan_token` on the refine route is neither adopted nor honoured.
+- The refine route rejects a purpose outside the closed set.
+- A record listing Monday open plus community text saying closed Monday is a conflict; the same text against a record listing Monday closed is agreement, not a conflict.
+- A visitor's own visit time, text that says hours are unclear, a single end of an interval, and a listing that could not be read all stay unverifiable.
+- `Amsterdam quiet` reads `Amsterdam`, `Tokyo vegetarian` reads `Tokyo`, `Lisbon we` reads `Lisbon`, and an unqualified `Paris evening` asks which Paris.
+- Accented and qualified destinations still read correctly: São Paulo, Kraków, St. John's, N'Djamena, Aix-en-Provence, Washington, D.C., and London, Ontario.
+- `uv run ruff format --check src tests ../scripts/scan-secrets.py` — 84 files already formatted.
+- `uv run ruff check src tests ../scripts/scan-secrets.py` — all checks passed.
+- `uv run pytest` — 448 passed, 380 unit and 68 contract.
+- `cd frontend && npm run check` — 36 files checked, no fixes applied.
+- `npm test` — 55 passed across 9 files.
+- `npm run build` — `tsc --noEmit` and the Vite build passed.
+- `npm run test:shell` — 15 Playwright tests passed.
+- `python3 scripts/scan-secrets.py` — exit 0, no findings.
+
+### Decisions
+
+- The gate lives on the inner client rather than the wrapper, because the send boundary is the only place that counts attempts correctly. A provider without the gate, which is how the scripted test fakes are built, is charged per billed call instead.
+- The previous plan identity is forgotten once a refinement is applied, so the old allowance cannot be spent afterwards.
+- Agreement is not promoted to verified. It simply raises nothing.
+- A clause that names no weekday, states no hours, or gives only one end of an interval is unverifiable rather than a conflict, because an unverifiable claim must not accuse a place of being wrong.
+
+### Next action
+
+Manual local check of the repaired flow, then a fresh audit. Deployment, the friend walkthrough, and submission stay user-owned and were not requested in this step.

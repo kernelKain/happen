@@ -99,6 +99,46 @@ def test_temporal_and_intent_words_stop_the_phrase(prompt: str, expected: str) -
     assert _destination(prompt) == expected
 
 
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        pytest.param("dinner in Amsterdam quiet tonight at 8", "Amsterdam", id="quiet"),
+        pytest.param("dinner in Tokyo vegetarian tonight at 8", "Tokyo", id="vegetarian"),
+        pytest.param("dinner in Lisbon we would like at 8", "Lisbon", id="we"),
+        pytest.param("dinner in Reykjavik evening at 8", "Reykjavik", id="evening"),
+        pytest.param("coffee in Kyoto outdoors tomorrow", "Kyoto", id="outdoor"),
+        pytest.param("dinner in Vienna with friends at 8", "Vienna", id="with-friends"),
+        pytest.param("dinner in Porto we prefer quiet", "Porto", id="prefer-quiet"),
+        pytest.param("dinner in Lyon vegan and casual", "Lyon", id="vegan-and-casual"),
+        pytest.param("dinner in Athens wheelchair access at 8", "Athens", id="wheelchair"),
+        pytest.param("dinner in Bergen hearing loop at 8", "Bergen", id="hearing"),
+        pytest.param("dinner in Seville please at 8", "Seville", id="please"),
+        pytest.param("dinner in Turin looking for ramen", "Turin", id="looking"),
+        pytest.param("dinner in Ghent somewhere cosy at 8", "Ghent", id="somewhere"),
+    ],
+)
+def test_a_preference_word_never_joins_the_destination(prompt: str, expected: str) -> None:
+    """Verify qualifiers stop the phrase instead of being read as part of the name.
+
+    These were the words the boundary pattern lost by concatenating its
+    alternatives without a separator, so `Amsterdam quiet` was read as one
+    place name that no resolver could place.
+    """
+
+    assert _destination(prompt) == expected
+
+
+def test_an_unqualified_shared_name_still_asks_which_paris() -> None:
+    """Verify dropping the qualifier exposes the shared name as its own question."""
+
+    # `Paris evening` must not become the phrase "Paris evening". It becomes the
+    # known-city ambiguity for Paris, which is what an unqualified "Paris" is.
+    assert _destination("dinner in Paris evening at 8") is None
+    assert _ask("dinner in Paris evening at 8") == "destination"
+    # A qualified reading is not questioned at all.
+    assert _destination("dinner in Paris, France tomorrow at 8") == "Paris, France"
+
+
 def test_the_phrase_may_be_longer_than_three_words() -> None:
     """Verify a name longer than three words is not truncated."""
 

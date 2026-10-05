@@ -36,9 +36,10 @@ _Kind = Literal["search", "place", "reviews", "web"]
 class SerpApiFailure(Exception):
     """A provider call stopped. The message is safe to log and return.
 
-    `billed_requests` is how many billed requests this call actually sent. A
-    retry that reached the network counts; a call cancelled before sending does
-    not. Plan accounting uses it so a retry is charged and a cancellation is not.
+    `billed_requests` is a diagnostic count of how many billed requests this
+    call sent. It is not the accounting path: plan allowances are charged by
+    the attempt gate immediately before each network send, so a retry is
+    charged and a call cancelled before sending is not.
     """
 
     def __init__(
@@ -130,6 +131,7 @@ class SerpApiClient:
         self.live_enabled = True
         self.disabled_code: str | None = None
         self._cancelled = cancelled or (lambda: False)
+        self._attempt_gate: Callable[[], None] | None = None
         self._owns_http = http_client is None
         self._http = http_client or httpx.Client(
             transport=transport,
@@ -137,6 +139,19 @@ class SerpApiClient:
             follow_redirects=False,
             timeout=httpx.Timeout(attempt_timeout_seconds),
         )
+
+    def set_attempt_gate(self, gate: Callable[[], None]) -> None:
+        """Install the allowance check that runs before every outbound attempt.
+
+        The gate is called once per network send, including once per retry. It
+        is the only correct place to charge a shared plan allowance, because a
+        wrapper that charges per call would let one call send several requests.
+        A gate that raises stops the attempt before it reaches the network.
+        """
+
+        if not callable(gate):
+            raise TypeError("the attempt gate must be callable")
+        self._attempt_gate = gate
 
     def __repr__(self) -> str:
         return (
@@ -373,6 +388,10 @@ class SerpApiClient:
                     retryable=False,
                 )
             timeout = min(self._attempt_timeout_seconds, remaining)
+            # Claim this attempt before the send, not after the response. A
+            # cancelled request never reaches the network, and a claim it
+            # cannot afford stops it here instead of spending a ninth credit.
+            self._claim_attempt()
             self._credits_charged += 1
             try:
                 response = self._send(params, timeout)
@@ -418,6 +437,14 @@ class SerpApiClient:
             "Live SerpApi mode is disabled.",
             retryable=False,
         )
+
+    def _claim_attempt(self) -> None:
+        """Run the plan's allowance gate for the attempt about to be sent."""
+
+        gate = self._attempt_gate
+        if gate is None:
+            return
+        gate()
 
     def _maybe_disable(self, failure: SerpApiFailure) -> None:
         if failure.code not in {"AUTHENTICATION_FAILED", "QUOTA_EXHAUSTED"}:

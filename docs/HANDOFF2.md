@@ -21,9 +21,9 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. The twelve audit repairs are verified by automation. The model quality gate failed, so claims stay off. |
-| Last finished step | Verify the repaired global planner. |
-| Next step | independent repair audit |
+| Phase complete | No. Five independently audited defects are repaired and covered by automation. The model quality gate failed, so claims stay off. |
+| Last finished step | Repair planner accounting and refinement flow. |
+| Next step | manual check of the repaired flow, then a fresh audit |
 | Branch | `global-live-experience` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
@@ -108,9 +108,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | Python scores party size, budget, preferences, and accessibility from retrieved evidence. Unknown evidence adds nothing. Gemma claims stay off. |
-| Last finished step | Verify the repaired global planner. |
-| Next step | independent repair audit |
+| Status | SerpApi accounting is charged per outbound attempt. Refinement carries an explicit purpose, and a follow-up keeps its plan while an applied change becomes a new plan. Hours conflicts need provable incompatibility. Destination qualifiers no longer join a place name. Gemma claims stay off. |
+| Last finished step | Repair planner accounting and refinement flow. |
+| Next step | manual check of the repaired flow, then a fresh audit |
 | Branch | `global-live-experience`, started from `c0bc793` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -245,6 +245,55 @@ Snippets stay short, carry no reviewer identity, and a `_PHONE` pattern drops an
 The evidence drawer shows the source kind, the supported field, the match method, the retrieval time, and a `Not verified.` or `Conflicts with another source.` line where that applies. Each claim carries `data-verification` and a source class, so official, Maps, and community are visually distinct.
 
 `tests/unit/test_evidence_provenance.py` covers classification, URL preservation, entity mismatch, unsafe-link filtering, real conflicts, non-conflicting secondary text, and review skipping.
+
+## Independent repair audit
+
+Five defects were reported and repaired on October 5, 2026. Each was reproduced first, then fixed, then covered by a regression test. No product contract was changed to legitimize any of them, no provider, database, hosted model, or auth was added, and no live SerpApi request was made.
+
+### What was wrong, and what it is now
+
+| Defect | Before | Now |
+|---|---|---|
+| SerpApi accounting | `MeteredProvider` claimed one request per wrapper call, then reconciled afterwards from a count the failure carried. One call that retried could send twice on one claim, and the accounting lagged the network. | The allowance is claimed atomically at the outbound-attempt boundary. `SerpApiClient.set_attempt_gate` installs a gate that runs once per network send, so every retry spends its own request. |
+| Follow-up token | A follow-up answer produced a brief with no `plan_token`, so resolving a missing destination left the session unusable. | `follow_up` copies the plan identity from the brief the server already issued. The answer continues on the same plan. |
+| Two actions, one behaviour | Both answering a question and accepting a post-result change used the same refinement call, and the page kept spending the previous plan's allowance. | `RefinementPurpose` is an explicit typed field on the route and in the TypeScript client. `follow_up` preserves the token and allowance; `plan_refinement` is issued a new token with a fresh eight-request allowance. |
+| Hours conflicts | Agreement was reported as disagreement. A record listing Monday closed plus community text saying closed Monday produced a conflict warning. | `reconcile_hours` returns `agreement`, `conflict`, or `unverifiable`. Only provably incompatible claims about the same weekday conflict. Text that cannot be aligned stays unverified. |
+| Destination qualifiers | The qualifier alternatives were concatenated without `\|` separators, so `quiet`, `vegetarian`, `we`, `evening`, `indoor`, and `hearing` never matched a boundary and were swallowed into the place name. | Each alternative is separated. `Amsterdam quiet` reads `Amsterdam`, `Tokyo vegetarian` reads `Tokyo`, and `Lisbon we` reads `Lisbon`. |
+
+### Why a `plan_refinement` gets a new token
+
+Section 30.9 says a refinement the user submits is a new submitted plan with its own maximum of eight billed requests, and that unused requests from the previous plan do not raise that maximum. A `follow_up` is not that: it is the same submitted plan asking its one outstanding question, so it keeps both its identity and its remaining allowance.
+
+The previous identity is forgotten once a refinement is applied, so the old allowance cannot be spent afterwards. The page uses the token that came back with the proposal rather than the one it was holding.
+
+Nothing about the allowance is trusted from the browser. `RefineRequest` accepts a `plan_token` for symmetry, but the server resolves the plan identity from the brief it already issued, and a test asserts that a browser-chosen token is neither adopted nor honoured.
+
+### Accounting rules now held to
+
+- One claim per real outbound attempt, including each retry.
+- A request cancelled before it reaches the network costs nothing.
+- A ninth attempt is refused before it is sent, not after.
+- The claim is atomic, so concurrent callers cannot jointly exceed eight.
+- A provider without the attempt gate, which is how the scripted test fakes are built, is charged per billed call instead.
+
+### Test totals after this repair
+
+| Suite | Result |
+|---|---|
+| `cd backend && uv run ruff format --check src tests ../scripts/scan-secrets.py` | 84 files already formatted |
+| `cd backend && uv run ruff check src tests ../scripts/scan-secrets.py` | All checks passed |
+| `cd backend && uv run pytest` | 448 passed (380 unit, 68 contract) |
+| `cd frontend && npm run check` | 36 files checked, no fixes applied |
+| `cd frontend && npm test` | 55 passed across 9 files |
+| `cd frontend && npm run build` | built |
+| `cd frontend && npm run test:shell` | 15 passed |
+| `python3 scripts/scan-secrets.py` | exit 0 |
+
+The backend total rose from 404 to 448. The new coverage is the five allowance scenarios, hours reconciliation across positive, negative, agreement, ambiguous, and cross-day text, the destination qualifier regressions, and both refinement purposes.
+
+### Known limits of the hours comparison
+
+Free-text reconciliation only reads a weekday that the sentence names, a closure, or an interval that carries an hours cue with both ends. An opening time on its own is too little to contradict an open schedule, but enough to contradict a weekday the record lists as closed. Anything else is `unverifiable` and stays unverified.
 
 ## How branches and commits work
 

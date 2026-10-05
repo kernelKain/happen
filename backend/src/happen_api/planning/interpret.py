@@ -277,10 +277,10 @@ _INTENT_WORDS = (
 )
 _QUALIFIERS = (
     r"with|then|and|but|plus|however|somewhere|someplace"
-    r"we|i|looking|planning|want|wants|need|needs|prefer|prefers"
-    r"quiet|noisy|loud|romantic|casual|formal|spicy|outdoor|indoor"
-    r"vegetarian|vegan|wheelchair|step-free|stepfree|hearing"
-    r"evening|morning|afternoon|night|weekend|please"
+    r"|we|i|looking|planning|want|wants|need|needs|prefer|prefers"
+    r"|quiet|noisy|loud|romantic|casual|formal|spicy|indoors?"
+    r"|outdoors?|vegetarians?|vegans?|wheelchairs?|step[- ]?free|hearing"
+    r"|evenings?|mornings?|afternoons?|nights?|weekends?|please"
 )
 _PHRASE_BOUNDARY = re.compile(
     r"(?i)\A(?P<stop>"

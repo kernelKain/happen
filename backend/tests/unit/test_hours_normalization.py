@@ -19,10 +19,12 @@ from happen_api.domain.hours import (
     HOURS_MISSING,
     HOURS_OUTSIDE_LISTED,
     HOURS_SHAPE_UNRECOGNIZED,
+    HoursVerdict,
     ProviderHours,
     hours_reason,
     hours_state,
     normalize_hours,
+    reconcile_hours,
     schedule_from_lines,
 )
 from happen_api.domain.models import DayOfWeek
@@ -467,3 +469,163 @@ def test_the_second_stop_does_not_claim_a_verified_arrival() -> None:
     assert second.hours_status == "open"
     assert "A separate arrival was not planned for this stop." in second.explanation
     assert second.explanation != first.explanation
+
+
+def _verdict(recorded: object, statement: str) -> HoursVerdict:
+    """Compare one free-text statement with a normalized weekly schedule."""
+
+    assert isinstance(recorded, (dict, list))
+    return reconcile_hours(normalize_hours(recorded), statement)
+
+
+_OPEN_EVENING = {"monday": "6:00 PM–11:00 PM", "tuesday": "6:00 PM–11:00 PM"}
+
+
+@pytest.mark.parametrize(
+    ("recorded", "statement"),
+    [
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura in Kyoto is closed on Monday.",
+            id="closed-while-recorded-open",
+        ),
+        pytest.param(
+            {"monday": "Closed"},
+            "Kura in Kyoto opens at 6pm on Monday.",
+            id="open-while-recorded-closed",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura on Monday is open 1:00 PM to 4:00 PM.",
+            id="non-overlapping-intervals",
+        ),
+        pytest.param(
+            {"monday": "Closed", "tuesday": "6:00 PM–11:00 PM"},
+            "Kura is closed on Monday and Tuesday.",
+            id="a-shared-closure-contradicting-one-open-day",
+        ),
+    ],
+)
+def test_incomparable_claims_about_one_weekday_conflict(recorded: object, statement: str) -> None:
+    """Verify a conflict needs two comparable claims that cannot both be true."""
+
+    assert _verdict(recorded, statement) is HoursVerdict.conflict
+
+
+@pytest.mark.parametrize(
+    ("recorded", "statement"),
+    [
+        pytest.param(
+            {"monday": "Closed"},
+            "Kura in Kyoto is closed on Monday.",
+            id="both-closed",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura in Kyoto is open on Monday 6:00 PM to 11:00 PM.",
+            id="both-the-same-interval",
+        ),
+        pytest.param(
+            {"monday": "6:00 PM–11:00 PM"},
+            "Kura is open 9pm-1am on Monday.",
+            id="an-overlapping-overnight-window",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura is closed on Saturday.",
+            id="a-day-the-listing-never-named",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura is open 24 hours on Monday.",
+            id="all-day-covers-any-window",
+        ),
+    ],
+)
+def test_agreement_between_the_record_and_a_claim_is_not_a_conflict(
+    recorded: object, statement: str
+) -> None:
+    """Verify two sources saying compatible things never raise a conflict."""
+
+    assert _verdict(recorded, statement) is HoursVerdict.agreement
+
+
+@pytest.mark.parametrize(
+    ("recorded", "statement"),
+    [
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura in Kyoto is great, we went at 7pm.",
+            id="a-visitors-own-visit-time",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura in Kyoto hours are unclear, ask the staff.",
+            id="explicitly-unclear",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura closes at 8pm on Monday in Kyoto.",
+            id="only-one-end-of-an-interval",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura opens at 6pm on Monday.",
+            id="an-opening-without-a-closing-bound",
+        ),
+        pytest.param(
+            {"funday": "6:00 PM–11:00 PM"},
+            "Kura in Kyoto is closed on Monday.",
+            id="a-listing-that-could-not-be-read",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura in Kyoto is busy on Friday.",
+            id="no-hours-stated-at-all",
+        ),
+    ],
+)
+def test_text_that_cannot_be_reliably_aligned_stays_unverifiable(
+    recorded: object, statement: str
+) -> None:
+    """Verify ambiguous text is unknown rather than a conflict."""
+
+    assert _verdict(recorded, statement) is HoursVerdict.unverifiable
+
+
+@pytest.mark.parametrize(
+    ("recorded", "statement"),
+    [
+        pytest.param(
+            {"monday": "6:00 PM–1:00 AM", "sunday": "6:00 PM–11:00 PM"},
+            "We went at 2am on Sunday and it was great.",
+            id="an-after-midnight-visit-is-not-a-hours-claim",
+        ),
+        pytest.param(
+            _OPEN_EVENING,
+            "Kura is closed on Saturday.",
+            id="a-weekday-the-text-only-names-elsewhere",
+        ),
+    ],
+)
+def test_a_statement_about_a_day_never_moves_to_another_day(
+    recorded: object, statement: str
+) -> None:
+    """Verify a claim is compared only with the weekday it actually names.
+
+    An arrival time, or the word `evening`, is not a statement about the next
+    or previous day. Cross-day reasoning belongs to the schedule reader, not
+    to free-text reconciliation.
+    """
+
+    assert _verdict(recorded, statement) is not HoursVerdict.conflict
+
+
+def test_an_unreadable_listing_never_contradicts_a_claim() -> None:
+    """Verify localized provider text is not evidence that a claim is wrong."""
+
+    recorded = normalize_hours({"weekend": "geöffnet ab 18 Uhr"})
+    assert recorded.days == {}
+    assert reconcile_hours(recorded, "Kura in Kyoto is closed on Monday.") is (
+        HoursVerdict.unverifiable
+    )

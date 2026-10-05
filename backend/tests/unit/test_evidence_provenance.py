@@ -232,7 +232,7 @@ def test_an_unsafe_url_is_dropped_from_the_claim() -> None:
 def test_a_contradiction_is_recorded_only_when_proven() -> None:
     """Verify an incompatible claim becomes a conflict and the official wins."""
 
-    place = _place(operating_hours={"monday": "Closed"})
+    place = _place(operating_hours={"monday": "6:00 PM–11:00 PM"})
     _apply_web(
         place,
         _rows(
@@ -253,12 +253,32 @@ def test_a_contradiction_is_recorded_only_when_proven() -> None:
     assert conflict.secondary.kind is ClaimKind.community
 
 
+def test_agreement_between_the_record_and_a_claim_is_not_a_conflict() -> None:
+    """Verify two sources saying the same thing raise no disagreement."""
+
+    place = _place(operating_hours={"monday": "6:00 PM–11:00 PM"})
+    _apply_web(
+        place,
+        _rows(
+            {
+                "title": "Kura thread",
+                "link": "https://www.reddit.com/r/kyoto/comments/1",
+                "snippet": "Kura in Kyoto is open on Monday 6:00 PM to 11:00 PM.",
+            }
+        ),
+        DESTINATION,
+    )
+    assert place.claim_conflicts == []
+    assert place.claims[0].verification is Verification.unverified
+
+
 @pytest.mark.parametrize(
     "snippet",
     [
         pytest.param("Kura in Kyoto is great, we went at 7pm.", id="mentions-a-time"),
-        pytest.param("Kura in Kyoto closed on Monday.", id="closed-while-hours-open"),
+        pytest.param("Kura in Kyoto closed on Sunday.", id="a-different-day"),
         pytest.param("Kura in Kyoto hours are unclear, ask the staff.", id="vague-about-hours"),
+        pytest.param("Kura closes at 8pm on Monday in Kyoto.", id="only-one-end-of-an-interval"),
     ],
 )
 def test_secondary_text_without_a_contradiction_stays_unverified(snippet: str) -> None:

@@ -207,6 +207,19 @@ class BriefDiff(BaseModel):
     changed: list[FieldChange] = Field(default_factory=list, max_length=12)
 
 
+class RefinementPurpose(StrEnum):
+    """Which of the two refinement actions this request is.
+
+    `follow_up` is the same submitted plan asking one more essential question,
+    so it keeps the current plan identity and its remaining allowance.
+    `plan_refinement` is a newly submitted plan, so it starts a fresh
+    eight-request allowance and receives its own plan identity.
+    """
+
+    follow_up = "follow_up"
+    plan_refinement = "plan_refinement"
+
+
 class RefinementProposal(BaseModel):
     """A validated next brief. The caller keeps the current plan until it applies this."""
 
@@ -214,6 +227,7 @@ class RefinementProposal(BaseModel):
 
     version: Literal["2"] = "2"
     applied: Literal[False] = False
+    purpose: RefinementPurpose = RefinementPurpose.follow_up
     current: PlanningBrief
     proposed: PlanningBrief
     follow_up: FollowUp | None = None
@@ -428,14 +442,37 @@ def assemble_itinerary(
     )
 
 
-def propose_revision(current: PlanningBrief, revision: str, clock: Clock) -> RefinementProposal:
-    """Interpret a revision and return the diff without changing the current brief."""
+def propose_revision(
+    current: PlanningBrief,
+    revision: str,
+    clock: Clock,
+    *,
+    purpose: RefinementPurpose = RefinementPurpose.follow_up,
+) -> RefinementProposal:
+    """Interpret a revision and return the diff without changing the current brief.
+
+    A `follow_up` is the same plan asking one more question, so it keeps the
+    current plan identity and the allowance that identity has left. A
+    `plan_refinement` is a newly submitted plan, so it receives a fresh
+    eight-request allowance and the server issues a new identity for it.
+
+    The plan identity is never taken from the request body. It is copied from
+    the brief the server already issued, so a caller cannot raise its own
+    budget by naming a token.
+    """
 
     parsed = interpret(revision, clock).brief
     merged = _merge(current, parsed)
+    if purpose is RefinementPurpose.follow_up:
+        # Answering the destination question must continue on the same plan,
+        # otherwise the follow-up response would invalidate the session.
+        data = merged.model_dump()
+        data["plan_token"] = current.plan_token
+        merged = PlanningBrief.model_validate(data)
     return RefinementProposal(
         current=current,
         proposed=merged,
+        purpose=purpose,
         follow_up=select_follow_up(merged),
         diff=_diff(current, merged),
     )
@@ -610,8 +647,8 @@ def _stop(
                 verification=Verification.unverified,
             )
         )
-    if place.claim_conflicts or place.conflicts:
-        warnings.append("An official hours statement and a community statement disagree.")
+    if place.claim_conflicts:
+        warnings.append("One source lists different opening hours than another.")
     reason = hours_decision_reason(place, local_date, arrival)
     if state == "open":
         clock = arrival.strftime("%H:%M")

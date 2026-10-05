@@ -35,6 +35,7 @@ from happen_api.planning.discovery import (
 )
 from happen_api.planning.interpret import interpret
 from happen_api.planning.itinerary import (
+    RefinementPurpose,
     assemble_itinerary,
     propose_revision,
 )
@@ -110,12 +111,19 @@ class PlanRequest(BaseModel):
 
 
 class RefineRequest(BaseModel):
-    """A current brief plus a revision. The current brief is not replaced."""
+    """One current brief plus a revision, and which of the two actions this is.
+
+    `plan_token` is accepted for symmetry with the other planning routes, but
+    it is never trusted. The server resolves the plan identity from the brief
+    it already issued, so a browser cannot raise its own allowance.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     current: PlanningBrief
     revision: str = Field(min_length=1, max_length=2000)
+    purpose: RefinementPurpose = RefinementPurpose.follow_up
+    plan_token: str | None = Field(default=None, min_length=16, max_length=128)
 
 
 class _Unavailable:
@@ -297,13 +305,25 @@ def create_plan(body: PlanRequest, request: Request) -> object:
 
 @router.post("/plans/refine")
 def refine_plan(body: RefineRequest, request: Request) -> object:
-    """Return a proposed brief and a diff. The current brief stays as sent."""
+    """Return a proposed brief and a diff. The current brief stays as sent.
+
+    A `follow_up` continues the current plan, so its plan identity and its
+    remaining allowance survive. A `plan_refinement` is the user accepting a
+    post-result change, which the contract treats as a newly submitted plan, so
+    it receives a fresh eight-request allowance under a new plan identity.
+    """
 
     rejected = _begin(request, billed=False)
     if rejected is not None:
         return rejected
+    store = _allowances(request)
     try:
-        return propose_revision(body.current, body.revision, _clock(request))
+        proposal = propose_revision(
+            body.current,
+            body.revision,
+            _clock(request),
+            purpose=body.purpose,
+        )
     except PlanningInputError as exc:
         return _failure(
             request,
@@ -313,6 +333,16 @@ def refine_plan(body: RefineRequest, request: Request) -> object:
             exc.error.next_action,
             retryable=exc.error.retryable,
         )
+    if body.purpose is RefinementPurpose.plan_refinement:
+        current_token = proposal.current.plan_token
+        token = store.issue()
+        data = proposal.proposed.model_dump()
+        data["plan_token"] = token
+        proposal = proposal.model_copy(update={"proposed": PlanningBrief.model_validate(data)})
+        # The previous plan's identity is spent once its refinement is applied.
+        if current_token is not None and current_token != token:
+            store.forget(current_token)
+    return proposal
 
 
 def _begin(request: Request, *, billed: bool) -> object | None:
@@ -415,7 +445,12 @@ def _clock(request: Request) -> Clock:
 
 
 def _metered(request: Request, token: str) -> tuple[object, bool]:
-    """Build a provider client whose billed calls draw on this plan's allowance."""
+    """Build a provider client whose every outbound attempt draws on this plan.
+
+    The allowance gate is installed on the inner client, not on a wrapper, so a
+    retry inside that client claims its own request. A scripted test provider
+    without the gate is charged per billed call instead.
+    """
 
     factory = getattr(request.app.state, "provider_factory", None)
     if factory is not None:

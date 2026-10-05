@@ -698,3 +698,95 @@ describe("landing", () => {
     expect(screen.getByLabelText("Destination")).toHaveProperty("value", "Osaka");
   });
 });
+
+describe("refinement purposes on the page", () => {
+  it("asks as a follow_up and as a plan_refinement, and applies with the new token", async () => {
+    const refinements: Record<string, unknown>[] = [];
+    const plans: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+      if (url.endsWith("/api/v2/briefs/interpret")) {
+        return json(interpreted());
+      }
+      if (url.endsWith("/api/v2/destinations/resolve")) {
+        return json(resolved);
+      }
+      if (url.endsWith("/api/v2/plans/refine")) {
+        refinements.push(body);
+        const purpose = body.purpose as "follow_up" | "plan_refinement";
+        return json({
+          version: "2",
+          applied: false,
+          purpose,
+          current: brief,
+          proposed: {
+            ...brief,
+            raw_prompt: "Dinner in Kyoto on 2026-10-05 at 7pm",
+            preferences: ["quiet"],
+            // A follow-up keeps the plan it continues. An applied refinement is
+            // a newly submitted plan, so the server issues it a new identity.
+            plan_token: purpose === "follow_up" ? "test-plan-token-0001" : "replan-token-0002",
+          },
+          follow_up: null,
+          diff: { added: ["preferences"], removed: [], changed: [] },
+          message: "The current plan was not changed.",
+        });
+      }
+      if (url.endsWith("/api/v2/plans")) {
+        plans.push(body);
+        return json(eveningPlan);
+      }
+      throw new Error(url);
+    });
+
+    const unnamed = {
+      ...brief,
+      destination_text: null,
+      local_date: null,
+      intents: [],
+      missing_essentials: [
+        { kind: "missing" as const, field: "destination" as const, question: "Which place?" },
+      ],
+    };
+    const ask = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/v2/briefs/interpret")) {
+        return json(
+          interpreted(unnamed, {
+            kind: "missing",
+            field: "destination",
+            question: "Which place should this evening be in?",
+          }),
+        );
+      }
+      return fetchImpl(input, init);
+    });
+
+    const { unmount } = render(<Landing initialEvening={original} fetchImpl={ask} />);
+    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    const question = await screen.findByLabelText("Which place should this evening be in?");
+    fireEvent.change(question, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
+    await waitFor(() => expect(refinements).toHaveLength(1));
+    // Answering a question continues the current plan.
+    expect(refinements[0].purpose).toBe("follow_up");
+    unmount();
+
+    render(<Landing initialEvening={original} fetchImpl={fetchImpl} />);
+    fireEvent.click(screen.getByRole("button", { name: "Plan this evening" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Find the plan" }));
+    await screen.findByRole("heading", { name: "1. Kura" });
+    fireEvent.change(screen.getByLabelText("Change this evening"), {
+      target: { value: "Make it quiet" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review this change" }));
+    await screen.findByRole("button", { name: "Apply" });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(plans).toHaveLength(2));
+    // Reviewing a change after a result is a plan refinement, not a question.
+    expect(refinements[1].purpose).toBe("plan_refinement");
+    // And the retrieval runs on the plan the server issued for it.
+    expect(plans[1].plan_token).toBe("replan-token-0002");
+  });
+});

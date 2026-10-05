@@ -1,9 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { interpretBrief, PlanRequestError, requestPlan, resolveDestination } from "./planClient";
+import {
+  interpretBrief,
+  PlanRequestError,
+  refineBrief,
+  requestPlan,
+  resolveDestination,
+} from "./planClient";
 
 const brief = {
   raw_prompt: "Dinner in Kyoto on 2026-10-05 at 7pm",
   destination_text: "Kyoto",
+  plan_token: null as string | null,
   local_date: "2026-10-05",
   pending_date: null,
   local_start: "19:00:00",
@@ -14,7 +21,7 @@ const brief = {
   accessibility_needs: [],
   missing_essentials: [],
   ambiguities: [],
-  confidence: "high",
+  confidence: "high" as const,
 };
 
 const destination = {
@@ -286,5 +293,80 @@ describe("plan client", () => {
         { signal: controller.signal, fetchImpl: vi.fn() },
       ),
     ).rejects.toMatchObject({ name: "AbortError" });
+  });
+});
+
+describe("refinement purposes", () => {
+  const proposal = (purpose: "follow_up" | "plan_refinement", token: string | null) => ({
+    version: "2" as const,
+    applied: false as const,
+    purpose,
+    current: { ...brief, plan_token: "test-plan-token-0001" },
+    proposed: { ...brief, plan_token: token },
+    follow_up: null,
+    diff: { added: ["preferences"], removed: [], changed: [] },
+    message: "The current plan was not changed.",
+  });
+
+  it("sends follow_up as the default so an answer keeps the current plan", async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return json(proposal("follow_up", "test-plan-token-0001"));
+    });
+    const result = await refineBrief({ ...brief, plan_token: "test-plan-token-0001" }, "Kyoto", {
+      fetchImpl,
+    });
+    expect(body.purpose).toBe("follow_up");
+    expect(result.purpose).toBe("follow_up");
+    // The same plan identity survives, so the answer stays usable.
+    expect(result.proposed.plan_token).toBe("test-plan-token-0001");
+  });
+
+  it("sends plan_refinement for a change reviewed after a result", async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return json(proposal("plan_refinement", "fresh-plan-token-0002"));
+    });
+    const result = await refineBrief(
+      { ...brief, plan_token: "test-plan-token-0001" },
+      "Make it romantic",
+      {
+        fetchImpl,
+        purpose: "plan_refinement",
+      },
+    );
+    expect(body.purpose).toBe("plan_refinement");
+    expect(result.purpose).toBe("plan_refinement");
+    // An accepted refinement is a newly submitted plan with its own identity.
+    expect(result.proposed.plan_token).toBe("fresh-plan-token-0002");
+  });
+
+  it("never sends a token or an allowance count the browser chose", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return json(proposal("plan_refinement", "fresh-plan-token-0002"));
+    });
+    await refineBrief({ ...brief, plan_token: "test-plan-token-0001" }, "Make it romantic", {
+      fetchImpl,
+      purpose: "plan_refinement",
+    });
+    const sent = bodies[0];
+    // Only the brief, the revision, and the purpose cross this boundary.
+    expect(Object.keys(sent).sort()).toEqual(["current", "purpose", "revision"]);
+    expect(sent).not.toHaveProperty("plan_token");
+    expect(sent).not.toHaveProperty("remaining_requests");
+    expect(sent).not.toHaveProperty("billed_requests");
+  });
+
+  it("rejects a proposal whose purpose is not one of the two actions", async () => {
+    const fetchImpl = vi.fn(async () =>
+      json({ ...proposal("follow_up", null), purpose: "make_it_better" }),
+    );
+    await expect(
+      refineBrief({ ...brief, plan_token: "test-plan-token-0001" }, "Kyoto", { fetchImpl }),
+    ).rejects.toBeInstanceOf(PlanRequestError);
   });
 });

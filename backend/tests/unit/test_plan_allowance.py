@@ -11,7 +11,9 @@ import threading
 import time
 from types import SimpleNamespace
 
+import httpx
 import pytest
+import respx
 from fastapi.testclient import TestClient
 
 from happen_api.app import create_app
@@ -22,9 +24,38 @@ from happen_api.planning.limits import (
     AllowanceStore,
     MeteredProvider,
 )
-from happen_api.providers.serpapi.client import SerpApiFailure
+from happen_api.providers.serpapi.client import SerpApiClient, SerpApiFailure
 
 TOKYO = {"label": "Tokyo", "source_text": "Tokyo", "timezone_name": "Asia/Tokyo"}
+_KEY = "test-key-value"
+_SEARCH_URL = "https://serpapi.com/search.json"
+
+
+def _success_body() -> dict[str, object]:
+    """A minimal successful SerpApi document. No live request is ever made."""
+
+    return {
+        "search_metadata": {"id": "search-1", "status": "Success"},
+        "local_results": [],
+    }
+
+
+def _timeout_then(responses: list[httpx.Response], *, timeouts: int = 1):
+    """Return a side effect that times out `timeouts` times, then replays `responses`."""
+
+    remaining = list(responses)
+    left = timeouts
+
+    def effect(_request: httpx.Request) -> httpx.Response:
+        nonlocal left
+        if left > 0:
+            left -= 1
+            raise httpx.ReadTimeout("timed out")
+        if remaining:
+            return remaining.pop(0)
+        return httpx.Response(503, json={"error": "unavailable"})
+
+    return effect
 
 
 class _CountingProvider:
@@ -177,30 +208,127 @@ def test_an_attempted_ninth_call_is_refused_without_calling_the_provider() -> No
     assert store.spent(token) == PLAN_BILLED_REQUEST_LIMIT
 
 
-def test_a_retry_that_sent_a_request_still_consumes_the_allowance() -> None:
-    """A failure carrying a send count is charged for what it sent."""
+def test_a_retry_that_sent_a_request_spends_one_more_request() -> None:
+    """Verify each real outbound attempt spends its own allowance, retry included.
 
-    store = AllowanceStore()
-    token = store.issue()
-    provider = _CountingProvider(sends=2)
-    metered = MeteredProvider(provider, store, token)
-    with pytest.raises(SerpApiFailure):
-        metered.search_places("x")
+    The provider here is a real `SerpApiClient` with a mocked transport, because
+    the point of the repair is that the charge happens at the send boundary
+    rather than once per wrapper call.
+    """
+
+    with respx.mock:
+        respx.get(_SEARCH_URL).mock(
+            side_effect=_timeout_then([httpx.Response(200, json=_success_body())])
+        )
+        store, token = _store()
+        metered = MeteredProvider(
+            SerpApiClient(_KEY, credit_limit=PLAN_BILLED_REQUEST_LIMIT),
+            store,
+            token,
+        )
+        snapshot = metered.search_places("dinner in Tokyo")
+    assert snapshot.attempts == 2
+    # A failed attempt plus its successful retry is two sends, so two requests.
     assert store.spent(token) == 2
     assert store.remaining(token) == PLAN_BILLED_REQUEST_LIMIT - 2
 
 
 def test_a_cancelled_request_that_sent_nothing_consumes_nothing() -> None:
-    """A failure with no send count refunds its claim."""
+    """Verify a call cancelled before the network spends no allowance."""
 
-    store = AllowanceStore()
-    token = store.issue()
-    provider = _CountingProvider(sends=0)
-    metered = MeteredProvider(provider, store, token)
-    with pytest.raises(SerpApiFailure):
-        metered.web_search("x")
+    store, token = _store()
+    metered = MeteredProvider(
+        SerpApiClient(_KEY, credit_limit=PLAN_BILLED_REQUEST_LIMIT, cancelled=lambda: True),
+        store,
+        token,
+    )
+    with respx.mock, pytest.raises(SerpApiFailure):
+        metered.search_places("dinner in Tokyo")
     assert store.spent(token) == 0
     assert store.remaining(token) == PLAN_BILLED_REQUEST_LIMIT
+
+
+def test_a_successful_first_attempt_spends_exactly_one() -> None:
+    """Verify the ordinary path spends one request and no more."""
+
+    with respx.mock:
+        route = respx.get(_SEARCH_URL).mock(return_value=httpx.Response(200, json=_success_body()))
+        store, token = _store()
+        metered = MeteredProvider(
+            SerpApiClient(_KEY, credit_limit=PLAN_BILLED_REQUEST_LIMIT),
+            store,
+            token,
+        )
+        metered.search_places("dinner in Tokyo")
+    assert len(route.calls) == 1
+    assert store.spent(token) == 1
+    assert store.remaining(token) == PLAN_BILLED_REQUEST_LIMIT - 1
+
+
+def test_a_retry_is_refused_before_the_network_when_only_one_request_is_left() -> None:
+    """Verify a plan with one request left sends it once and blocks its retry."""
+
+    with respx.mock:
+        route = respx.get(_SEARCH_URL).mock(
+            side_effect=_timeout_then([], timeouts=PLAN_BILLED_REQUEST_LIMIT)
+        )
+        store = AllowanceStore()
+        token = store.issue()
+        # Seven requests are already spent, so exactly one attempt is affordable.
+        store.claim_attempt(token, PLAN_BILLED_REQUEST_LIMIT - 1)
+        metered = MeteredProvider(
+            SerpApiClient(_KEY, credit_limit=PLAN_BILLED_REQUEST_LIMIT),
+            store,
+            token,
+        )
+        with pytest.raises(SerpApiFailure) as excinfo:
+            metered.search_places("dinner in Tokyo")
+    assert excinfo.value.code == "CREDIT_BUDGET_EXCEEDED"
+    # The first attempt went out. The retry never did.
+    assert len(route.calls) == 1
+    assert store.spent(token) == PLAN_BILLED_REQUEST_LIMIT
+    assert store.remaining(token) == 0
+
+
+def test_concurrent_attempts_cannot_jointly_exceed_eight() -> None:
+    """Verify many threads racing on one token still send at most eight requests."""
+
+    store, token = _store()
+    with respx.mock:
+        route = respx.get(_SEARCH_URL).mock(return_value=httpx.Response(200, json=_success_body()))
+        metered = [
+            MeteredProvider(
+                SerpApiClient(_KEY, credit_limit=PLAN_BILLED_REQUEST_LIMIT),
+                store,
+                token,
+            )
+            for _ in range(4)
+        ]
+        threads = [threading.Thread(target=_drain, args=(client,)) for client in metered]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    assert store.spent(token) == PLAN_BILLED_REQUEST_LIMIT
+    assert store.remaining(token) == 0
+    # Every refused attempt was stopped before it could reach the network.
+    assert len(route.calls) == PLAN_BILLED_REQUEST_LIMIT
+
+
+def _drain(client: MeteredProvider) -> None:
+    """Call repeatedly until the shared plan allowance refuses the call."""
+
+    for _ in range(PLAN_BILLED_REQUEST_LIMIT):
+        try:
+            client.search_places("dinner in Tokyo")
+        except SerpApiFailure as failure:
+            if failure.code == "CREDIT_BUDGET_EXCEEDED":
+                return
+
+
+def _store() -> tuple[AllowanceStore, str]:
+    store = AllowanceStore()
+    return store, store.issue()
 
 
 def test_the_free_locations_call_is_not_charged() -> None:

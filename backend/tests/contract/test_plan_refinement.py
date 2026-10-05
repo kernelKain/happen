@@ -17,7 +17,11 @@ from fastapi.testclient import TestClient
 from happen_api.app import create_app
 from happen_api.config import Settings
 from happen_api.planning.clock import FixedClock
-from happen_api.planning.limits import Allowance
+from happen_api.planning.limits import (
+    PLAN_BILLED_REQUEST_LIMIT,
+    Allowance,
+    AllowanceError,
+)
 
 CLOCK = FixedClock(datetime(2026, 10, 4, 15, 0, tzinfo=UTC))
 _TOKEN = "test-plan-token-for-refinement"
@@ -297,3 +301,170 @@ def test_refine_itself_still_spends_nothing(settings: Settings) -> None:
     assert response.json()["diff"]["added"] == ["preferences"]
     assert response.json()["diff"]["changed"] == []
     assert provider.calls == []
+
+
+def _new_plan(client: TestClient) -> str:
+    """Interpret a fresh prompt and return the plan token the server issued."""
+
+    brief = client.post(
+        "/api/v2/briefs/interpret",
+        json={"prompt": "Dinner in Tokyo on 2026-10-05 at 7pm"},
+    ).json()
+    return brief["brief"]["plan_token"]
+
+
+def _unresolved(settings: Settings) -> tuple[TestClient, TwoPlaceProvider, dict[str, object]]:
+    """Return a client and a brief that is still missing its destination."""
+
+    provider = TwoPlaceProvider()
+    application = create_app(settings)
+    application.state.clock = CLOCK
+    application.state.provider_factory = lambda _limit, _timeout: provider
+    client = TestClient(application)
+    brief = client.post(
+        "/api/v2/briefs/interpret",
+        json={"prompt": "Dinner tomorrow at 7pm"},
+    ).json()["brief"]
+    return client, provider, brief
+
+
+def test_a_follow_up_answer_keeps_the_current_plan_allowance(settings: Settings) -> None:
+    """Verify resolving a missing destination continues on the same plan token.
+
+    A follow-up is the same submitted plan asking one more question, so losing
+    the plan identity would make the answer unusable and the rest of the
+    allowance unreachable.
+    """
+
+    client, _provider, brief = _unresolved(settings)
+    with client:
+        follow_up = client.post(
+            "/api/v2/plans/refine",
+            json={"current": brief, "revision": "Tokyo", "purpose": "follow_up"},
+        )
+        body = follow_up.json()
+        assert follow_up.status_code == 200
+        assert body["purpose"] == "follow_up"
+        # The same opaque token, not a new one and not a lost one.
+        assert body["proposed"]["plan_token"] == brief["plan_token"]
+        assert body["proposed"]["destination_text"] == "Tokyo"
+        # That token still resolves, so the next billed call can use it.
+        resolved = client.post(
+            "/api/v2/destinations/resolve",
+            json={"query": "Tokyo", "plan_token": brief["plan_token"]},
+        )
+    assert resolved.status_code == 200
+
+
+def test_a_follow_up_answer_continues_after_the_same_token_spends_requests(
+    settings: Settings,
+) -> None:
+    """Verify a follow-up answers over the allowance the plan has already used."""
+
+    client, _provider, brief = _unresolved(settings)
+    with client:
+        # Spend two requests under the original plan identity.
+        client.post(
+            "/api/v2/destinations/resolve",
+            json={"query": "Tokyo", "plan_token": brief["plan_token"]},
+        )
+        spent_before = client.app.state.plan_allowances.spent(brief["plan_token"])
+        assert spent_before > 0
+        remaining_before = client.app.state.plan_allowances.remaining(brief["plan_token"])
+        follow_up = client.post(
+            "/api/v2/plans/refine",
+            json={"current": brief, "revision": "Tokyo", "purpose": "follow_up"},
+        )
+        # The answer still arrives on that same plan, allowance intact.
+        assert follow_up.status_code == 200
+        assert follow_up.json()["proposed"]["plan_token"] == brief["plan_token"]
+        store = client.app.state.plan_allowances
+        assert store.spent(brief["plan_token"]) == spent_before
+        assert store.remaining(brief["plan_token"]) == remaining_before
+        # The preserved token still resolves, so the plan can be retrieved on it.
+        plan = client.post("/api/v2/plans", json={**_body(), "plan_token": brief["plan_token"]})
+    assert plan.status_code == 200
+    # The response counts the same server-held allowance, not a browser number.
+    assert plan.json()["billed_requests"] + plan.json()["remaining_requests"] == (
+        PLAN_BILLED_REQUEST_LIMIT
+    )
+    assert plan.json()["remaining_requests"] <= remaining_before
+
+
+def test_applying_a_refinement_creates_a_new_plan_with_a_fresh_allowance(
+    settings: Settings,
+) -> None:
+    """Verify an accepted post-result change is a newly submitted plan.
+
+    The contract gives a refinement the user submits its own maximum of eight
+    billed requests, so it must not continue spending the previous plan's
+    remaining allowance.
+    """
+
+    provider = TwoPlaceProvider()
+    with _app(settings, provider) as client:
+        token = _new_plan(client)
+        client.post("/api/v2/plans", json=_body(plan_token=token))
+        spent = client.app.state.plan_allowances.spent(token)
+        assert spent > 0
+        applied = client.post(
+            "/api/v2/plans/refine",
+            json={
+                "current": {"raw_prompt": "Dinner in Tokyo", "intents": [], "confidence": "high"},
+                "revision": "Make it romantic",
+                "purpose": "plan_refinement",
+            },
+        )
+        body = applied.json()
+        assert applied.status_code == 200
+        assert body["purpose"] == "plan_refinement"
+        assert body["applied"] is False
+        fresh = body["proposed"]["plan_token"]
+        assert fresh is not None
+        assert fresh != token
+        # The new plan starts from a whole allowance, not from the old remainder.
+        assert client.app.state.plan_allowances.spent(fresh) == 0
+        assert client.app.state.plan_allowances.remaining(fresh) == PLAN_BILLED_REQUEST_LIMIT
+        # The new plan identity is usable for retrieval.
+        replanned = client.post("/api/v2/plans", json=_body(plan_token=fresh))
+    assert replanned.status_code == 200
+
+
+def test_the_refinement_route_never_trusts_a_token_from_the_browser(
+    settings: Settings,
+) -> None:
+    """Verify a supplied token cannot buy an allowance or impersonate a plan.
+
+    The purpose decides which plan identity the response carries. A browser
+    cannot raise its own budget by naming one, because the token is resolved
+    from the brief the server already issued and the allowance lives server-side.
+    """
+
+    client, _provider, brief = _unresolved(settings)
+    with client:
+        followed = client.post(
+            "/api/v2/plans/refine",
+            json={
+                "current": brief,
+                "revision": "Tokyo",
+                "purpose": "follow_up",
+                "plan_token": "browser-chosen-token-0001",
+            },
+        )
+        assert followed.status_code == 200
+        # The browser's own token is neither adopted nor honoured.
+        assert followed.json()["proposed"]["plan_token"] == brief["plan_token"]
+        with pytest.raises(AllowanceError):
+            client.app.state.plan_allowances.remaining("browser-chosen-token-0001")
+
+
+def test_refine_rejects_an_unknown_purpose(settings: Settings) -> None:
+    """Verify the purpose is a closed set, not free text from the caller."""
+
+    client, _provider, brief = _unresolved(settings)
+    with client:
+        response = client.post(
+            "/api/v2/plans/refine",
+            json={"current": brief, "revision": "Tokyo", "purpose": "make_it_better"},
+        )
+    assert response.status_code == 422

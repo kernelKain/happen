@@ -14,7 +14,9 @@ an interval.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import date, time, timedelta
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -40,10 +42,30 @@ DAY_ALIASES = {
     "sun": DayOfWeek.sunday,
     "sunday": DayOfWeek.sunday,
 }
+_DAY_PATTERN = "|".join(sorted(DAY_ALIASES, key=len, reverse=True))
 _CLOCK = re.compile(
     r"^(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<meridiem>am|pm)?$",
     re.IGNORECASE,
 )
+_DAY_TOKEN = re.compile(rf"(?i)\b(?:{_DAY_PATTERN})\b\.?")
+_SENTENCE_BREAK = re.compile(r"(?i)(?:[.;!?]|\bor\b|\balso\b|\bbut\b|\bthrough\b)")
+_CONNECTIVE_BREAK = re.compile(r"(?i)(?:,|\bthen\b|&|/)")
+_CLOSED_WORD = re.compile(r"(?i)\b(?:closed|shut)\b")
+_ALL_DAY_CLAIM = re.compile(r"(?i)\b(?:24\s*(?:hours|hrs)|open\s+24)\b")
+# One clock range, either side of it complete with an hours cue.
+_RANGE = (
+    r"(?P<open>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|\\u2013|\\u2014|\\u2212|to)\s*"
+    r"(?P<close>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)"
+)
+# The range is only read as hours once the clause says it is talking about them.
+_CUED_RANGE = re.compile(rf"(?i)\b(?:open(?:s|ing)?|hours?|from)\b[^0-9]{{0,12}}?{_RANGE}")
+# An opening time with no closing bound, such as "opens at 6pm".
+_OPEN_CUE = re.compile(
+    r"(?i)\b(?:open(?:s|ing)?|hours?|from)\b[^0-9]{0,12}?"
+    r"(?P<open>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b"
+)
+# Words that say the clause is talking about opening times at all.
+_HOURS_CUE = re.compile(r"(?i)\b(?:open|opens|opening|close|closes|closing|closed|shut|hours?)\b")
 _CLOSED_TEXT = {"closed"}
 _ALL_DAY_TEXT = {"open 24 hours", "open 24 hrs", "24 hours"}
 _DASHES = "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"
@@ -64,6 +86,19 @@ HOURS_COVERS_ARRIVAL = "hours_covers_arrival"
 HoursState = Literal["open", "closed", "unknown"]
 
 
+class HoursVerdict(StrEnum):
+    """How two hours claims about the same weekday compare.
+
+    Only `conflict` may accuse a place of being wrong. Agreement proves
+    nothing extra and is never surfaced as a disagreement. `unverifiable`
+    means the text could not be aligned, which leaves the claim unverified.
+    """
+
+    agreement = "agreement"
+    conflict = "conflict"
+    unverifiable = "unverifiable"
+
+
 class ScheduleInterval(BaseModel):
     """One canonical opening interval. Equal bounds mean the whole day."""
 
@@ -77,6 +112,9 @@ class ScheduleInterval(BaseModel):
         """An interval that closes at or before it opens runs into the next day."""
 
         return self.closes_at <= self.opens_at
+
+
+_ALL_DAY_INTERVAL = ScheduleInterval(opens_at=time(0, 0), closes_at=time(0, 0))
 
 
 class DaySchedule(BaseModel):
@@ -268,6 +306,211 @@ def lowered_day_text(text: str) -> str:
     """Casefold one weekday's text and drop a trailing full stop."""
 
     return _flatten(text).casefold().rstrip(".")
+
+
+def reconcile_hours(recorded: ProviderHours, statement: str) -> HoursVerdict:
+    """Compare one free-text hours statement with a normalized weekly schedule.
+
+    Two claims about the same weekday conflict only when they are provably
+    incompatible: a weekday recorded open that the statement calls closed, or
+    opening intervals that cannot both cover that weekday. Agreement is
+    agreement, never a conflict, so it never raises a warning.
+
+    Text that cannot be reliably aligned is not evidence either way. A clause
+    that names no weekday, names no hours, or gives only one end of an interval
+    all return `unverifiable`, which leaves the claim unverified rather than
+    accusing the place of being wrong.
+    """
+
+    verdicts: list[HoursVerdict] = []
+    for day, clause in _day_clauses(statement):
+        claimed = _claimed_day(clause)
+        if claimed is None:
+            continue
+        schedule = recorded.days.get(day)
+        if schedule is None and recorded.unrecognized:
+            # The listing could not be read, so there is nothing to compare to.
+            continue
+        verdicts.append(_compare_day(schedule, claimed))
+    if HoursVerdict.conflict in verdicts:
+        return HoursVerdict.conflict
+    if HoursVerdict.agreement in verdicts:
+        return HoursVerdict.agreement
+    return HoursVerdict.unverifiable
+
+
+def _compare_day(schedule: DaySchedule | None, claimed: _ClaimedDay) -> HoursVerdict:
+    """Return whether one weekday's two claims can both be true."""
+
+    if schedule is None:
+        # The listing never named this weekday, so there is nothing to disagree
+        # with. A closure agrees with silence; an opening does not follow from it.
+        return HoursVerdict.agreement if claimed.closed else HoursVerdict.unverifiable
+    if schedule.status == "unknown":
+        # Unreadable provider text is not evidence of closure.
+        return HoursVerdict.unverifiable
+    if claimed.closed:
+        return HoursVerdict.agreement if schedule.status == "closed" else HoursVerdict.conflict
+    if schedule.status == "closed":
+        return HoursVerdict.conflict
+    if claimed.opens_early:
+        return HoursVerdict.unverifiable
+    if not claimed.intervals or not schedule.intervals:
+        return HoursVerdict.unverifiable
+    if any(
+        _overlaps(claimed_interval, listed_interval)
+        for claimed_interval in claimed.intervals
+        for listed_interval in schedule.intervals
+    ):
+        return HoursVerdict.agreement
+    return HoursVerdict.conflict
+
+
+def _overlaps(claimed: ScheduleInterval, listed: ScheduleInterval) -> bool:
+    """Whether two canonical intervals can both cover some time on one day.
+
+    An interval that closes at or before it opens runs into the next day, so it
+    covers both its own evening and the small hours that follow, which is how
+    every other hours decision in this module already reads it.
+    """
+
+    if claimed.overnight or listed.overnight:
+        # Two overnight windows, or one overnight and one same-day window, always
+        # share the small hours after midnight.
+        return (
+            _spans_midnight(claimed)
+            or _spans_midnight(listed)
+            or _night_start(claimed) < _night_end(listed)
+        )
+    return claimed.opens_at < listed.closes_at and listed.opens_at < claimed.closes_at
+
+
+def _spans_midnight(interval: ScheduleInterval) -> bool:
+    return interval.overnight
+
+
+def _night_start(interval: ScheduleInterval) -> time:
+    """The moment an interval first reaches into the small hours."""
+
+    return interval.closes_at
+
+
+def _night_end(interval: ScheduleInterval) -> time:
+    """The moment an interval stops reaching into the small hours."""
+
+    return interval.opens_at if interval.overnight else time(0, 0)
+
+
+@dataclass(frozen=True)
+class _ClaimedDay:
+    """What one clause asserts about one named weekday."""
+
+    closed: bool
+    intervals: tuple[ScheduleInterval, ...] = ()
+    # A clause such as "opens at 6pm" states an opening without a closing bound.
+    # That is too little to compare two open schedules, but it is already
+    # enough to contradict a weekday the record lists as closed.
+    opens_early: bool = False
+
+
+def _day_clauses(text: str) -> list[tuple[DayOfWeek, str]]:
+    """Return each named weekday with the clause that states something about it.
+
+    A clause boundary is a sentence mark or a comma, or a connective such as
+    `and`. `on` and `at` are not boundaries, because they sit between a weekday
+    and its own hours, and "closed on Monday" must not lose the word `closed`.
+    """
+
+    found: list[tuple[DayOfWeek, str]] = []
+    inherited: tuple[DayOfWeek, str] | None = None
+    for sentence in _SENTENCE_BREAK.split(_flatten(text)):
+        # The inherited clause is carried into the first piece of the next
+        # sentence, so "closed on Monday. It is shut on Tuesday" is read the same
+        # as "closed on Monday and Tuesday".
+        for index, piece in enumerate(_CONNECTIVE_BREAK.split(sentence)):
+            days = _days_named(piece)
+            if not days:
+                # A bare connective keeps the hours of the clause before it, so
+                # "closed Monday and Tuesday" describes Tuesday as well.
+                if piece and _is_bare_connector(piece) and inherited is not None:
+                    found.append((inherited[0], f"{inherited[1]} {piece}"))
+                continue
+            text = piece if index or inherited is None else f"{inherited[1]} {piece}"
+            for day in days:
+                if any(item[0] is day for item in found):
+                    continue
+                found.append((day, text))
+                inherited = (day, text)
+    return [(day, clause) for day, clause in found if _stated_hours(clause)]
+
+
+def _days_named(piece: str) -> list[DayOfWeek]:
+    """Return every weekday a piece names, longest label first."""
+
+    named: list[DayOfWeek] = []
+    for match in _DAY_TOKEN.finditer(piece):
+        label = match.group(0).casefold().rstrip(".")
+        day = DAY_ALIASES.get(label)
+        if day is not None and day not in named:
+            named.append(day)
+    return named
+
+
+def _is_bare_connector(piece: str) -> bool:
+    """Whether a piece only joins two clauses and asserts nothing itself."""
+
+    return piece.strip(" ,.-").casefold() in {"and", "or", "also", "but", "then", "to", "&", "/"}
+
+
+def _stated_hours(clause: str) -> bool:
+    """Whether a clause asserts hours, rather than only naming a day."""
+
+    body = _DAY_TOKEN.sub(" ", clause).strip(" ,.-")
+    if _CLOSED_WORD.search(body) or _ALL_DAY_CLAIM.search(body):
+        return True
+    return _HOURS_CUE.search(body) is not None
+
+
+def _claimed_day(clause: str) -> _ClaimedDay | None:
+    """Read one clause about one weekday, or None when it states no hours.
+
+    A closure is a complete claim. An opening interval is a claim only when the
+    clause carries an hours cue, because half an interval cannot be shown to
+    disagree with a full one, and because a bare clock time is usually a
+    visitor's own visit rather than the opening hours.
+    """
+
+    body = _DAY_TOKEN.sub(" ", clause).strip(" ,.-")
+    if _CLOSED_WORD.search(body):
+        return _ClaimedDay(closed=True)
+    if _ALL_DAY_CLAIM.search(body):
+        return _ClaimedDay(closed=False, intervals=(_ALL_DAY_INTERVAL,))
+    found = _CUED_RANGE.search(body)
+    if found is None:
+        return _open_without_close(body)
+    opens = parse_clock(found.group(1))
+    closes = parse_clock(found.group(2))
+    if opens is None or closes is None:
+        return None
+    resolved = _resolve_clocks(opens, closes)
+    if resolved is None:
+        return None
+    return _ClaimedDay(
+        closed=False,
+        intervals=(ScheduleInterval(opens_at=resolved[0], closes_at=resolved[1]),),
+    )
+
+
+def _open_without_close(body: str) -> _ClaimedDay | None:
+    """Read an opening time that carries no closing bound, or None."""
+
+    found = _OPEN_CUE.search(body)
+    if found is None:
+        return None
+    opens = parse_clock(found.group(1))
+    if opens is None:
+        return None
+    return _ClaimedDay(closed=False, opens_early=True)
 
 
 def parse_range(part: str) -> tuple[time, time] | None:

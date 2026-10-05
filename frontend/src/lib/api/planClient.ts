@@ -9,6 +9,7 @@ import {
   type PlanningBrief,
   planErrorSchema,
   type RefinementProposal,
+  type RefinementPurpose,
   type ResolvedDestination,
   refinementProposalSchema,
 } from "./plan";
@@ -206,15 +207,24 @@ export async function requestPlan(
   return parsed.data;
 }
 
-/** Validate a revision. The caller decides whether to keep the proposed brief. */
+/**
+ * Validate a revision. The caller decides whether to keep the proposed brief.
+ *
+ * The purpose says which of the two actions this is. `follow_up` continues the
+ * current plan, so the server keeps the current token and its remaining
+ * allowance. `plan_refinement` is a newly submitted plan, so the server issues
+ * a new token with a fresh allowance. The page never supplies a token here:
+ * the server resolves the plan identity from the brief it already issued, so
+ * nothing about the allowance is trusted from the browser.
+ */
 export async function refineBrief(
   current: PlanningBrief,
   revision: string,
-  options: CallOptions = {},
+  options: CallOptions & { purpose?: RefinementPurpose } = {},
 ): Promise<RefinementProposal> {
   const { status, payload } = await postJson(
     "/api/v2/plans/refine",
-    { current, revision },
+    { current, revision, purpose: options.purpose ?? "follow_up" },
     options,
   );
   if (status !== 200) {

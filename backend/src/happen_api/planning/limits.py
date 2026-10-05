@@ -36,23 +36,16 @@ PLAN_BILLED_REQUEST_LIMIT = 8
 class Allowance:
     """One submitted plan's remaining budget.
 
-    `spent` counts requests that were actually sent. `reserved` counts requests
-    a concurrent request has claimed but not yet sent, so two simultaneous
-    requests cannot jointly exceed the limit.
+    `spent` counts real outbound provider attempts. It is only ever increased
+    by an atomic claim taken at the moment an attempt is about to be sent, so
+    the counter cannot lag behind what the network has already seen.
     """
 
     spent: int = 0
-    reserved: int = 0
-
-    @property
-    def claimed(self) -> int:
-        """Everything already sent plus everything currently claimed."""
-
-        return self.spent + self.reserved
 
     @property
     def remaining(self) -> int:
-        return max(0, PLAN_BILLED_REQUEST_LIMIT - self.claimed)
+        return max(0, PLAN_BILLED_REQUEST_LIMIT - self.spent)
 
 
 class AllowanceError(Exception):
@@ -92,7 +85,7 @@ class AllowanceStore:
             found = self._items.get(token)
             if found is None:
                 raise AllowanceError("unknown plan token")
-            return max(0, self._limit - found.claimed)
+            return max(0, self._limit - found.spent)
 
     def spent(self, token: str) -> int:
         """Return how many billed requests this plan has actually sent."""
@@ -103,55 +96,35 @@ class AllowanceStore:
                 raise AllowanceError("unknown plan token")
             return found.spent
 
-    def reserve(self, token: str, count: int = 1) -> None:
-        """Claim `count` sends atomically, or raise when the plan cannot afford them.
+    def claim_attempt(self, token: str, count: int = 1) -> None:
+        """Atomically claim `count` outbound attempts before they are sent.
 
-        Reserving before the call is what makes a concurrent pair safe: the
-        second request sees the first request's claim and stops.
+        This is the only place a request is charged, and it runs immediately
+        before the network send. Claiming per attempt rather than per wrapper
+        call is what makes a retry cost its own attempt: an inner client that
+        sends twice has claimed twice. Claiming before the send is also what
+        makes a concurrent pair safe, because the second caller sees the first
+        claim and refuses rather than overspending the shared budget.
         """
 
-        if count < 0:
-            raise AllowanceError("a negative reservation is not a request")
+        if count < 1:
+            raise AllowanceError("an outbound attempt must claim at least one request")
         with self._lock:
             found = self._items.get(token)
             if found is None:
                 raise AllowanceError("unknown plan token")
-            if found.claimed + count > self._limit:
+            if found.spent + count > self._limit:
                 raise AllowanceError("plan allowance reached")
-            found.reserved += count
+            found.spent += count
 
-    def charge(self, token: str, sent: int, *, release: int = 0) -> None:
-        """Turn `sent` claims into spent requests, and drop `release` unused ones.
+    def reset(self, token: str) -> None:
+        """Restore a plan's whole allowance, keeping the same opaque token."""
 
-        `sent` is one client's own billed-send count and is added to the plan's
-        total, because each request builds its own client. A retry that reached
-        the network is inside `sent`, so it stays charged. A call cancelled
-        before it reached the network is not inside `sent`, so it is refunded
-        through `release`. Other concurrent claims are left alone.
-        """
-
-        if sent < 0 or release < 0:
-            return
         with self._lock:
             found = self._items.get(token)
             if found is None:
-                return
-            found.spent += sent
-            found.reserved = max(0, found.reserved - sent - release)
-
-    def release(self, token: str, count: int = 1) -> None:
-        """Refund claims for requests that were never sent.
-
-        A cancelled request that reached no provider call consumes nothing.
-        """
-
-        if count <= 0:
-            return
-        with self._lock:
-            found = self._items.get(token)
-            if found is None:
-                return
-            found.reserved = max(0, found.reserved - count)
+                raise AllowanceError("unknown plan token")
+            found.spent = 0
 
     def forget(self, token: str) -> None:
         """Drop one plan identity. Used when a refinement starts a new plan."""
@@ -255,10 +228,15 @@ def _exhausted() -> SerpApiFailure:
 
 
 class MeteredProvider:
-    """Wraps a provider client so billed calls come out of a plan's allowance.
+    """Wraps a provider client so every outbound attempt draws on a plan allowance.
 
-    Only a known billed lookup is claimed. Anything else, including the free
-    Locations call, `close`, and every attribute, passes straight through.
+    A real `SerpApiClient` runs the allowance gate itself, once per network
+    send, so each retry is charged separately and a cancelled call costs
+    nothing. A provider that does not implement the gate is charged per billed
+    call instead, which is correct for the scripted in-memory fakes used by
+    tests and still refuses a call the plan cannot afford.
+
+    The free Locations call, `close`, and every other attribute pass through.
     """
 
     BILLED = frozenset(
@@ -276,6 +254,7 @@ class MeteredProvider:
         self._store = store
         self._token = token
         self._billed = 0
+        self._gated = False
 
     @property
     def credits_charged(self) -> int:
@@ -283,29 +262,34 @@ class MeteredProvider:
 
         return self._billed
 
-    def _call(self, name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> object:
+    def _gated_provider(self) -> bool:
+        """Whether the inner client charges itself at the send boundary."""
+
+        if self._gated:
+            return True
+        setter = getattr(self._inner, "set_attempt_gate", None)
+        if not callable(setter):
+            return False
+        setter(self._claim)
+        self._gated = True
+        return True
+
+    def _claim(self) -> None:
+        """Claim one outbound attempt, or stop it before the network."""
+
         try:
-            self._store.reserve(self._token)
+            self._store.claim_attempt(self._token)
         except AllowanceError as exc:
             # Reuse the provider's own budget signal so discovery and destination
             # resolution stop gracefully instead of failing the whole request.
             raise _exhausted() from exc
-        try:
-            result = getattr(self._inner, name)(*args, **kwargs)
-        except AllowanceError:
-            raise
-        except BaseException as exc:
-            # The inner client counts every billed request it actually sent.
-            sent = int(getattr(exc, "billed_requests", 0) or 0)
-            if sent > 0:
-                self._billed += sent
-                self._store.charge(self._token, sent)
-            else:
-                self._store.release(self._token)
-            raise
         self._billed += 1
-        self._store.charge(self._token, 1)
-        return result
+
+    def _call(self, name: str, args: tuple[object, ...], kwargs: dict[str, object]) -> object:
+        if self._gated_provider():
+            return getattr(self._inner, name)(*args, **kwargs)
+        self._claim()
+        return getattr(self._inner, name)(*args, **kwargs)
 
     def __getattr__(self, name: str) -> object:
         attribute = getattr(self._inner, name)
