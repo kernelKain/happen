@@ -132,6 +132,7 @@ class SerpApiClient:
         self.disabled_code: str | None = None
         self._cancelled = cancelled or (lambda: False)
         self._attempt_gate: Callable[[], None] | None = None
+        self._send_gate: Callable[[], bool] | None = None
         self._owns_http = http_client is None
         self._http = http_client or httpx.Client(
             transport=transport,
@@ -152,6 +153,33 @@ class SerpApiClient:
         if not callable(gate):
             raise TypeError("the attempt gate must be callable")
         self._attempt_gate = gate
+
+    def set_send_gate(self, gate: Callable[[], bool] | None) -> None:
+        """Install the check that decides whether an attempt may be sent.
+
+        This runs before the allowance gate, so a request the caller cancelled
+        or the planning deadline stopped returns False without reaching the
+        network and without spending plan allowance.
+        """
+
+        self._send_gate = gate
+
+    def set_attempt_cap(self, seconds: float | None) -> None:
+        """Lower the per-attempt ceiling for the work this client will do."""
+
+        if seconds is not None and seconds > 0:
+            self._attempt_timeout_seconds = min(self._attempt_timeout_seconds, seconds)
+
+    def _may_send(self) -> bool:
+        """Whether the shared deadline permits this attempt to start."""
+
+        gate = self._send_gate
+        return True if gate is None else bool(gate())
+
+    def _attempt_timeout(self, started: float, remaining: float) -> float:
+        """Return the timeout for one attempt, never beyond the shared budget."""
+
+        return max(0.1, min(self._attempt_timeout_seconds, remaining))
 
     def __repr__(self) -> str:
         return (
@@ -387,7 +415,16 @@ class SerpApiClient:
                     "The SerpApi credit budget for this recommendation is exhausted.",
                     retryable=False,
                 )
-            timeout = min(self._attempt_timeout_seconds, remaining)
+            # The shared planning deadline gets the last word on whether this
+            # attempt may start. A refused attempt is not sent, so it is not
+            # charged either.
+            if not self._may_send():
+                raise SerpApiFailure(
+                    "TRANSIENT_DEPENDENCY",
+                    "The planning deadline stopped this request.",
+                    retryable=True,
+                )
+            timeout = self._attempt_timeout(started, remaining)
             # Claim this attempt before the send, not after the response. A
             # cancelled request never reaches the network, and a claim it
             # cannot afford stops it here instead of spending a ninth credit.

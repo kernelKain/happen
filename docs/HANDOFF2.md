@@ -21,10 +21,10 @@ Section 27 of `docs/HANDOFF.md` still says the build has not started. That secti
 | | |
 |---|---|
 | Current phase | Global live experience |
-| Phase complete | No. Five independently audited defects are repaired and covered by automation. The model quality gate failed, so claims stay off. |
-| Last finished step | Repair planner accounting and refinement flow. |
-| Next step | manual check of the repaired flow, then a fresh audit |
-| Branch | `global-live-experience` |
+| Phase complete | No. Five audited defects are repaired. Latency and concurrency are now bounded by one shared monotonic deadline, measured against fixtures only. The model quality gate failed, so claims stay off. |
+| Last finished step | Bound planning latency and concurrency. |
+| Next step | live SerpApi latency measurement, which needs explicit approval for credits |
+| Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
 | Pull request | None for this branch. Pull request 8 merged `demo-experience` into `main` at `c0bc793`. |
 | Remote | `origin/main` is at `c0bc793`. This branch has no upstream. |
 | Live URL | Not deployed |
@@ -108,10 +108,10 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | SerpApi accounting is charged per outbound attempt. Refinement carries an explicit purpose, and a follow-up keeps its plan while an applied change becomes a new plan. Hours conflicts need provable incompatibility. Destination qualifiers no longer join a place name. Gemma claims stay off. |
-| Last finished step | Repair planner accounting and refinement flow. |
-| Next step | manual check of the repaired flow, then a fresh audit |
-| Branch | `global-live-experience`, started from `c0bc793` |
+| Status | One monotonic 14s deadline governs destination, search, details, reviews, web, directions, and extraction. A cancelled or expired attempt is never sent and never charged. The eight-attempt allowance is shared across concurrent work and claimed per attempt. Cached plans spend zero requests. Fixture benchmark only; warm p50/p95 against live SerpApi is unmeasured. Gemma claims stay off. |
+| Last finished step | Bound planning latency and concurrency. |
+| Next step | live SerpApi latency measurement, which needs explicit approval for credits |
+| Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
 | Live URL | Not deployed |
 | Spend | $0 |
 | Biggest blocker | Render services are still not created, and that deploy is not the current step. |
@@ -245,6 +245,78 @@ Snippets stay short, carry no reviewer identity, and a `_PHONE` pattern drops an
 The evidence drawer shows the source kind, the supported field, the match method, the retrieval time, and a `Not verified.` or `Conflicts with another source.` line where that applies. Each claim carries `data-verification` and a source class, so official, Maps, and community are visually distinct.
 
 `tests/unit/test_evidence_provenance.py` covers classification, URL preservation, entity mismatch, unsafe-link filtering, real conflicts, non-conflicting secondary text, and review skipping.
+
+## Planning latency and concurrency
+
+This step bounds planning latency without changing what a plan says. It starts from `8be4ab9`.
+
+**Honest status of the baseline.** `8be4ab9` is a local commit on `global-live-experience` that has never been pushed, never had a pull request, and therefore never received a CodeRabbit review. The manual checks for the earlier repair have not been confirmed as run. This branch is built on that unreviewed baseline because the alternative was to write no code at all. Nothing here has been validated against live SerpApi.
+
+### The one shared deadline
+
+`happen_api.planning.deadline` owns the wall-clock budget for one request.
+
+- `PlanningDeadline` is monotonic, so a host clock change cannot extend or shorten it. The budget is the contract's 14 seconds.
+- `budget_for(cap)` hands a stage its own cap clipped to what the request has left. A stage that arrives late is never given a fresh full cap, so concurrent work cannot overrun the deadline between them.
+- `allow_send()` runs immediately before every outbound send. A cancelled or expired attempt returns `False`, so it is never sent and never charged.
+- `StageTiming` records only a stage name, elapsed milliseconds, and an outcome. `stage_timings_are_safe` exists so a test can prove no prompt, destination, URL, credential, or review text can reach a log line.
+
+Per-stage ceilings are declared in the module: destination 6s, search 8s, details 4s, reviews 4s, web 4s, directions 4s, extraction 6s, cached read 0.3s.
+
+### Ordering of the send gate and the allowance gate
+
+The two gates are ordered, and the order is the safety property:
+
+1. `set_send_gate` — the shared deadline and the caller's disconnect state. May stop the attempt.
+2. `set_attempt_gate` — the plan's eight-request allowance, claimed inside `SerpApiClient._billed_attempts` just before each send.
+
+The send gate runs first, so a request the deadline or a disconnection stopped is never charged. The allowance gate still runs once per attempt, so a retry spends its own request.
+
+### What was deliberately not changed
+
+Enrichment order, `_sort_pool`, and `selection_key` were left alone. `selection_key` already ends in `(-fit, provider_rank, casefolded_name, place_id_or_data_id)`, which is a total order over the pool. Two tests were written against the wrong premise and were corrected rather than the code:
+
+- A test asserting that reversing provider rows leaves the pool order unchanged was wrong. `provider_rank` is the provider's own order and is the documented first tie-breaker, so reversing input legitimately reverses it. The test now asserts that repeated runs of one fixed input are byte-identical, and that the documented chain is what settles the order.
+- A test asserting equal-fit candidates sort by name regardless of input was also wrong, for the same reason. Provider rank is consulted first.
+
+Sorting after concurrent retrieval is therefore already deterministic, which is why no new ordering layer was added.
+
+### Benchmark
+
+`backend/scripts/benchmark_planning.py` measures the planner against local fakes only.
+
+```bash
+cd backend && uv run python scripts/benchmark_planning.py
+cd backend && uv run python scripts/benchmark_planning.py --json
+```
+
+Fixture-derived results from this machine, 40 runs per case after 3 warmups:
+
+| Case | p50 | p95 | Provider calls |
+|---|---|---|---|
+| Cached plan, no provider call | 0.166 ms | 0.200 ms | 0 |
+| Metered billed call, 25 ms scripted delay | 25.2 ms | 25.4 ms | 1 |
+
+**These are not live numbers.** The script states this in its own output and in its JSON (`"measures_live_serpapi": false`). It excludes real network latency, SerpApi response time, and cold-start model loading. The only honest claims from it are relative: the cached path performs zero provider calls and completes far inside the 300 ms target, and one metered call costs one attempt.
+
+The contract's warm targets of p50 <= 5s and p95 <= 12s are **not** met by this evidence and are **not** claimed. They remain unmeasured against live SerpApi.
+
+### Still to do, and it needs a live run
+
+- Measure warm p50 and p95 against real SerpApi for a real destination. That spends credits and needs explicit approval.
+- Confirm the 14-second deadline holds under real latency, including the retry path.
+- Confirm the per-stage ceilings are generous enough that ordinary calls are not cut short.
+- A full plan has not been timed end to end. Only the cached read and one metered call are covered.
+
+### Test totals after this step
+
+| Suite | Result |
+|---|---|
+| `cd backend && uv run ruff format --check src tests ../scripts/scan-secrets.py` | 86 files already formatted |
+| `cd backend && uv run ruff check src tests ../scripts/scan-secrets.py` | All checks passed |
+| `cd backend && uv run pytest` | 461 passed (448 before, 13 new) |
+| `cd backend && uv run python scripts/benchmark_planning.py` | ran, fixture-derived |
+| `python3 scripts/scan-secrets.py` | exit 0 |
 
 ## Independent repair audit
 

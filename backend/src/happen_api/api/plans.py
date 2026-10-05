@@ -22,6 +22,13 @@ from happen_api.planning.contracts import (
     PlanningPromptRequest,
     ResolvedDestination,
 )
+from happen_api.planning.deadline import (
+    DESTINATION_SECONDS,
+    PLANNING_DEADLINE_SECONDS,
+    DeadlineExceeded,
+    PlanningDeadline,
+    Stage,
+)
 from happen_api.planning.destination import (
     DestinationResolution,
     ResolutionStatus,
@@ -174,21 +181,26 @@ def resolve_place(body: ResolveRequest, request: Request) -> object:
     if denied is not None:
         _end(request, billed=True)
         return denied
-    metered, owned = _metered(request, body.plan_token)
+    deadline = _deadline(request)
+    metered, owned = _metered(request, body.plan_token, deadline)
     if isinstance(metered, _Unavailable):
         _end(request, billed=True)
         return metered.response
     client = metered
     try:
         pending = PendingDate(phrase=body.pending_date) if body.pending_date else None
-        resolution = resolve_destination(
-            body.query,
-            client,  # type: ignore[arg-type]
-            clock=_clock(request),
-            pending_date=pending,
-            local_date=body.local_date,
-            local_start=body.local_start,
-        )
+        with deadline.stage(Stage.destination, DESTINATION_SECONDS):
+            resolution = resolve_destination(
+                body.query,
+                client,  # type: ignore[arg-type]
+                clock=_clock(request),
+                pending_date=pending,
+                local_date=body.local_date,
+                local_start=body.local_start,
+            )
+    except DeadlineExceeded:
+        _end(request, billed=True)
+        return _timed_out(request)
     except AllowanceError:
         _end(request, billed=True)
         return _exhausted(request)
@@ -244,7 +256,7 @@ def create_plan(body: PlanRequest, request: Request) -> object:
             constraints=constraints,
         )
         return _stamp(plan, store, body.plan_token)
-    metered, owned = _metered(request, body.plan_token)
+    metered, owned = _metered(request, body.plan_token, _deadline(request))
     if isinstance(metered, _Unavailable):
         _end(request, billed=True)
         return metered.response
@@ -409,6 +421,19 @@ def _exhausted(request: Request) -> object:
     )
 
 
+def _timed_out(request: Request) -> object:
+    """The shared planning deadline ran out before the answer was complete."""
+
+    return _failure(
+        request,
+        504,
+        "TIMEOUT",
+        "Live place evidence did not respond in time.",
+        "Try again.",
+        retryable=True,
+    )
+
+
 def _stamp(plan: object, store: AllowanceStore, token: str) -> object:
     """Stamp a response with this plan's real spend and what is left.
 
@@ -444,12 +469,30 @@ def _clock(request: Request) -> Clock:
     return clock
 
 
-def _metered(request: Request, token: str) -> tuple[object, bool]:
+def _deadline(request: Request) -> PlanningDeadline:
+    """Build the one monotonic budget that every stage of this request shares.
+
+    A caller that disconnected cancels the request. The deadline is monotonic,
+    so a host clock change cannot lengthen or shorten it, and it is passed to
+    the provider so no stage can restart its own clock.
+    """
+
+    return PlanningDeadline(
+        budget_seconds=PLANNING_DEADLINE_SECONDS,
+        cancel=lambda: _disconnected(request),
+    ).start()
+
+
+def _metered(
+    request: Request, token: str, deadline: PlanningDeadline | None = None
+) -> tuple[object, bool]:
     """Build a provider client whose every outbound attempt draws on this plan.
 
     The allowance gate is installed on the inner client, not on a wrapper, so a
-    retry inside that client claims its own request. A scripted test provider
-    without the gate is charged per billed call instead.
+    retry inside that client claims its own request. The shared deadline is
+    installed beside it and runs first, so an attempt the caller cancelled or
+    the budget stopped is never sent and never charged. A scripted test
+    provider without either gate is charged per billed call instead.
     """
 
     factory = getattr(request.app.state, "provider_factory", None)
@@ -484,6 +527,15 @@ def _metered(request: Request, token: str) -> tuple[object, bool]:
             cancelled=lambda: _disconnected(request),
         )
         owned = http_client is None
+    if deadline is not None:
+        # The send gate runs before the allowance gate, so work the deadline or
+        # a disconnection stopped never reaches the network and costs nothing.
+        setter = getattr(inner, "set_send_gate", None)
+        if callable(setter):
+            setter(lambda: deadline.allow_send())
+        cap = getattr(inner, "set_attempt_cap", None)
+        if callable(cap):
+            cap(DESTINATION_SECONDS)
     return MeteredProvider(inner, _allowances(request), token), owned
 
 
