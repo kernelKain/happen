@@ -63,11 +63,18 @@ def test_the_customer_page_does_not_claim_a_model_reads_the_request() -> None:
 
 
 def test_the_customer_page_states_the_real_mechanism() -> None:
-    """The page must name the deterministic parser and Python selection."""
+    """The page must name the deterministic parser and Python selection.
+
+    The wording moved into the methodology disclosure when the landing was
+    reshaped, so the assertions here follow the text that actually ships. The
+    substance is unchanged: the parser is named, Python selects the stops, and
+    the model is named only as measured and switched off.
+    """
 
     landing = _normalized(_REPO / "frontend" / "src" / "app" / "landing" / "Landing.tsx")
     assert "deterministic" in landing
-    assert "python picks the stops" in landing
+    # Selection is Python's, and feasibility is checked before it selects.
+    assert "python checks feasibility and picks the stops" in landing
     # The model may be named only as measured and switched off.
     assert "gemma" in landing
     assert "missed its quality gates" in landing

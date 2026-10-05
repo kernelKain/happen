@@ -41,6 +41,10 @@ EXTRACTION_SECONDS = 6.0
 # contract's cached-swap target is well inside this.
 CACHED_SECONDS = 0.3
 
+# Below this, a stage is not worth starting: it cannot finish, and starting it
+# would push the request past its deadline.
+_MIN_USEFUL_SECONDS = 1.0
+
 
 class Stage(str):
     """Named planning stages, used for diagnostics only."""
@@ -135,6 +139,24 @@ class PlanningDeadline:
 
         return max(0.0, min(cap, self.remaining))
 
+    def can_start(self, cap: float) -> bool:
+        """Whether a stage should begin at all.
+
+        A stage is refused once the request has less than a usable minimum left.
+        Starting one then would run the request past its deadline, because a
+        stage cannot be interrupted from outside and its own work continues
+        after its last network call.
+
+        This bounds the total overrun to that minimum rather than eliminating
+        it, which is the honest guarantee: a stage already inside a call when
+        the budget expires always finishes first. `cap` is unused here on
+        purpose. Refusing on the cap instead would stop a two-stop discovery
+        that legitimately needs more than one slice.
+        """
+
+        del cap  # The floor is about remaining time, not the stage's wish.
+        return self.remaining >= _MIN_USEFUL_SECONDS
+
     def check(self) -> None:
         """Raise when the request may not start more work."""
 
@@ -174,11 +196,13 @@ _MAX_TIMINGS = 64
 
 
 class _StageScope:
-    """Context manager for one stage. It reports rather than enforces the cap.
+    """Context manager for one stage.
 
-    The stage's own transport timeout is what stops it running long; this scope
-    records the truth of what happened so a partial-evidence decision can be
-    made afterwards.
+    A stage that cannot be given any of its time is refused at entry rather than
+    started and cut off. Recording `exhausted` without refusing would let a
+    sequence of stages each run to completion past the deadline, because the
+    last of them is already inside the call when the budget runs out. The
+    stage's own transport timeout still bounds the call it does make.
     """
 
     def __init__(self, deadline: PlanningDeadline, stage: str, cap: float) -> None:
@@ -191,8 +215,15 @@ class _StageScope:
     def __enter__(self) -> Self:
         self._deadline.check()
         self._entered = self._deadline.now()
-        # A stage that cannot be given any time is not started at all.
-        self.exhausted = self._deadline.budget_for(self._cap) <= 0.0
+        # A stage is refused when the request has too little time left to be
+        # worth starting it. Recording only the fact and running anyway would
+        # let a sequence of stages each start with a sliver and carry the
+        # request past its deadline.
+        self.exhausted = not self._deadline.can_start(self._cap)
+        if self.exhausted:
+            raise DeadlineExceeded(
+                f"the {self._stage} stage has no usable time left in the planning budget"
+            )
         return self
 
     def __exit__(self, exc_type: object, *_rest: object) -> None:

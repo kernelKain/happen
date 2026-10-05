@@ -108,9 +108,9 @@ Deadline: October 5, 2026 at 06:59 UTC (12:29 PM IST). Feature freeze is build h
 
 | | |
 |---|---|
-| Status | The landing states one outcome above the fold: identity, headline, one sentence, composer, three chips, and three promises. Methodology sits behind a closed disclosure. Behaviour is unchanged. One monotonic 14s deadline governs provider work, the eight-attempt allowance is shared and charged per attempt, and cached plans spend zero requests. Fixture benchmark only; warm p50/p95 against live SerpApi is unmeasured. Gemma claims stay off. |
-| Last finished step | Refine the evening planning entry. |
-| Next step | live SerpApi latency measurement, which needs explicit approval for credits |
+| Status | Audited and verified. The whole branch passes 464 backend, 61 frontend, and 21 shell tests with formatting, lint, the secret scan, and the production build clean. Two silent defects were found and fixed: the plans route was given the destination attempt cap, and a stage could begin with too little budget left to finish. Swaps, cached alternatives, why-won comparison, calculated arrivals, departures, and route distance do not exist and are documented as absent. One monotonic 14s deadline governs provider work, the eight-attempt allowance is charged per attempt, and cached plans spend zero requests. Warm p50/p95 against live SerpApi is unmeasured. Gemma claims stay off. |
+| Last finished step | Verify the decision-ready evening experience. |
+| Next step | A manual local test of one real evening, which only the user can run |
 | Branch | `decision-ready-evenings`, created from the local `8be4ab9` |
 | Live URL | Not deployed |
 | Spend | $0 |
@@ -1326,3 +1326,85 @@ and keeps no counter of its own.
 | Public claims aligned | Done. The landing, README, metadata, and submission guidance match the measured report. The model is described as measured and disabled. | `Align public claims with measured behavior.` | Read the README once more. Do not push. Do not deploy. |
 
 | Repairs verified | Done. All twelve audit failures reproduced as fixed. 404 backend, 50 frontend, 15 shell tests pass. One bounded Jaipur smoke spent 3 of 8 billed requests and compared 5 candidates. | `Verify the repaired global planner.` | Independent repair audit. Do not push. Do not deploy. |
+
+## Verification of the decision-ready evening experience
+
+This step audited the whole branch, repaired two real defects, added regression
+tests for them, and ran every command in the README test list. It spent zero
+SerpApi credits and staged nothing under `.github/hooks/`.
+
+### Two defects this audit found and fixed
+
+| Defect | What was wrong | Proof | Fix |
+|---|---|---|---|
+| Destination seconds applied to every route | `_metered` gave every metered client the destination-stage cap, so `/api/v2/plans` limited each SerpApi attempt to 6.0s instead of 8.0s. | A probe printed `cap=6.0 want=8.0 WRONG` for `/api/v2/plans` and `cap=6.0 want=6.0 OK` for `/api/v2/destinations/resolve`. | `_metered` takes an `attempt_cap`. The plans route passes `SEARCH_SECONDS`; the destination route passes `DESTINATION_SECONDS`. Both routes now report the cap the contract names. |
+| A stage started even when it could not finish | `_StageScope.__enter__` computed `exhausted` and then discarded it, so a stage began with too little budget left and ran to completion anyway. | Six 2.5s stages finished at 15.0s against a 14.0s budget. | `can_start()` refuses a stage with less than `_MIN_USEFUL_SECONDS` remaining, and `__enter__` raises `DeadlineExceeded` instead of returning a scope. The overrun is now bounded to at most 1.0s, which is the one stage already in flight when the budget ends. |
+
+Both defects were silent: tests passed while the behaviour was wrong. That is
+why `test_the_plans_route_uses_the_search_stage_cap` and
+`test_a_sequence_of_stages_cannot_run_past_the_planning_deadline` now exist.
+
+### What was verified, and how
+
+| Check | Command | Result |
+|---|---|---|
+| Formatting | `uv run ruff format --check src tests ../scripts/scan-secrets.py` | 86 files already formatted |
+| Lint | `uv run ruff check src tests ../scripts/scan-secrets.py` | All checks passed |
+| Backend tests | `uv run pytest` | 464 passed |
+| Secret scan | `python3 scripts/scan-secrets.py` | clean, exit 0 |
+| Frontend lint | `npm run check` | 36 files, no fixes needed |
+| Frontend tests | `npm test` | 61 passed across 9 files |
+| Frontend build | `npm run build` | built in 220ms |
+| Shell tests | `npm run test:shell` | 21 passed, axe included, 1280px and 390px |
+
+Contract items re-checked by reading the code, not by trusting the log: the
+allowance is claimed at the outbound-attempt boundary so a retry that reaches
+the network stays charged and a cancelled attempt costs nothing; the ninth
+attempt is refused before the send; a `follow_up` keeps the caller's token and
+allowance; a `plan_refinement` is issued a fresh token and the old one is
+forgotten; hours agreement is not a conflict; and `model_claims_enabled()` still
+returns false because the measured parse rate is 0.0667.
+
+The production bundle was inspected directly. It contains no key, no host, no
+fixture marker, and no development-only copy. The only occurrences of the string
+`password` are React DOM's own input-type tables.
+
+### Behaviour that does not exist
+
+These were requested in conversation and are **not** in the product. The API
+surface is `/briefs/interpret`, `/destinations/resolve`, `/plans`,
+`/plans/refine`, `/healthz`, `/api/v1/meta`, plus the historical recommendation
+routes that only a development process mounts.
+
+- **No swap endpoint.** There is no way to change a stop after the plan is built.
+- **No cached alternatives.** A plan response carries no runner-up and no
+  alternative stop, so there is nothing to fall back to.
+- **No why-won comparison.** The response carries no reason one stop beat
+  another. Python picks; the page shows what was picked.
+- **No calculated arrival, no departure time, no travel duration.** The timeline
+  is the local start time and then each stop's own hours. The second stop says
+  "A separate arrival was not planned for this stop."
+- **No route mode, distance, or duration.** `PlanTransition` carries only the
+  from-stop, to-stop, an `unverified` status, and a directions URL.
+- **Warm p50 and p95 against live SerpApi are unmeasured.** The benchmark script
+  is fixture-only and prints that warning itself.
+
+### Remaining user-owned work
+
+Nothing below was done here, and none of it can be done from this repository
+alone.
+
+1. Run the app locally and plan one real evening end to end. Read the brief, the
+   timeline, and the diff as if you had never seen the code, and note anything
+   you cannot explain.
+2. Watch the network tab and confirm a single submitted plan sends at most eight
+   billed requests, and that resubmitting the same evening sends none.
+3. Try the follow-up path. A question about the plan must keep the same token
+   and spend nothing. "Review this change" must produce a new plan with its own
+   eight.
+4. Optional, and only with approval: spend a few credits to measure real warm
+   p50 and p95 for one destination. The fixture benchmark cannot tell you this.
+5. Walk a friend through it and write down what they say is unclear.
+6. Record a short demo. Keep it to one evening, one question, one change.
+7. Review the diff, then decide separately whether to push, open a pull request,
+   deploy, or publish. None of that was done here.

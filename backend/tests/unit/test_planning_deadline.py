@@ -22,6 +22,7 @@ from happen_api.planning.contracts import IntentKind, PlaceIntent, ResolvedDesti
 from happen_api.planning.deadline import (
     CACHED_SECONDS,
     PLANNING_DEADLINE_SECONDS,
+    SEARCH_SECONDS,
     DeadlineExceeded,
     PlanningDeadline,
     Stage,
@@ -428,3 +429,122 @@ _DINNER = PlaceIntent(kind=IntentKind.dinner, label="dinner", position=1)
 _KEY = "test-key-value"
 _SEARCH_URL = "https://serpapi.com/search.json"
 _SUCCESS = {"search_metadata": {"id": "s1", "status": "Success"}, "local_results": []}
+
+
+def test_each_route_gets_the_attempt_cap_its_own_work_needs() -> None:
+    """Verify the per-attempt ceiling matches the work each route performs.
+
+    Destination resolution and discovery share one deadline but not one budget:
+    a search that is cut at the destination ceiling turns a slow-but-working
+    request into a spurious timeout.
+    """
+
+    from types import SimpleNamespace
+
+    from fastapi.testclient import TestClient
+
+    from happen_api.app import create_app
+    from happen_api.config import Settings
+    from happen_api.planning.clock import FixedClock
+    from happen_api.planning.deadline import DESTINATION_SECONDS, SEARCH_SECONDS
+    from happen_api.planning.limits import Allowance
+
+    token = "test-plan-token-for-deadline-caps"
+
+    class _Recorder:
+        credit_limit = PLAN_BILLED_REQUEST_LIMIT
+        timeout = 14.0
+
+        def __init__(self) -> None:
+            self.caps: list[float] = []
+
+        def set_send_gate(self, _gate: object) -> None:
+            return None
+
+        def set_attempt_cap(self, seconds: float) -> None:
+            self.caps.append(seconds)
+
+        def set_attempt_gate(self, _gate: object) -> None:
+            return None
+
+        def supported_locations(self, _q: str, limit: int = 5) -> list[object]:
+            return []
+
+        def lookup_maps_coordinates(self, _q: str) -> list[object]:
+            return []
+
+        def search_places(self, *_a: object, **_k: object) -> object:
+            return SimpleNamespace(payload={"local_results": []})
+
+        def place_details(self, **_k: object) -> object:
+            return SimpleNamespace(payload={"place_results": {}})
+
+        def place_reviews(self, **_k: object) -> object:
+            return SimpleNamespace(payload={"reviews": []})
+
+        def web_search(self, _q: str) -> object:
+            return SimpleNamespace(payload={"organic_results": []})
+
+    def run(route: str, body: dict[str, object]) -> list[float]:
+        application = create_app(
+            Settings(live_mode=True, serpapi_api_key="test-key-value", environment="test")
+        )
+        application.state.clock = FixedClock(datetime(2026, 10, 4, 22, 0, tzinfo=UTC))
+        provider = _Recorder()
+        application.state.provider_factory = lambda _l, _t: provider
+        application.state.plan_allowances._items[token] = Allowance()
+        with TestClient(application) as client:
+            assert client.post(route, json=body).status_code == 200
+        return provider.caps
+
+    assert run("/api/v2/destinations/resolve", {"query": "Tokyo", "plan_token": token}) == [
+        DESTINATION_SECONDS
+    ]
+    plan_body: dict[str, object] = {
+        "destination": {
+            "label": "Tokyo",
+            "source_text": "Tokyo",
+            "timezone_name": "Asia/Tokyo",
+        },
+        "intents": [{"kind": "dinner", "label": "dinner", "position": 1}],
+        "local_date": "2026-10-05",
+        "local_start": "19:00",
+        "plan_token": token,
+    }
+    assert run("/api/v2/plans", plan_body) == [SEARCH_SECONDS]
+
+
+def test_a_sequence_of_stages_cannot_run_past_the_planning_deadline() -> None:
+    """Verify the overrun is bounded by the stage that was already in flight.
+
+    A stage cannot be interrupted from outside, so the last one always
+    finishes. What must not happen is a fresh stage starting with too little
+    time left to be worth running, which is what turned one slow call into an
+    unbounded overrun.
+    """
+
+    clock = FakeClock()
+    deadline = _deadline(clock)
+    ran = 0
+    with pytest.raises(DeadlineExceeded):
+        for _ in range(20):
+            with deadline.stage(Stage.search, SEARCH_SECONDS):
+                clock.advance(2.5)
+                ran += 1
+    # The overrun never exceeds the one stage that was already running.
+    overrun = clock.now_value - PLANNING_DEADLINE_SECONDS
+    assert 0.0 <= overrun <= 2.5
+    # And the request did stop rather than continuing to start work.
+    assert ran < 20
+
+
+def test_a_stage_is_refused_rather_than_started_with_no_time_left() -> None:
+    """Verify an exhausted request refuses new work instead of starting it."""
+
+    clock = FakeClock()
+    deadline = _deadline(clock)
+    clock.advance(PLANNING_DEADLINE_SECONDS)
+    entered = False
+    with pytest.raises(DeadlineExceeded), deadline.stage(Stage.details, 4.0):
+        entered = True
+    assert entered is False

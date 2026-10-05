@@ -126,6 +126,12 @@ npm run test:shell
 ## Known limitations
 
 - One evening, at most two stops. Extra nights or stops stay unplanned.
+- There is no swap endpoint. A stop cannot be changed after the plan is built.
+- A plan response carries no runner-up, no alternative, and no why-won
+  comparison. Python picks the stops; the page shows what was picked.
+- The timeline is the local start time and each stop's own hours. There is no
+  calculated arrival, no departure time, no route mode, distance, or duration,
+  and the second stop says so rather than implying a route.
 - Happen does not claim universal coverage.
 - No model loads in the customer path. Local Gemma was measured and missed its gates, so it stays disabled and model claims stay off.
 - Travel time between stops stays unverified until a source states it.
@@ -138,14 +144,32 @@ npm run test:shell
 
 ## Remaining user-owned work
 
-An independent local audit is the next check. After that, these stay with the user:
+The branch passes every automated check. The manual checks cannot be done from
+this repository alone, so they stay with the user:
 
-- A manual local test of one evening, including whether the brief, the timeline, and the diff are understandable.
-- A friend walkthrough, with the friend saying what was clear.
-- Creating the host services, setting the provider key in the host secret store, and deploying.
+- Run the app locally and plan one real evening. Read the brief, the timeline,
+  and the change as if you had never seen the code, and note anything you cannot
+  explain.
+- Confirm in the network tab that one submitted plan sends at most eight billed
+  requests, and that asking the same evening again sends none.
+- Ask a follow-up question about the plan and confirm it spends nothing. Then
+  submit a refinement and confirm it opens a new eight-request allowance.
+- Optionally, and only with approval, spend a few credits to measure warm p50 and
+  p95 against real SerpApi. The committed benchmark is fixture-only and cannot
+  answer this.
+- Walk a friend through it and write down what they say is unclear.
+- Create the host services, set the provider key in the host secret store, and
+  deploy.
 - Any public submission, including a DEV post.
 
-Do not put the provider key in `render.yaml`, docs, or git. `render.yaml` tracks `main`, turns live mode on, and leaves `SERPAPI_API_KEY` as a dashboard secret with no value in the file.
+Happen cannot swap a stop after the plan is built, and a plan response carries
+no runner-up, no why-won comparison, no calculated arrival or departure time,
+and no route distance or duration. Those are absent on purpose rather than
+pending, and `docs/HANDOFF2.md` records why.
+
+Do not put the provider key in `render.yaml`, docs, or git. `render.yaml` tracks
+`main`, turns live mode on, and leaves `SERPAPI_API_KEY` as a dashboard secret
+with no value in the file.
 
 ## DEV challenge story
 

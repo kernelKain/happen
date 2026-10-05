@@ -25,6 +25,7 @@ from happen_api.planning.contracts import (
 from happen_api.planning.deadline import (
     DESTINATION_SECONDS,
     PLANNING_DEADLINE_SECONDS,
+    SEARCH_SECONDS,
     DeadlineExceeded,
     PlanningDeadline,
     Stage,
@@ -182,7 +183,7 @@ def resolve_place(body: ResolveRequest, request: Request) -> object:
         _end(request, billed=True)
         return denied
     deadline = _deadline(request)
-    metered, owned = _metered(request, body.plan_token, deadline)
+    metered, owned = _metered(request, body.plan_token, deadline, attempt_cap=DESTINATION_SECONDS)
     if isinstance(metered, _Unavailable):
         _end(request, billed=True)
         return metered.response
@@ -484,7 +485,10 @@ def _deadline(request: Request) -> PlanningDeadline:
 
 
 def _metered(
-    request: Request, token: str, deadline: PlanningDeadline | None = None
+    request: Request,
+    token: str,
+    deadline: PlanningDeadline | None = None,
+    attempt_cap: float = SEARCH_SECONDS,
 ) -> tuple[object, bool]:
     """Build a provider client whose every outbound attempt draws on this plan.
 
@@ -493,6 +497,10 @@ def _metered(
     installed beside it and runs first, so an attempt the caller cancelled or
     the budget stopped is never sent and never charged. A scripted test
     provider without either gate is charged per billed call instead.
+
+    `attempt_cap` is the per-attempt ceiling for the work this client will
+    actually do. Destination resolution and discovery have different needs, so
+    the caller states which one it is rather than inheriting a single value.
     """
 
     factory = getattr(request.app.state, "provider_factory", None)
@@ -535,7 +543,7 @@ def _metered(
             setter(lambda: deadline.allow_send())
         cap = getattr(inner, "set_attempt_cap", None)
         if callable(cap):
-            cap(DESTINATION_SECONDS)
+            cap(attempt_cap)
     return MeteredProvider(inner, _allowances(request), token), owned
 
 
