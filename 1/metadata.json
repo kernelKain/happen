@@ -1,9 +1,11 @@
 {
   "cli_version": "0.11.3",
   "checkpoint_id": "01M44ZN3CZ2HNMN7W4M1RMCRXF",
+  "session_id": "6cda79b7-6fb4-4c9a-80f1-f8136c33b40f",
   "strategy": "manual-commit",
+  "created_at": "2026-10-05T02:53:08.294401935Z",
   "branch": "evidence-first-interface",
-  "checkpoints_count": 2,
+  "checkpoints_count": 1,
   "files_touched": [
     "README.md",
     "backend/src/happen_api/planning/itinerary.py",
@@ -23,20 +25,32 @@
     "frontend/tests/result.spec.ts",
     "frontend/tests/shell.spec.ts"
   ],
-  "sessions": [
+  "agent": "Cursor",
+  "model": "kimi-k3-high",
+  "turn_id": "5340ab61f610",
+  "compact_transcript_start": 0,
+  "initial_attribution": {
+    "calculated_at": "2026-10-05T02:53:08.275292975Z",
+    "agent_lines": 2990,
+    "agent_removed": 1040,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2990,
+    "total_lines_changed": 4030,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
     {
-      "metadata": "/0/metadata.json",
-      "transcript": "/0/full.jsonl",
-      "compact_transcript": "/0/transcript.jsonl",
-      "content_hash": "/0/content_hash.txt",
-      "prompt": "/0/prompt.txt"
-    },
-    {
-      "metadata": "/1/metadata.json",
-      "transcript": "/1/full.jsonl",
-      "compact_transcript": "/1/transcript.jsonl",
-      "content_hash": "/1/content_hash.txt",
-      "prompt": "/1/prompt.txt"
+      "checkpoint_number": 1,
+      "user_lines_added": 68,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".github/hooks/entire.json": 68
+      }
     }
   ]
 }
